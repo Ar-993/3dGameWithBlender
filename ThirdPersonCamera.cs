@@ -18,7 +18,8 @@ namespace _3DLight
         {
             Yaw -= (mouseState.X - windowCenter.X) * 0.004f;
             Pitch -= (mouseState.Y - windowCenter.Y) * 0.004f;
-            Pitch = MathHelper.Clamp(Pitch, 0f, 1f);
+            Pitch = MathHelper.Clamp(Pitch, -0.5f, 0.25f);
+            Mouse.SetPosition(windowCenter.X, windowCenter.Y);
         }
 
         public void UpdateMatrices(Vector3 targetPosition, float aspectRatio)

@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.IO; // 🟢 Нужен для Path.Combine
 
 public sealed class LightGame : Game
 {
@@ -11,6 +12,9 @@ public sealed class LightGame : Game
     private readonly Level level = new();
     private readonly Player player = new();
     private readonly ThirdPersonCamera camera = new();
+
+    // 🟢 1. СОЗДАЕМ СКЕЛЕТА (Спавним недалеко от игрока в точке (5, 0, 5))
+    private readonly Skeleton skeleton = new(new Vector3(5f, 0f, 5f));
 
     // Инструменты для рисования 2D-текста (Отладчик)
     private SpriteBatch spriteBatch = null!;
@@ -55,16 +59,20 @@ public sealed class LightGame : Game
     {
         spriteBatch = new SpriteBatch(GraphicsDevice);
         debugFont = Content.Load<SpriteFont>("DebugFont");
-
+        string animsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
         level.LoadContent(Content, "level");
 
         // Загружаем анимации персонажа
-        player.LoadContent(Content);
+        player.LoadContent(GraphicsDevice, animsFolder);
+
+        // 🟢 2. ЗАГРУЖАЕМ СКЕЛЕТА
+
+        skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
     }
 
-    protected override void Update(GameTime gameTime)
+    public void Update(GameTime gameTime, KeyboardState keyboard, float cameraYaw)
     {
-        var keyboard = Keyboard.GetState();
+        keyboard = Keyboard.GetState();
 
         if (keyboard.IsKeyDown(Keys.Escape) && previousKeyboard.IsKeyUp(Keys.Escape))
         {
@@ -84,6 +92,10 @@ public sealed class LightGame : Game
         player.Update(gameTime, keyboard, camera.Yaw);
         camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
 
+        // 🟢 3. ОБНОВЛЯЕМ ИИ И АНИМАЦИИ СКЕЛЕТА
+        float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        skeleton.Update(player.Position, deltaTime);
+
         previousKeyboard = keyboard;
         base.Update(gameTime);
     }
@@ -97,7 +109,10 @@ public sealed class LightGame : Game
         level.Draw(camera.View, camera.Projection);
 
         // 🎯 Передаем gameTime в игрока!
-        player.Draw(camera.View, camera.Projection, gameTime);
+        player.Draw(camera.View, camera.Projection);
+
+        // 🟢 4. РИСУЕМ СКЕЛЕТА С КАМЕРОЙ ТРЕТЬЕГО ЛИЦА
+        skeleton.Draw(camera.View, camera.Projection);
 
         spriteBatch.Begin();
         string debugText = $"PLAYER POS:  X: {player.Position.X:F2}  |  Y: {player.Position.Y:F2}  |  Z: {player.Position.Z:F2}";

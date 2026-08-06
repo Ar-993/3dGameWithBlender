@@ -106,6 +106,19 @@
 /processorParam:Version=3.8.5.0
 /build:Assets/Run.fbx
 
+#begin Assets/Skeleton/skeleton_texture.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.0
+/build:Assets/Skeleton/skeleton_texture.png
+
 #begin Assets/StickMan.fbx
 /importer:FbxImporter
 /processor:ModelProcessor
