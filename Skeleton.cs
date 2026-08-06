@@ -1,12 +1,15 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using System;
+using System.Collections.Generic;
+using System.IO;
 
 public class Skeleton
 {
     public Vector3 Position { get; set; }
     public float RotationY { get; private set; }
-    public float Speed { get; set; } = 4f;
+    public float Speed { get; set; } = 3.5f;
 
     private readonly CharacterAnimator animator = new();
 
@@ -15,8 +18,6 @@ public class Skeleton
     public void LoadContent(GraphicsDevice graphicsDevice, ContentManager content, string animsFolder)
     {
         string skeletonFolder = Path.Combine(animsFolder, "Skeleton");
-
-        // Загружаем скомпилированную MGCB текстуру
         Texture2D skeletonTexture = content.Load<Texture2D>("Assets/Skeleton/skeleton_texture");
 
         var monsterAnims = new Dictionary<string, string>
@@ -31,18 +32,20 @@ public class Skeleton
     public void Update(Vector3 playerPosition, float deltaTime)
     {
         Vector3 dir = playerPosition - Position;
-        dir.Y = 0;
+        dir.Y = 0; // Игнорируем разницу по высоте при расчете направления
         float distance = dir.Length();
 
-        if (distance < 30f && distance > 1.5f) // Преследуем игрока
+        if (distance < 60f && distance > 1.2f) // Увеличили дистанцию обнаружения до 60м
         {
             dir.Normalize();
-            Position += dir * Speed * deltaTime;
-            RotationY = MathF.Atan2(dir.X, dir.Z);
 
+            Vector3 newPos = Position + dir * Speed * deltaTime;
+            Position = new Vector3(newPos.X, playerPosition.Y, newPos.Z);
+
+            RotationY = MathF.Atan2(dir.X, dir.Z);
             animator.Play("Run", loop: true);
         }
-        else // Стоим
+        else
         {
             animator.Play("Idle", loop: true);
         }
@@ -52,7 +55,7 @@ public class Skeleton
 
     public void Draw(Matrix view, Matrix projection)
     {
-        Matrix world = Matrix.CreateRotationY(RotationY) * Matrix.CreateTranslation(Position);
+        Matrix world = Matrix.CreateScale(1f) * Matrix.CreateRotationY(RotationY) * Matrix.CreateTranslation(Position);
         animator.Draw(world, view, projection);
     }
 }
