@@ -10,12 +10,14 @@ public class Player
     // Стартовые координаты персонажа
     public Vector3 Position { get; set; } = new Vector3(850f, 17.5f, 45f);
     public float RotationY { get; set; }
-    public float Speed { get; set; } = 500f;
+    public float Speed { get; set; } = 400f;
 
     // --- ФИЗИКА И ПРЫЖОК ---
     private float verticalVelocity = 0f;          // Скорость по оси Y
-    private const float Gravity = -12f;           // Сила гравитации (падение)
-    private const float JumpImpulse = 55f;        // Сила толчка при прыжке
+    private const float Gravity = -14f;           // Сила гравитации (падение)
+    private const float JumpImpulse = 45f;        // Сила толчка при прыжке
+    private const float CollisionRadius = 0.35f;
+    private const float CollisionHeight = 1.8f;
     private bool isGrounded;
 
     public Level.Platform? CurrentPlatform { get; private set; }
@@ -39,6 +41,7 @@ public class Player
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         Vector3 moveDir = Vector3.Zero;
+        Vector3 horizontalMovement = Vector3.Zero;
 
         // 1. Считываем движение WASD
         if (keyboard.IsKeyDown(Keys.W)) moveDir.Z = -1;
@@ -56,7 +59,7 @@ public class Player
             Matrix cameraRotation = Matrix.CreateRotationY(cameraYaw);
             Vector3 rotatedDir = Vector3.TransformNormal(moveDir, cameraRotation);
 
-            Position += rotatedDir * Speed * deltaTime;
+            horizontalMovement = rotatedDir * Speed * deltaTime;
             RotationY = MathF.Atan2(rotatedDir.X, rotatedDir.Z);
         }
 
@@ -70,26 +73,18 @@ public class Player
         // 3. ГРАВИТАЦИЯ
         verticalVelocity += Gravity * deltaTime;
 
-        Vector3 previousPos = Position;
-        Vector3 currentPos = Position;
-        currentPos.Y += verticalVelocity * deltaTime;
+        Vector3 movement = horizontalMovement;
+        movement.Y = verticalVelocity * deltaTime;
+        Position = level.MoveCharacter(
+            Position,
+            movement,
+            CollisionRadius,
+            CollisionHeight,
+            ref verticalVelocity,
+            out Level.Platform? platform);
 
-        // 4. ПРИЗЕМЛЕНИЕ НА ВЕРХНЮЮ ГРАНЬ ПЛАТФОРМЫ
-        if (verticalVelocity <= 0f &&
-            level.TryFindLanding(previousPos, currentPos, out Level.Platform? platform, out float surfaceY))
-        {
-            currentPos.Y = surfaceY;
-            verticalVelocity = 0f;
-            isGrounded = true;
-            CurrentPlatform = platform;
-        }
-        else
-        {
-            isGrounded = false;
-            CurrentPlatform = null;
-        }
-
-        Position = currentPos;
+        CurrentPlatform = platform;
+        isGrounded = platform is not null;
 
         // 5. УПРАВЛЕНИЕ АНИМАЦИЯМИ
         if (!isGrounded)
