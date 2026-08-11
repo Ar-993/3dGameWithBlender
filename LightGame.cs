@@ -19,7 +19,10 @@ public sealed class LightGame : Game
     private SpriteFont debugFont = null!;
 
     private KeyboardState previousKeyboard;
-    private bool mouseCaptured = true;
+    private bool mouseCaptured;
+
+    private bool wasActive;
+    private MouseState previousMouse;
 
     public LightGame()
     {
@@ -35,7 +38,7 @@ public sealed class LightGame : Game
 
         Window.Title = "3D Game — 60 FPS Animations";
         Content.RootDirectory = "Content";
-        IsMouseVisible = false;
+        IsMouseVisible = true;
     }
 
     protected override void Initialize()
@@ -50,6 +53,7 @@ public sealed class LightGame : Game
 
         base.Initialize();
         DebugConsole.Open();
+        wasActive = IsActive;
         CaptureMouse();
     }
 
@@ -69,37 +73,41 @@ public sealed class LightGame : Game
     {
         KeyboardState keyboard = Keyboard.GetState();
         MouseState mouse = Mouse.GetState();
+        bool capturedThisFrame = false;
+        bool justActivated = IsActive && !wasActive;
 
-        // 1. Если окно игры потеряло фокус — автоматически отпускаем мышь
+        // Потеря фокуса всегда освобождает курсор и приостанавливает управление.
         if (!IsActive)
         {
-            mouseCaptured = false;
-            IsMouseVisible = true;
+            ReleaseMouse();
+            previousKeyboard = keyboard;
+            previousMouse = mouse;
+            wasActive = false;
+            base.Update(gameTime);
+            return;
         }
 
-        // 2. Нажатие ESC переключает режим (освободить / захватить)
+        // Escape только освобождает мышь. Повторное нажатие ничего не закрывает.
         if (keyboard.IsKeyDown(Keys.Escape) && previousKeyboard.IsKeyUp(Keys.Escape))
-        {
-            mouseCaptured = !mouseCaptured;
-            IsMouseVisible = !mouseCaptured;
+            ReleaseMouse();
 
-            if (mouseCaptured)
-                CaptureMouse();
-        }
-
-        // 3. Клик левой кнопкой мыши по окну игры снова активирует захват
-        if (!mouseCaptured && IsActive && mouse.LeftButton == ButtonState.Pressed)
+        // Захватываем только по новому клику, а не по кнопке, зажатой во время Alt+Tab.
+        if (!mouseCaptured &&
+            !justActivated &&
+            IsInsideClient(mouse) &&
+            mouse.LeftButton == ButtonState.Pressed &&
+            previousMouse.LeftButton == ButtonState.Released)
         {
-            mouseCaptured = true;
-            IsMouseVisible = false;
             CaptureMouse();
+            capturedThisFrame = true;
         }
 
-        // 4. Вращаем камеру ТОЛЬКО когда мышь захвачена и окно активно
-        if (mouseCaptured && IsActive)
+        // В кадр захвата пропускаем смещение, потому что MouseState ещё хранит старую позицию.
+        if (mouseCaptured)
         {
             var windowCenter = new Point(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
-            camera.UpdateMouse(windowCenter, mouse);
+            if (!capturedThisFrame)
+                camera.UpdateMouse(windowCenter, mouse);
             Mouse.SetPosition(windowCenter.X, windowCenter.Y);
         }
 
@@ -112,8 +120,11 @@ public sealed class LightGame : Game
         DebugConsole.Update(gameTime, player, skeleton);
 
         previousKeyboard = keyboard;
+        previousMouse = mouse;
+        wasActive = true;
         base.Update(gameTime);
     }
+
 
     protected override void Draw(GameTime gameTime)
     {
@@ -141,13 +152,26 @@ public sealed class LightGame : Game
 
     private void CaptureMouse()
     {
+        mouseCaptured = true;
+        IsMouseVisible = false;
         var center = new Point(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
         Mouse.SetPosition(center.X, center.Y);
     }
+
+    private void ReleaseMouse()
+    {
+        mouseCaptured = false;
+        IsMouseVisible = true;
+    }
+
+    private bool IsInsideClient(MouseState mouse) =>
+        mouse.X >= 0 && mouse.X < Window.ClientBounds.Width &&
+        mouse.Y >= 0 && mouse.Y < Window.ClientBounds.Height;
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
         DebugConsole.Close();
         base.OnExiting(sender, args);
     }
+
 }

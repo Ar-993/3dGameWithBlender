@@ -19,15 +19,15 @@ internal static class LevelColliderLoader
         var platforms = new List<Level.Platform>();
         int nextId = 0;
 
-        Visit(scene, scene.RootNode, Matrix.Identity, platforms, ref nextId);
+        ReadCollision(scene, scene.RootNode, Matrix.Identity, platforms, ref nextId);
 
         if (platforms.Count == 0)
-            throw new InvalidOperationException("В модели уровня не найдены платформы с горизонтальной поверхностью.");
+            throw new InvalidOperationException("Платформ нет - :( ");
 
         return platforms;
     }
 
-    private static void Visit(
+    private static void ReadCollision(
         Scene scene,
         Node node,
         Matrix parentTransform,
@@ -65,7 +65,7 @@ internal static class LevelColliderLoader
         }
 
         foreach (Node child in node.Children)
-            Visit(scene, child, transform, platforms, ref nextId);
+            ReadCollision(scene, child, transform, platforms, ref nextId);
     }
 
     private static bool IsWalkable(string name) =>

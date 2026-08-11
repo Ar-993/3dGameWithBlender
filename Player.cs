@@ -10,12 +10,12 @@ public class Player
     // Стартовые координаты персонажа
     public Vector3 Position { get; set; } = new Vector3(850f, 17.5f, 45f);
     public float RotationY { get; set; }
-    public float Speed { get; set; } = 6f;
+    public float Speed { get; set; } = 500f;
 
     // --- ФИЗИКА И ПРЫЖОК ---
     private float verticalVelocity = 0f;          // Скорость по оси Y
-    private const float Gravity = -28f;           // Сила гравитации (падение)
-    private const float JumpImpulse = 30f;        // Сила толчка при прыжке
+    private const float Gravity = -12f;           // Сила гравитации (падение)
+    private const float JumpImpulse = 55f;        // Сила толчка при прыжке
     private bool isGrounded;
 
     public Level.Platform? CurrentPlatform { get; private set; }
