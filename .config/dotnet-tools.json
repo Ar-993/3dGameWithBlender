@@ -9,10 +9,10 @@
       ],
       "rollForward": false
     },
-    "dotnet-mgcb-editor": {
+    "dotnet-mgcb-editor-windows": {
       "version": "3.8.4.1",
       "commands": [
-        "mgcb-editor"
+        "mgcb-editor-windows"
       ],
       "rollForward": false
     }

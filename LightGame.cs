@@ -49,6 +49,7 @@ public sealed class LightGame : Game
             Math.Max(0, (display.Height - Window.ClientBounds.Height) / 2));
 
         base.Initialize();
+        DebugConsole.Open();
         CaptureMouse();
     }
 
@@ -58,7 +59,8 @@ public sealed class LightGame : Game
         debugFont = Content.Load<SpriteFont>("DebugFont");
         string animsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
 
-        level.LoadContent(Content, "level");
+        string levelSource = Path.Combine(AppContext.BaseDirectory, "Assets", "level.fbx");
+        level.LoadContent(Content, "level", levelSource);
         player.LoadContent(GraphicsDevice, animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
     }
@@ -102,11 +104,12 @@ public sealed class LightGame : Game
         }
 
         // Обновление игрока и скелета
-        player.Update(gameTime, keyboard, camera.Yaw);
+        player.Update(gameTime, keyboard, camera.Yaw, level);
         camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-        skeleton.Update(player.Position, deltaTime);
+        skeleton.Update(player, level, deltaTime);
+        DebugConsole.Update(gameTime, player, skeleton);
 
         previousKeyboard = keyboard;
         base.Update(gameTime);
@@ -124,8 +127,10 @@ public sealed class LightGame : Game
 
         // 🟢 ДЕБАГ: Печатаем координаты игрока И скелета
         spriteBatch.Begin();
-        string playerText = $"PLAYER POS:   X: {player.Position.X:F2} | Y: {player.Position.Y:F2} | Z: {player.Position.Z:F2}";
-        string skelText = $"SKELETON POS: X: {skeleton.Position.X:F2} | Y: {skeleton.Position.Y:F2} | Z: {skeleton.Position.Z:F2}";
+        string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
+        string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
+        string playerText = $"PLAYER POS:   X: {player.Position.X:F2} | Y: {player.Position.Y:F2} | Z: {player.Position.Z:F2} | PLATFORM: {playerPlatform}";
+        string skelText = $"SKELETON POS: X: {skeleton.Position.X:F2} | Y: {skeleton.Position.Y:F2} | Z: {skeleton.Position.Z:F2} | PLATFORM: {skeletonPlatform}";
 
         spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);
         spriteBatch.DrawString(debugFont, skelText, new Vector2(15, 35), Color.LawnGreen);
@@ -138,5 +143,11 @@ public sealed class LightGame : Game
     {
         var center = new Point(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
         Mouse.SetPosition(center.X, center.Y);
+    }
+
+    protected override void OnExiting(object sender, ExitingEventArgs args)
+    {
+        DebugConsole.Close();
+        base.OnExiting(sender, args);
     }
 }

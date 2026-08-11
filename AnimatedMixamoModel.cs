@@ -15,6 +15,7 @@ internal sealed class AnimatedMixamoModel
     private const int MaxBones = 72;
     private readonly GraphicsDevice graphicsDevice;
     private readonly List<AnimatedMesh> meshes = [];
+    private readonly List<RigidMesh> rigidMeshes = [];
     private readonly Dictionary<string, Clip> clips = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Assimp.Node> nodes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Matrix> bindPose = new(StringComparer.Ordinal);
@@ -120,9 +121,28 @@ internal sealed class AnimatedMixamoModel
 
     private void BuildMeshes(Scene scene, Texture2D modelTexture)
     {
-        foreach (var source in scene.Meshes)
+        var meshOwners = new Dictionary<int, string>();
+
+        void IndexMeshOwners(Assimp.Node node)
         {
-            if (!source.HasBones) continue;
+            foreach (int meshIndex in node.MeshIndices)
+                meshOwners[meshIndex] = node.Name;
+            foreach (Assimp.Node child in node.Children)
+                IndexMeshOwners(child);
+        }
+
+        IndexMeshOwners(scene.RootNode);
+
+        for (int meshIndex = 0; meshIndex < scene.MeshCount; meshIndex++)
+        {
+            Assimp.Mesh source = scene.Meshes[meshIndex];
+            if (!source.HasBones)
+            {
+                if (meshOwners.TryGetValue(meshIndex, out string? ownerNode))
+                    BuildRigidMesh(source, ownerNode, modelTexture);
+                continue;
+            }
+
             if (source.BoneCount > MaxBones)
                 throw new InvalidOperationException($"Сетка содержит {source.BoneCount} костей; максимум — {MaxBones}.");
 
@@ -194,6 +214,63 @@ internal sealed class AnimatedMixamoModel
             throw new InvalidOperationException("Файл FBX не содержит мешей со скелетом.");
     }
 
+    private void BuildRigidMesh(Assimp.Mesh source, string ownerNode, Texture2D modelTexture)
+    {
+        var vertices = new VertexPositionNormalTexture[source.VertexCount];
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            System.Numerics.Vector3 position = source.Vertices[i];
+            System.Numerics.Vector3 normal = source.HasNormals
+                ? source.Normals[i]
+                : new System.Numerics.Vector3(0, 1, 0);
+            System.Numerics.Vector3 uv = source.HasTextureCoords(0)
+                ? source.TextureCoordinateChannels[0][i]
+                : new System.Numerics.Vector3();
+
+            vertices[i] = new VertexPositionNormalTexture(
+                new Vector3(position.X, position.Y, position.Z),
+                new Vector3(normal.X, normal.Y, normal.Z),
+                new Vector2(uv.X, uv.Y));
+        }
+
+        int[] indices = source.GetIndices().ToArray();
+        var vertexBuffer = new VertexBuffer(
+            graphicsDevice,
+            VertexPositionNormalTexture.VertexDeclaration,
+            vertices.Length,
+            BufferUsage.WriteOnly);
+        vertexBuffer.SetData(vertices);
+
+        var indexBuffer = new IndexBuffer(
+            graphicsDevice,
+            IndexElementSize.ThirtyTwoBits,
+            indices.Length,
+            BufferUsage.WriteOnly);
+        indexBuffer.SetData(indices);
+
+        var effect = new BasicEffect(graphicsDevice)
+        {
+            TextureEnabled = true,
+            Texture = modelTexture,
+            LightingEnabled = true,
+            PreferPerPixelLighting = true,
+            AmbientLightColor = new Vector3(0.4f),
+            SpecularColor = Vector3.Zero
+        };
+        effect.EnableDefaultLighting();
+        effect.AmbientLightColor = new Vector3(0.4f);
+        effect.DirectionalLight0.Enabled = true;
+        effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.4f));
+        effect.DirectionalLight0.DiffuseColor = Vector3.One;
+
+        rigidMeshes.Add(new RigidMesh(
+            vertexBuffer,
+            indexBuffer,
+            indices.Length / 3,
+            ownerNode,
+            effect));
+    }
+
     private static Clip ReadClip(Scene scene)
     {
         if (scene.AnimationCount == 0)
@@ -234,6 +311,27 @@ internal sealed class AnimatedMixamoModel
             {
                 pass.Apply();
                 graphicsDevice.DrawIndexedPrimitives(Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList, 0, 0, mesh.PrimitiveCount);
+            }
+        }
+
+        foreach (var mesh in rigidMeshes)
+        {
+            if (!globals.TryGetValue(mesh.OwnerNode, out Matrix nodeTransform))
+                continue;
+
+            mesh.Effect.World = nodeTransform * inverseRoot * world;
+            mesh.Effect.View = view;
+            mesh.Effect.Projection = projection;
+            graphicsDevice.SetVertexBuffer(mesh.VertexBuffer);
+            graphicsDevice.Indices = mesh.IndexBuffer;
+            foreach (EffectPass pass in mesh.Effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                graphicsDevice.DrawIndexedPrimitives(
+                    Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList,
+                    0,
+                    0,
+                    mesh.PrimitiveCount);
             }
         }
 
@@ -306,4 +404,5 @@ internal sealed class AnimatedMixamoModel
 
     private sealed record Clip(double Duration, double TicksPerSecond, Dictionary<string, NodeAnimationChannel> Channels);
     private sealed record AnimatedMesh(VertexBuffer VertexBuffer, IndexBuffer IndexBuffer, int PrimitiveCount, IList<Bone> Bones, Matrix[] Offsets, SkinnedEffect Effect);
+    private sealed record RigidMesh(VertexBuffer VertexBuffer, IndexBuffer IndexBuffer, int PrimitiveCount, string OwnerNode, BasicEffect Effect);
 }

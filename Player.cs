@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using _3DLight;
 
 public class Player
 {
@@ -15,8 +16,9 @@ public class Player
     private float verticalVelocity = 0f;          // Скорость по оси Y
     private const float Gravity = -28f;           // Сила гравитации (падение)
     private const float JumpImpulse = 30f;        // Сила толчка при прыжке
-    private const float GroundY = 0f;          // Высота поверхности зеленой платформы
-    private bool isGrounded = true;               // Находится ли игрок на земле
+    private bool isGrounded;
+
+    public Level.Platform? CurrentPlatform { get; private set; }
 
     private KeyboardState previousKeyboard;
     private readonly CharacterAnimator animator = new();
@@ -33,7 +35,7 @@ public class Player
         animator.LoadContent(graphicsDevice, animsFolder, playerAnims);
     }
 
-    public void Update(GameTime gameTime, KeyboardState keyboard, float cameraYaw)
+    public void Update(GameTime gameTime, KeyboardState keyboard, float cameraYaw, Level level)
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         Vector3 moveDir = Vector3.Zero;
@@ -68,16 +70,23 @@ public class Player
         // 3. ГРАВИТАЦИЯ
         verticalVelocity += Gravity * deltaTime;
 
-        // Применяем вертикальную скорость к позиции Y
+        Vector3 previousPos = Position;
         Vector3 currentPos = Position;
         currentPos.Y += verticalVelocity * deltaTime;
 
-        // 4. ПРИЗЕМЛЕНИЕ НА ПОЛ
-        if (currentPos.Y <= GroundY)
+        // 4. ПРИЗЕМЛЕНИЕ НА ВЕРХНЮЮ ГРАНЬ ПЛАТФОРМЫ
+        if (verticalVelocity <= 0f &&
+            level.TryFindLanding(previousPos, currentPos, out Level.Platform? platform, out float surfaceY))
         {
-            currentPos.Y = GroundY;
+            currentPos.Y = surfaceY;
             verticalVelocity = 0f;
             isGrounded = true;
+            CurrentPlatform = platform;
+        }
+        else
+        {
+            isGrounded = false;
+            CurrentPlatform = null;
         }
 
         Position = currentPos;
