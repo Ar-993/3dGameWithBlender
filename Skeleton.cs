@@ -8,19 +8,15 @@ using _3DLight;
 
 public class Skeleton
 {
-    public Vector3 Position { get; set; }
-    public float RotationY { get; private set; }
+    private readonly CharacterFacade character;
+
+    public Vector3 Position => character.Position;
+    public float RotationY => character.RotationY;
     public float Speed { get; set; } = 3.5f;
 
-    private const float Gravity = -28f;
-    private const float EdgeMargin = 0.35f;
-    private float verticalVelocity;
+    public Level.Platform? CurrentPlatform => character.CurrentPlatform;
 
-    public Level.Platform? CurrentPlatform { get; private set; }
-
-    private readonly CharacterAnimator animator = new();
-
-    public Skeleton(Vector3 startPosition) => Position = startPosition;
+    internal Skeleton(CharacterFacade character) => this.character = character;
 
     public void LoadContent(GraphicsDevice graphicsDevice, ContentManager content, string animsFolder)
     {
@@ -33,61 +29,41 @@ public class Skeleton
             { "Run",  "SkeletonRun.fbx"  }
         };
 
-        animator.LoadContent(graphicsDevice, skeletonFolder, monsterAnims, skeletonTexture);
+        character.LoadContent(graphicsDevice, skeletonFolder, monsterAnims, skeletonTexture);
     }
 
     public void Update(Player player, Level level, float deltaTime)
     {
-        Vector3 previousPosition = Position;
-        Vector3 nextPosition = Position;
-
-        verticalVelocity += Gravity * deltaTime;
-        nextPosition.Y += verticalVelocity * deltaTime;
-
-        if (verticalVelocity <= 0f &&
-            level.TryFindLanding(previousPosition, nextPosition, out Level.Platform? platform, out float surfaceY))
-        {
-            nextPosition.Y = surfaceY;
-            verticalVelocity = 0f;
-            CurrentPlatform = platform;
-        }
-        else
-        {
-            CurrentPlatform = null;
-        }
-
-        Position = nextPosition;
-
         Vector3 dir = player.Position - Position;
         dir.Y = 0; // Игнорируем разницу по высоте при расчете направления
         float distance = dir.Length();
         bool samePlatform = CurrentPlatform is not null &&
                             player.CurrentPlatform is not null &&
                             CurrentPlatform.Id == player.CurrentPlatform.Id;
-        bool isRunning = false;
+        Vector3 horizontalMovement = Vector3.Zero;
 
         if (samePlatform && distance < 60f && distance > 1.2f)
         {
             dir.Normalize();
 
             Vector3 newPos = Position + dir * Speed * deltaTime;
-            if (CurrentPlatform!.ContainsHorizontal(newPos, EdgeMargin))
-            {
-                Position = newPos;
-                isRunning = true;
-            }
+            if (CurrentPlatform!.ContainsHorizontal(newPos, character.CollisionRadius))
+                horizontalMovement = dir * Speed * deltaTime;
 
-            RotationY = MathF.Atan2(dir.X, dir.Z);
+            character.RotationY = MathF.Atan2(dir.X, dir.Z);
         }
 
-        animator.Play(isRunning ? "Run" : "Idle", loop: true);
+        Vector3 oldPosition = Position;
+        character.Move(level, horizontalMovement, deltaTime);
 
-        animator.Update(deltaTime);
+        bool isRunning = horizontalMovement != Vector3.Zero &&
+                         (Position.X != oldPosition.X || Position.Z != oldPosition.Z);
+
+        character.Play(isRunning ? "Run" : "Idle", loop: true, deltaTime);
     }
 
     public void Draw(Matrix view, Matrix projection)
     {
-        Matrix world = Matrix.CreateScale(1f) * Matrix.CreateRotationY(RotationY) * Matrix.CreateTranslation(Position);
-        animator.Draw(world, view, projection);
+        character.Draw(view, projection);
     }
 }

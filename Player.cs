@@ -7,21 +7,19 @@ using _3DLight;
 
 public class Player
 {
-    // Стартовые координаты персонажа
-    public Vector3 Position { get; set; } = new Vector3(850f, 17.5f, 45f);
-    public float RotationY { get; set; }
+    private readonly CharacterFacade character;
+
+    public Vector3 Position => character.Position;
+    public float RotationY => character.RotationY;
     public float Speed { get; set; } = 6f;
 
-    // --- ФИЗИКА И ПРЫЖОК ---
-    private float verticalVelocity = 0f;          // Скорость по оси Y
-    private const float Gravity = -28f;           // Сила гравитации (падение)
-    private const float JumpImpulse = 30f;        // Сила толчка при прыжке
-    private bool isGrounded;
+    private const float JumpImpulse = 30f;
 
-    public Level.Platform? CurrentPlatform { get; private set; }
+    public Level.Platform? CurrentPlatform => character.CurrentPlatform;
 
     private KeyboardState previousKeyboard;
-    private readonly CharacterAnimator animator = new();
+
+    internal Player(CharacterFacade character) => this.character = character;
 
     public void LoadContent(GraphicsDevice graphicsDevice, string animsFolder)
     {
@@ -32,13 +30,14 @@ public class Player
             { "Jump", "Jump.fbx" }
         };
 
-        animator.LoadContent(graphicsDevice, animsFolder, playerAnims);
+        character.LoadContent(graphicsDevice, animsFolder, playerAnims);
     }
 
     public void Update(GameTime gameTime, KeyboardState keyboard, float cameraYaw, Level level)
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         Vector3 moveDir = Vector3.Zero;
+        Vector3 horizontalMovement = Vector3.Zero;
 
         // 1. Считываем движение WASD
         if (keyboard.IsKeyDown(Keys.W)) moveDir.Z = -1;
@@ -56,63 +55,35 @@ public class Player
             Matrix cameraRotation = Matrix.CreateRotationY(cameraYaw);
             Vector3 rotatedDir = Vector3.TransformNormal(moveDir, cameraRotation);
 
-            Position += rotatedDir * Speed * deltaTime;
-            RotationY = MathF.Atan2(rotatedDir.X, rotatedDir.Z);
+            horizontalMovement = rotatedDir * Speed * deltaTime;
+            character.RotationY = MathF.Atan2(rotatedDir.X, rotatedDir.Z);
         }
 
         // 2. ПРЫЖОК НА ПРОБЕЛ
-        if (keyboard.IsKeyDown(Keys.Space) && previousKeyboard.IsKeyUp(Keys.Space) && isGrounded)
-        {
-            verticalVelocity = JumpImpulse;
-            isGrounded = false;
-        }
+        if (keyboard.IsKeyDown(Keys.Space) && previousKeyboard.IsKeyUp(Keys.Space))
+            character.TryJump(JumpImpulse);
 
-        // 3. ГРАВИТАЦИЯ
-        verticalVelocity += Gravity * deltaTime;
-
-        Vector3 previousPos = Position;
-        Vector3 currentPos = Position;
-        currentPos.Y += verticalVelocity * deltaTime;
-
-        // 4. ПРИЗЕМЛЕНИЕ НА ВЕРХНЮЮ ГРАНЬ ПЛАТФОРМЫ
-        if (verticalVelocity <= 0f &&
-            level.TryFindLanding(previousPos, currentPos, out Level.Platform? platform, out float surfaceY))
-        {
-            currentPos.Y = surfaceY;
-            verticalVelocity = 0f;
-            isGrounded = true;
-            CurrentPlatform = platform;
-        }
-        else
-        {
-            isGrounded = false;
-            CurrentPlatform = null;
-        }
-
-        Position = currentPos;
+        character.Move(level, horizontalMovement, deltaTime);
 
         // 5. УПРАВЛЕНИЕ АНИМАЦИЯМИ
-        if (!isGrounded)
+        if (!character.IsGrounded)
         {
-            animator.Play("Jump", loop: false); // Анимация прыжка в воздухе
+            character.Play("Jump", loop: false, deltaTime);
         }
         else if (isMoving)
         {
-            animator.Play("Run", loop: true);   // Бег
+            character.Play("Run", loop: true, deltaTime);
         }
         else
         {
-            animator.Play("Idle", loop: true);  // Покой
+            character.Play("Idle", loop: true, deltaTime);
         }
 
-        animator.Update(deltaTime);
         previousKeyboard = keyboard;
     }
 
     public void Draw(Matrix view, Matrix projection)
     {
-        float modelScale = 0.01f;
-        Matrix world = Matrix.CreateScale(modelScale) * Matrix.CreateRotationY(RotationY) * Matrix.CreateTranslation(Position);
-        animator.Draw(world, view, projection);
+        character.Draw(view, projection);
     }
 }
