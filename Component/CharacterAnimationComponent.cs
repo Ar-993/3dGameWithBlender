@@ -7,6 +7,11 @@ internal sealed class CharacterAnimationComponent : IGameComponent
     private readonly CharacterAnimator animator = new();
     private readonly float modelScale;
 
+    public float CurrentClipDuration =>
+    animator.CurrentClipDuration;
+
+    public float CurrentTime =>
+        animator.CurrentTime;
     public float RotationY { get; set; }
 
     public CharacterAnimationComponent(float modelScale) => this.modelScale = modelScale;
@@ -31,5 +36,10 @@ internal sealed class CharacterAnimationComponent : IGameComponent
             Matrix.CreateRotationY(RotationY) *
             Matrix.CreateTranslation(position);
         animator.Draw(world, view, projection);
+    }
+
+    public float GetClipDuration(string clipName)
+    {
+        return animator.GetClipDuration(clipName);
     }
 }

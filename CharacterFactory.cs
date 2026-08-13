@@ -1,23 +1,16 @@
-using Microsoft.Xna.Framework;
+﻿using System;
 
 internal static class CharacterFactory
 {
-    private const float Gravity = -28f;
-    private const float CollisionRadius = 0.35f;
-    private const float CollisionHeight = 1.8f;
+    public static GameEntity Create(params IGameComponent[] components)
+    {
+        ArgumentNullException.ThrowIfNull(components);
 
-    public static Player CreatePlayer() =>
-        new(CreateFacade(new Vector3(850f, 17.5f, 45f), modelScale: 0.01f));
+        var entity = new GameEntity();
 
-    public static Skeleton CreateSkeleton(Vector3 startPosition) =>
-        new(CreateFacade(startPosition, modelScale: 1f));
+        foreach (IGameComponent component in components)
+            entity.Add(component);
 
-    private static CharacterFacade CreateFacade(Vector3 startPosition, float modelScale) =>
-        new(new GameEntity()
-            .Add(new CharacterPhysicsComponent(
-                startPosition,
-                CollisionRadius,
-                CollisionHeight,
-                Gravity))
-            .Add(new CharacterAnimationComponent(modelScale)));
+        return entity;
+    }
 }

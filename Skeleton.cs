@@ -9,14 +9,27 @@ using _3DLight;
 public class Skeleton
 {
     private readonly CharacterFacade character;
+    private readonly SkeletonAIComponent ai;
+    private readonly CharacterAnimationComponent animation;
+    private readonly StatsComponent stats;
 
     public Vector3 Position => character.Position;
     public float RotationY => character.RotationY;
     public float Speed { get; set; } = 3.5f;
+    public int Health => stats.Health;
+    public int MaxHealth => stats.MaxHealth;
+    public bool IsDead => stats.IsDead;
 
     public Level.Platform? CurrentPlatform => character.CurrentPlatform;
 
-    internal Skeleton(CharacterFacade character) => this.character = character;
+    internal Skeleton(CharacterFacade character)
+    {
+        this.character = character;
+        ai = character.GetComponent<SkeletonAIComponent>();
+        animation = character.GetComponent<CharacterAnimationComponent>();
+        stats = character.GetComponent<StatsComponent>();
+        ai.BindStats(stats);
+    }
 
     public void LoadContent(GraphicsDevice graphicsDevice, ContentManager content, string animsFolder)
     {
@@ -26,31 +39,36 @@ public class Skeleton
         var monsterAnims = new Dictionary<string, string>
         {
             { "Idle", "SkeletonIdle.fbx" },
-            { "Run",  "SkeletonRun.fbx"  }
+            { "Run",  "SkeletonRun.fbx"  },
+            { "Attack", "SkeletonAttack.fbx" },
+            { "Hurt", "SkeletonHurt.fbx" },
+            { "Die", "SkeletonDeath.fbx" }
         };
 
         character.LoadContent(graphicsDevice, skeletonFolder, monsterAnims, skeletonTexture);
+        ai.SetAttackDuration(animation.GetClipDuration("Attack"));
+        ai.SetHurtDuration(animation.GetClipDuration("Hurt"));
     }
+
+    public void TakeDamage(int damage) => stats.TakeDamage(damage);
 
     public void Update(Player player, Level level, float deltaTime)
     {
-        Vector3 dir = player.Position - Position;
-        dir.Y = 0; // Игнорируем разницу по высоте при расчете направления
-        float distance = dir.Length();
         bool samePlatform = CurrentPlatform is not null &&
                             player.CurrentPlatform is not null &&
                             CurrentPlatform.Id == player.CurrentPlatform.Id;
+
+        ai.Update(Position, player.Position, samePlatform, deltaTime);
         Vector3 horizontalMovement = Vector3.Zero;
 
-        if (samePlatform && distance < 60f && distance > 1.2f)
+        if (ai.Direction != Vector3.Zero)
+            character.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
+
+        if (ai.State == AIComponent.AiState.Chasing)
         {
-            dir.Normalize();
-
-            Vector3 newPos = Position + dir * Speed * deltaTime;
+            Vector3 newPos = Position + ai.Direction * Speed * deltaTime;
             if (CurrentPlatform!.ContainsHorizontal(newPos, character.CollisionRadius))
-                horizontalMovement = dir * Speed * deltaTime;
-
-            character.RotationY = MathF.Atan2(dir.X, dir.Z);
+                horizontalMovement = ai.Direction * Speed * deltaTime;
         }
 
         Vector3 oldPosition = Position;
@@ -59,7 +77,28 @@ public class Skeleton
         bool isRunning = horizontalMovement != Vector3.Zero &&
                          (Position.X != oldPosition.X || Position.Z != oldPosition.Z);
 
-        character.Play(isRunning ? "Run" : "Idle", loop: true, deltaTime);
+        switch (ai.State)
+        {
+            case AIComponent.AiState.Attacking:
+                animation.Play("Attack", loop: false, deltaTime);
+                break;
+            case AIComponent.AiState.Hurt:
+                animation.Play("Hurt", loop: false, deltaTime);
+                break;
+            case AIComponent.AiState.Dead:
+                // Клип не зациклен: после завершения модель остаётся на последнем кадре.
+                animation.Play("Die", loop: false, deltaTime);
+                break;
+            case AIComponent.AiState.Chasing when isRunning:
+                animation.Play("Run", loop: true, deltaTime);
+                break;
+            default:
+                animation.Play("Idle", loop: true, deltaTime);
+                break;
+        }
+
+        if (ai.ShouldDealDamage && !player.IsDead)
+            player.TakeDamage(10);
     }
 
     public void Draw(Matrix view, Matrix projection)

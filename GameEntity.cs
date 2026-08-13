@@ -5,6 +5,13 @@ internal sealed class GameEntity
 {
     private readonly Dictionary<Type, IGameComponent> components = [];
 
+    public GameEntity Add(IGameComponent component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        components[component.GetType()] = component;
+        return this;
+    }
+
     public GameEntity Add<T>(T component) where T : class, IGameComponent
     {
         components[typeof(T)] = component;

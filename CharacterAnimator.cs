@@ -11,6 +11,11 @@ public class CharacterAnimator
     private float stateTime;
     private bool isLooping = true;
 
+    public float CurrentTime => stateTime;
+    public float CurrentClipDuration => string.IsNullOrEmpty(CurrentClip)
+        ? 0f
+        : model.GetClipDuration(CurrentClip);
+
     // Загрузка любого набора анимаций
     public void LoadContent(GraphicsDevice graphicsDevice, string directoryPath, Dictionary<string, string> animations, Texture2D? texture = null)
     {
@@ -47,6 +52,9 @@ public class CharacterAnimator
     {
         stateTime += deltaTime;
     }
+
+    public float GetClipDuration(string clipName) =>
+        model.GetClipDuration(clipName);
 
     public void Draw(Matrix world, Matrix view, Matrix projection)
     {
