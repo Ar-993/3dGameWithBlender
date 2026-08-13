@@ -1,17 +1,27 @@
-﻿using Microsoft.Xna.Framework;
+﻿using _3DLight;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using _3DLight;
+using System.IO;
 
 public class Player
 {
     private readonly CharacterFacade character;
-
+    private readonly StatsComponent stats;
+    private readonly CharacterAnimationComponent animation;
+    private readonly AttackComponent attack;
     public Vector3 Position => character.Position;
     public float RotationY => character.RotationY;
     public float Speed { get; set; } = 6f;
+    public int Health => stats.Health;
+    public int MaxHealth => stats.MaxHealth;
+    public bool IsDead => stats.IsDead;
+    public bool AttackShouldDealDamage => attack.ShouldDealDamage;
+    public int AttackDamage => attack.Damage;
+    public float AttackRange => attack.Range;
 
     private const float JumpImpulse = 30f;
 
@@ -19,23 +29,63 @@ public class Player
 
     private KeyboardState previousKeyboard;
 
-    internal Player(CharacterFacade character) => this.character = character;
-
-    public void LoadContent(GraphicsDevice graphicsDevice, string animsFolder)
+    internal Player(CharacterFacade character)
     {
-        var playerAnims = new Dictionary<string, string>
-        {
-            { "Idle", "Idle.fbx" },
-            { "Run",  "Run.fbx" },
-            { "Jump", "Jump.fbx" }
-        };
+        this.character = character;
+        stats = character.GetComponent<StatsComponent>();
+        animation =
+        character.GetComponent<CharacterAnimationComponent>();
 
-        character.LoadContent(graphicsDevice, animsFolder, playerAnims);
+        attack =
+            character.GetComponent<AttackComponent>();
     }
 
-    public void Update(GameTime gameTime, KeyboardState keyboard, float cameraYaw, Level level)
+    public void TakeDamage(int damage)
+    {
+        stats.TakeDamage(damage);
+        Console.WriteLine($"Игрок получил {damage} урона. HP: {Health}");
+    }
+
+    public void LoadContent(
+    GraphicsDevice graphicsDevice,
+    ContentManager content,
+    string animsFolder)
+    {
+        string knightFolder = Path.Combine(animsFolder, "Knight");
+
+        Texture2D knightTexture =
+            content.Load<Texture2D>("Assets/Knight/knight_texture");
+
+        var playerAnims = new Dictionary<string, string>
+    {
+        { "TPose",  "KnightTPose.fbx"  },
+        { "Idle",   "KnightIdle.fbx"   },
+        { "Run",    "KnightRun.fbx"    },
+        { "Jump",   "KnightJump.fbx"   },
+        { "Attack", "KnightAttack.fbx" },
+        { "Hurt",   "KnightHurt.fbx"   },
+        { "Die",    "KnightDie.fbx"    }
+    };
+
+        character.LoadContent(
+            graphicsDevice,
+            knightFolder,
+            playerAnims,
+            knightTexture);
+
+        attack.SetDuration(animation.GetClipDuration("Attack"));
+    }
+
+    public void Update(GameTime gameTime,KeyboardState keyboard,float cameraYaw,Level level,bool attackPressed)
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        if (attackPressed && !IsDead)
+            attack.TryStart();
+
+        attack.Update(deltaTime);
+
+
         Vector3 moveDir = Vector3.Zero;
         Vector3 horizontalMovement = Vector3.Zero;
 
@@ -59,14 +109,25 @@ public class Player
             character.RotationY = MathF.Atan2(rotatedDir.X, rotatedDir.Z);
         }
 
-        // 2. ПРЫЖОК НА ПРОБЕЛ
-        if (keyboard.IsKeyDown(Keys.Space) && previousKeyboard.IsKeyUp(Keys.Space))
+        // Движение и прыжок разрешены во время атаки.
+        if (!IsDead &&
+            keyboard.IsKeyDown(Keys.Space) &&
+            previousKeyboard.IsKeyUp(Keys.Space))
             character.TryJump(JumpImpulse);
 
         character.Move(level, horizontalMovement, deltaTime);
 
         // 5. УПРАВЛЕНИЕ АНИМАЦИЯМИ
-        if (!character.IsGrounded)
+        if (IsDead)
+        {
+            character.Play("Die", loop: false, deltaTime);
+        }
+        else if (attack.IsAttacking)
+        {
+            // Пока Attack перекрывает всё тело, но физика ходьбы и прыжка работает.
+            character.Play("Attack", loop: false, deltaTime);
+        }
+        else if (!character.IsGrounded)
         {
             character.Play("Jump", loop: false, deltaTime);
         }

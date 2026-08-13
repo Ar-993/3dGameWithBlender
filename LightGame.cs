@@ -7,13 +7,46 @@ using System.IO;
 
 public sealed class LightGame : Game
 {
+    private const float Gravity = -28f;
+    private const float CharacterCollisionRadius = 0.35f;
+    private const float CharacterCollisionHeight = 1.8f;
+
     private readonly GraphicsDeviceManager graphics;
 
     private readonly Level level = new();
-    private readonly Player player = CharacterFactory.CreatePlayer();
+    private readonly Player player = new(
+    new CharacterFacade(
+        EntityFactory.Create(
+            new CharacterPhysicsComponent(
+                new Vector3(850f, 17.5f, 45f),
+                CharacterCollisionRadius,
+                CharacterCollisionHeight,
+                Gravity),
+            new CharacterAnimationComponent(modelScale: 1f),
+            new StatsComponent(maxHealth: 100),
+            new AttackComponent(
+                damage: 25,
+                range: 1.6f,
+                hitTimeNormalized: 0.45f))));
     private readonly ThirdPersonCamera camera = new();
 
-    private readonly Skeleton skeleton = CharacterFactory.CreateSkeleton(new Vector3(840f, 17.5f, 40f));
+    private readonly Skeleton skeleton = new(new CharacterFacade(
+        EntityFactory.Create(
+            new CharacterPhysicsComponent(
+                new Vector3(840f, 17.5f, 40f),
+                CharacterCollisionRadius,
+                CharacterCollisionHeight,
+                Gravity),
+
+            new CharacterAnimationComponent(modelScale: 1f),
+
+            new StatsComponent(maxHealth: 100),
+
+            new SkeletonAiComponent(),
+            new AttackComponent(
+        damage: 10,
+        range: 1.4f,
+        hitTimeNormalized: 0.45f))));
 
     private SpriteBatch spriteBatch = null!;
     private SpriteFont debugFont = null!;
@@ -64,7 +97,10 @@ public sealed class LightGame : Game
 
         string levelSource = Path.Combine(AppContext.BaseDirectory, "Assets", "level.fbx");
         level.LoadContent(Content, "level", levelSource);
-        player.LoadContent(GraphicsDevice, animsFolder);
+        player.LoadContent(
+    GraphicsDevice,
+    Content,
+    animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
     }
 
@@ -110,8 +146,25 @@ public sealed class LightGame : Game
             Mouse.SetPosition(windowCenter.X, windowCenter.Y);
         }
 
+        // Клик, которым мышь только захватывается, не считается атакой.
+        bool attackPressed =
+            mouseCaptured &&
+            !capturedThisFrame &&
+            mouse.LeftButton == ButtonState.Pressed &&
+            previousMouse.LeftButton == ButtonState.Released;
+
         // Обновление игрока и скелета
-        player.Update(gameTime, keyboard, camera.Yaw, level);
+        player.Update(gameTime, keyboard, camera.Yaw, level, attackPressed);
+
+        if (player.AttackShouldDealDamage && !skeleton.IsDead)
+        {
+            Vector3 difference = skeleton.Position - player.Position;
+            difference.Y = 0f;
+
+            if (difference.Length() <= player.AttackRange)
+                skeleton.TakeDamage(player.AttackDamage);
+        }
+
         camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -138,11 +191,12 @@ public sealed class LightGame : Game
         spriteBatch.Begin();
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
         string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
-        string playerText = $"PLAYER POS:   X: {player.Position.X:F2} | Y: {player.Position.Y:F2} | Z: {player.Position.Z:F2} | PLATFORM: {playerPlatform}";
-        string skelText = $"SKELETON POS: X: {skeleton.Position.X:F2} | Y: {skeleton.Position.Y:F2} | Z: {skeleton.Position.Z:F2} | PLATFORM: {skeletonPlatform}";
+        string playerText = $"PLAYER HP: {player.Health}/{player.MaxHealth} | X: {player.Position.X:F2} | Y: {player.Position.Y:F2} | Z: {player.Position.Z:F2} | PLATFORM: {playerPlatform}";
+        string skelText = $"SKELETON HP: {skeleton.Health}/{skeleton.MaxHealth} | X: {skeleton.Position.X:F2} | Y: {skeleton.Position.Y:F2} | Z: {skeleton.Position.Z:F2} | PLATFORM: {skeletonPlatform}";
+        Color skeletonDebugColor = skeleton.IsDead ? Color.Gray : Color.LawnGreen;
 
         spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);
-        spriteBatch.DrawString(debugFont, skelText, new Vector2(15, 35), Color.LawnGreen);
+        spriteBatch.DrawString(debugFont, skelText, new Vector2(15, 35), skeletonDebugColor);
         spriteBatch.End();
 
         base.Draw(gameTime);

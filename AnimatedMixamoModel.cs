@@ -284,6 +284,14 @@ internal sealed class AnimatedMixamoModel
         return new Clip(animation.DurationInTicks, ticksPerSecond, channels);
     }
 
+    public float GetClipDuration(string clipName)
+    {
+        if (!clips.TryGetValue(clipName, out Clip? clip))
+            throw new InvalidOperationException($"Анимация '{clipName}' не загружена.");
+
+        return (float)(clip.Duration / clip.TicksPerSecond);
+    }
+
     public void Draw(string clipName, float seconds, bool loop, Matrix world, Matrix view, Matrix projection)
     {
         var oldRasterizerState = graphicsDevice.RasterizerState;
