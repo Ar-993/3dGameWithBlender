@@ -153,8 +153,20 @@ public sealed class LightGame : Game
             mouse.LeftButton == ButtonState.Pressed &&
             previousMouse.LeftButton == ButtonState.Released;
 
+        bool flyKickPressed =
+            mouseCaptured &&
+            !capturedThisFrame &&
+            mouse.RightButton == ButtonState.Pressed &&
+            previousMouse.RightButton == ButtonState.Released;
+
         // Обновление игрока и скелета
-        player.Update(gameTime, keyboard, camera.Yaw, level, attackPressed);
+        player.Update(
+            gameTime,
+            keyboard,
+            camera.Yaw,
+            level,
+            attackPressed,
+            flyKickPressed);
 
         if (player.AttackShouldDealDamage && !skeleton.IsDead)
         {

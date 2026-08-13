@@ -13,15 +13,24 @@ public class Player
     private readonly StatsComponent stats;
     private readonly CharacterAnimationComponent animation;
     private readonly AttackComponent attack;
+    private readonly AttackComponent flyKick = new(
+        damage: 30,
+        range: 1.6f,
+        hitTimeNormalized: 0.45f);
     public Vector3 Position => character.Position;
     public float RotationY => character.RotationY;
     public float Speed { get; set; } = 6f;
     public int Health => stats.Health;
     public int MaxHealth => stats.MaxHealth;
     public bool IsDead => stats.IsDead;
-    public bool AttackShouldDealDamage => attack.ShouldDealDamage;
-    public int AttackDamage => attack.Damage;
-    public float AttackRange => attack.Range;
+    public bool AttackShouldDealDamage =>
+        attack.ShouldDealDamage || flyKick.ShouldDealDamage;
+    public int AttackDamage => flyKick.ShouldDealDamage
+        ? flyKick.Damage
+        : attack.Damage;
+    public float AttackRange => flyKick.ShouldDealDamage
+        ? flyKick.Range
+        : attack.Range;
 
     private const float JumpImpulse = 30f;
 
@@ -63,6 +72,7 @@ public class Player
         { "Run",    "KnightRun.fbx"    },
         { "Jump",   "KnightJump.fbx"   },
         { "Attack", "KnightAttack.fbx" },
+        { "FlyKick", "KnightFlyingKick.fbx" },
         { "Hurt",   "KnightHurt.fbx"   },
         { "Die",    "KnightDie.fbx"    }
     };
@@ -74,16 +84,27 @@ public class Player
             knightTexture);
 
         attack.SetDuration(animation.GetClipDuration("Attack"));
+        flyKick.SetDuration(animation.GetClipDuration("FlyKick"));
     }
 
-    public void Update(GameTime gameTime,KeyboardState keyboard,float cameraYaw,Level level,bool attackPressed)
+    public void Update(
+        GameTime gameTime,
+        KeyboardState keyboard,
+        float cameraYaw,
+        Level level,
+        bool attackPressed,
+        bool flyKickPressed)
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        if (attackPressed && !IsDead)
+        if (attackPressed && !IsDead && !flyKick.IsAttacking)
             attack.TryStart();
 
+        if (flyKickPressed && !IsDead && !attack.IsAttacking)
+            flyKick.TryStart();
+
         attack.Update(deltaTime);
+        flyKick.Update(deltaTime);
 
 
         Vector3 moveDir = Vector3.Zero;
@@ -122,9 +143,13 @@ public class Player
         {
             character.Play("Die", loop: false, deltaTime);
         }
+        else if (flyKick.IsAttacking)
+        {
+            // FlyKick перекрывает всё тело; движение, записанное в FBX, сохраняется.
+            character.Play("FlyKick", loop: false, deltaTime);
+        }
         else if (attack.IsAttacking)
         {
-            // Пока Attack перекрывает всё тело, но физика ходьбы и прыжка работает.
             character.Play("Attack", loop: false, deltaTime);
         }
         else if (!character.IsGrounded)
