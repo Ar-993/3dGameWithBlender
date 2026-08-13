@@ -72,9 +72,9 @@ public class Player
         { "Run",    "RogueRun.fbx"    },
         { "Jump",   "RogueJump.fbx"   },
         { "Attack", "RogueAttack.fbx" },
-        { "FlyKick", "RogueFlyingKick.fbx" },
+        { "FlyKick", "RogueFlyKick.fbx" },
         { "Hurt",   "RogueHurt.fbx"   },
-        { "Die",    "RogueDie.fbx"    }
+        { "Die",    "RogueDeath.fbx"  }
     };
 
         character.LoadContent(

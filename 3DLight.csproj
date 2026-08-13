@@ -24,6 +24,9 @@
     <None Update="Content\Assets\Player\RogueAttack.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Content\Assets\Player\RogueDeath.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Content\Assets\Player\RogueFlyKick.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -42,7 +45,7 @@
     <None Update="Content\Assets\Player\rogue_texture.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
-    <None Update="Content\Assets\Player\SkeletonHurt.fbx">
+    <None Update="Content\Assets\Player\RogueHurt.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Content\Assets\Skeleton\SkeletonAttack.fbx">
