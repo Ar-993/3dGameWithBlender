@@ -16,6 +16,10 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
+	<ItemGroup>
+		<MonoGameContentReference Include="Content/Content.mgcb" />
+	</ItemGroup>
+
   <ItemGroup>
     <Compile Remove="AnimatedMixamoModel.cs" />
     <Compile Remove="LevelColliderLoader.cs" />

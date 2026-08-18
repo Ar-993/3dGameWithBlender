@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 using System.Collections.Generic;
 
 namespace _3DLight
@@ -39,70 +40,61 @@ namespace _3DLight
         {
             groundPlatform = null;
 
+            // 1. Смещение по оси X и разрешение столкновений
             position.X += movement.X;
+            BoundingBox boundsX = CreateCharacterBounds(position, radius, height);
             foreach (Platform platform in platforms)
             {
-                if (!Overlaps(CreateCharacterBounds(position, radius, height), platform.Bounds))
-                    continue;
+                if (Overlaps(boundsX, platform.Bounds))
+                {
+                    if (movement.X > 0f)
+                        position.X = platform.Bounds.Min.X - radius;
+                    else if (movement.X < 0f)
+                        position.X = platform.Bounds.Max.X + radius;
 
-                position.X = movement.X > 0f
-                    ? platform.Bounds.Min.X - radius
-                    : platform.Bounds.Max.X + radius;
+                    boundsX = CreateCharacterBounds(position, radius, height);
+                }
             }
 
+            // 2. Смещение по оси Z и разрешение столкновений
             position.Z += movement.Z;
+            BoundingBox boundsZ = CreateCharacterBounds(position, radius, height);
             foreach (Platform platform in platforms)
             {
-                if (!Overlaps(CreateCharacterBounds(position, radius, height), platform.Bounds))
+                if (Overlaps(boundsZ, platform.Bounds))
+                {
+                    if (movement.Z > 0f)
+                        position.Z = platform.Bounds.Min.Z - radius;
+                    else if (movement.Z < 0f)
+                        position.Z = platform.Bounds.Max.Z + radius;
+
+                    boundsZ = CreateCharacterBounds(position, radius, height);
+                }
+            }
+
+            // 3. Смещение по оси Y (падение / прыжок) и проверка приземления/потолка
+            position.Y += movement.Y;
+            BoundingBox boundsY = CreateCharacterBounds(position, radius, height);
+
+            foreach (Platform platform in platforms)
+            {
+                if (!Overlaps(boundsY, platform.Bounds))
                     continue;
 
-                position.Z = movement.Z > 0f
-                    ? platform.Bounds.Min.Z - radius
-                    : platform.Bounds.Max.Z + radius;
-            }
-
-            position.Y += movement.Y;
-            if (movement.Y < 0f)
-            {
-                float highestSurface = float.MinValue;
-                foreach (Platform platform in platforms)
+                // Движение вниз — приземление на верхнюю грань блока
+                if (movement.Y <= 0f && (position.Y - movement.Y) >= platform.Bounds.Max.Y - 0.2f)
                 {
-                    if (!Overlaps(CreateCharacterBounds(position, radius, height), platform.Bounds) ||
-                        platform.Bounds.Max.Y <= highestSurface)
-                    {
-                        continue;
-                    }
-
-                    highestSurface = platform.Bounds.Max.Y;
+                    position.Y = platform.Bounds.Max.Y;
+                    verticalVelocity = 0f;
                     groundPlatform = platform;
+                    boundsY = CreateCharacterBounds(position, radius, height);
                 }
-
-                if (groundPlatform is not null)
+                // Движение вверх — удар головой о нижнюю грань блока
+                else if (movement.Y > 0f)
                 {
-                    position.Y = highestSurface;
+                    position.Y = platform.Bounds.Min.Y - height;
                     verticalVelocity = 0f;
-                }
-            }
-            else if (movement.Y > 0f)
-            {
-                float lowestCeiling = float.MaxValue;
-                bool hitCeiling = false;
-                foreach (Platform platform in platforms)
-                {
-                    if (!Overlaps(CreateCharacterBounds(position, radius, height), platform.Bounds) ||
-                        platform.Bounds.Min.Y >= lowestCeiling)
-                    {
-                        continue;
-                    }
-
-                    lowestCeiling = platform.Bounds.Min.Y;
-                    hitCeiling = true;
-                }
-
-                if (hitCeiling)
-                {
-                    position.Y = lowestCeiling - height;
-                    verticalVelocity = 0f;
+                    boundsY = CreateCharacterBounds(position, radius, height);
                 }
             }
 
@@ -124,5 +116,9 @@ namespace _3DLight
             model.Draw(Matrix.Identity, view, projection);
         }
 
+                    modelMesh.Draw();
+                }
+            }
+        }
     }
 }

@@ -1,5 +1,4 @@
-﻿using _3DLight;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using System.IO;
@@ -8,10 +7,8 @@ public class CharacterAnimator
 {
     private CompiledModel model = null!;
     public string CurrentClip { get; private set; } = "";
-    private float stateTime;
     private bool isLooping = true;
 
-    public float CurrentTime => stateTime;
     public float CurrentClipDuration => string.IsNullOrEmpty(CurrentClip)
         ? 0f
         : model.GetClipDuration(CurrentClip);
@@ -31,27 +28,34 @@ public class CharacterAnimator
         }
     }
 
-    // Переключение анимации (например: Play("Run"), Play("Attack"))
     public void Play(string clipName, bool loop = true)
     {
-        if (CurrentClip != clipName)
-        {
-            CurrentClip = clipName;
-            stateTime = 0f; // Сбрасываем время при смене клипа
-        }
+        CurrentClip = clipName;
         isLooping = loop;
     }
 
     public void Update(float deltaTime)
     {
-        stateTime += deltaTime;
+        if (!string.IsNullOrEmpty(CurrentClip))
+        {
+            model.Update(CurrentClip, deltaTime);
+        }
     }
 
     public float GetClipDuration(string clipName) =>
         model.GetClipDuration(clipName);
 
-    public void Draw(Matrix world, Matrix view, Matrix projection)
+    public void Draw(
+    Matrix world,
+    Matrix view,
+    Matrix projection,
+    Effect? customEffect = null)
     {
-        model.Draw(CurrentClip, stateTime, isLooping, world, view, projection);
+        model.Draw(
+            world,
+            view,
+            projection,
+            isLooping,
+            customEffect);
     }
 }
