@@ -2,68 +2,577 @@ using _3DLight.Assets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Graphics.PackedVector;
-using NMatrix=System.Numerics.Matrix4x4;
+using NumericsMatrix = System.Numerics.Matrix4x4;
+using NumericsQuaternion = System.Numerics.Quaternion;
+using NumericsVector3 = System.Numerics.Vector3;
+using NumericsVector4 = System.Numerics.Vector4;
 
 namespace _3DLight;
 
-internal sealed class CompiledModel:IDisposable
+internal sealed class CompiledModel : IDisposable
 {
-    private readonly GraphicsDevice device;private readonly ModelData data;private readonly RuntimeMesh[] meshes;private readonly Dictionary<string,ClipData> clips;
-    private readonly Matrix[] locals,globals,bindGlobals;private readonly Matrix inverseRoot;
-    public IEnumerable<string> ClipNames=>clips.Keys;
+    private const int MaximumBoneCount = 72;
 
-    private CompiledModel(GraphicsDevice device,ModelData data,Texture2D texture,Effect toonEffect)
+    private static readonly Vector3 DefaultLightDirection =
+        Vector3.Normalize(new Vector3(-0.5f, -1f, -0.4f));
+
+    private readonly GraphicsDevice graphicsDevice;
+    private readonly ModelData modelData;
+    private readonly RuntimeMesh[] runtimeMeshes;
+    private readonly Dictionary<string, ClipData> clipsByName;
+
+    private readonly Matrix[] localTransforms;
+    private readonly Matrix[] globalTransforms;
+    private readonly Matrix[] bindPoseGlobalTransforms;
+    private readonly Matrix inverseRootTransform;
+
+    public IEnumerable<string> ClipNames => clipsByName.Keys;
+
+    private CompiledModel(
+        GraphicsDevice graphicsDevice,
+        ModelData modelData,
+        Texture2D texture,
+        Effect toonEffect)
     {
-        this.device=device;this.data=data;clips=data.Clips.ToDictionary(x=>x.Name,StringComparer.OrdinalIgnoreCase);
-        locals=data.Nodes.Select(n=>M(n.Bind)).ToArray();globals=new Matrix[locals.Length];bindGlobals=new Matrix[locals.Length];BuildGlobals(locals,bindGlobals);inverseRoot=locals.Length==0?Matrix.Identity:Matrix.Invert(bindGlobals[0]);
-        meshes=data.Meshes.Select(m=>Create(m,texture,toonEffect)).ToArray();
+        this.graphicsDevice = graphicsDevice;
+        this.modelData = modelData;
+
+        clipsByName = modelData.Clips.ToDictionary(
+            clip => clip.Name,
+            StringComparer.OrdinalIgnoreCase);
+
+        localTransforms = modelData.Nodes
+            .Select(node => ToXnaMatrix(node.Bind))
+            .ToArray();
+
+        globalTransforms = new Matrix[localTransforms.Length];
+        bindPoseGlobalTransforms = new Matrix[localTransforms.Length];
+        CalculateGlobalTransforms(localTransforms, bindPoseGlobalTransforms);
+
+        inverseRootTransform = localTransforms.Length == 0
+            ? Matrix.Identity
+            : Matrix.Invert(bindPoseGlobalTransforms[0]);
+
+        runtimeMeshes = modelData.Meshes
+            .Select(mesh => CreateRuntimeMesh(mesh, texture, toonEffect))
+            .ToArray();
     }
-    public static CompiledModel Load(GraphicsDevice device,string name,Texture2D texture,Effect toonEffect)
-    {string path=Path.Combine(AppContext.BaseDirectory,"Content","Models",name+".3dmodel");using var stream=File.OpenRead(path);return new(device,ModelDataIo.Read(stream),texture,toonEffect);}
-    public float GetClipDuration(string name)=>clips.TryGetValue(name,out var c)?(float)(c.Duration/c.TicksPerSecond):throw new InvalidOperationException($"Анимация '{name}' отсутствует.");
-    public void Draw(Matrix world,Matrix view,Matrix projection){Array.Copy(bindGlobals,globals,globals.Length);DrawMeshes(world,view,projection);}
-    public void Draw(string clipName,float seconds,bool loop,Matrix world,Matrix view,Matrix projection)
+
+    public static CompiledModel Load(
+        GraphicsDevice graphicsDevice,
+        string modelName,
+        Texture2D texture,
+        Effect toonEffect)
     {
-        if(!clips.TryGetValue(clipName,out var clip))throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
-        for(int i=0;i<locals.Length;i++)locals[i]=M(data.Nodes[i].Bind);double tick=seconds*clip.TicksPerSecond;tick=loop&&clip.Duration>0?tick%clip.Duration:Math.Min(tick,clip.Duration);
-        foreach(var c in clip.Channels){Matrix bind=locals[c.Node];bind.Decompose(out Vector3 bs,out Quaternion br,out Vector3 bp);locals[c.Node]=Matrix.CreateScale(Interp(c.Scales,tick,bs))*Matrix.CreateFromQuaternion(Interp(c.Rotations,tick,br))*Matrix.CreateTranslation(Interp(c.Positions,tick,bp));}
-        BuildGlobals(locals,globals);DrawMeshes(world,view,projection);
+        string modelPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "Content",
+            "Models",
+            modelName + ".3dmodel");
+
+        using FileStream modelStream = File.OpenRead(modelPath);
+        ModelData modelData = ModelDataIo.Read(modelStream);
+
+        return new CompiledModel(
+            graphicsDevice,
+            modelData,
+            texture,
+            toonEffect);
     }
+
+    public float GetClipDuration(string clipName)
+    {
+        if (!clipsByName.TryGetValue(clipName, out ClipData? clip))
+            throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
+
+        return (float)(clip.Duration / clip.TicksPerSecond);
+    }
+
+    public void Draw(Matrix world, Matrix view, Matrix projection)
+    {
+        Array.Copy(
+            bindPoseGlobalTransforms,
+            globalTransforms,
+            bindPoseGlobalTransforms.Length);
+
+        DrawMeshes(world, view, projection);
+    }
+
+    public void Draw(
+        string clipName,
+        float elapsedSeconds,
+        bool loop,
+        Matrix world,
+        Matrix view,
+        Matrix projection)
+    {
+        if (!clipsByName.TryGetValue(clipName, out ClipData? clip))
+            throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
+
+        ResetLocalTransformsToBindPose();
+
+        double animationTick = CalculateAnimationTick(
+            clip,
+            elapsedSeconds,
+            loop);
+
+        ApplyAnimationChannels(clip, animationTick);
+        CalculateGlobalTransforms(localTransforms, globalTransforms);
+        DrawMeshes(world, view, projection);
+    }
+
     public List<Level.Platform> BuildPlatforms()
     {
-        var result=new List<Level.Platform>();int id=0;
-        foreach(var mesh in data.Meshes)
+        var platforms = new List<Level.Platform>();
+        int nextPlatformId = 0;
+
+        foreach (MeshData mesh in modelData.Meshes)
         {
-            string name=data.Nodes[mesh.Node].Name;if(!Walkable(name)||mesh.Vertices.Length==0)continue;Vector3 min=new(float.MaxValue),max=new(float.MinValue);Matrix transform=bindGlobals[mesh.Node];
-            foreach(var v in mesh.Vertices){Vector3 p=Vector3.Transform(V(v.Position),transform);min=Vector3.Min(min,p);max=Vector3.Max(max,p);}if(max.X-min.X>=.5f&&max.Z-min.Z>=.5f)result.Add(new(id++,name,new BoundingBox(min,max)));
+            string nodeName = modelData.Nodes[mesh.Node].Name;
+
+            if (!IsWalkableNode(nodeName) || mesh.Vertices.Length == 0)
+                continue;
+
+            BoundingBox meshBounds = CalculateMeshBounds(mesh);
+            float width = meshBounds.Max.X - meshBounds.Min.X;
+            float depth = meshBounds.Max.Z - meshBounds.Min.Z;
+
+            if (width < 0.5f || depth < 0.5f)
+                continue;
+
+            platforms.Add(new Level.Platform(
+                nextPlatformId++,
+                nodeName,
+                meshBounds));
         }
-        if(result.Count==0)throw new InvalidOperationException("В скомпилированной модели уровня нет платформ.");return result;
+
+        if (platforms.Count == 0)
+            throw new InvalidOperationException(
+                "В скомпилированной модели уровня нет платформ.");
+
+        return platforms;
     }
-    private static bool Walkable(string n)=>n.StartsWith("Ground",StringComparison.OrdinalIgnoreCase)||n.StartsWith("Bridge",StringComparison.OrdinalIgnoreCase)||n.StartsWith("Trail",StringComparison.OrdinalIgnoreCase)||n.StartsWith("Cylinder",StringComparison.OrdinalIgnoreCase)||n.Contains("Platform",StringComparison.OrdinalIgnoreCase);
-    private RuntimeMesh Create(MeshData mesh,Texture2D texture,Effect toonEffect)
+
+    private void ResetLocalTransformsToBindPose()
     {
-        var vertices=new RuntimeVertex[mesh.Vertices.Length];for(int i=0;i<vertices.Length;i++){var v=mesh.Vertices[i];vertices[i]=new(V(v.Position),V(v.Normal),new(v.Uv.X,v.Uv.Y),new Byte4(v.B0,v.B1,v.B2,v.B3),V(v.Weights));}
-        var vb=new VertexBuffer(device,RuntimeVertex.Declaration,vertices.Length,BufferUsage.WriteOnly);vb.SetData(vertices);var ib=new IndexBuffer(device,IndexElementSize.ThirtyTwoBits,mesh.Indices.Length,BufferUsage.WriteOnly);ib.SetData(mesh.Indices);
-        Effect effect=toonEffect.Clone();var bones=new Matrix[72];for(int i=0;i<bones.Length;i++)bones[i]=Matrix.Identity;
-        return new(mesh,vb,ib,effect,bones,texture);
+        for (int nodeIndex = 0; nodeIndex < localTransforms.Length; nodeIndex++)
+            localTransforms[nodeIndex] = ToXnaMatrix(modelData.Nodes[nodeIndex].Bind);
     }
-    private void DrawMeshes(Matrix world,Matrix view,Matrix projection)
+
+    private static double CalculateAnimationTick(
+        ClipData clip,
+        float elapsedSeconds,
+        bool loop)
     {
-        var old=device.RasterizerState;device.RasterizerState=RasterizerState.CullNone;
-        Matrix inverseView=Matrix.Invert(view);Vector3 cameraPosition=inverseView.Translation;Vector3 lightDirection=Vector3.Normalize(new Vector3(-.5f,-1f,-.4f));
-        foreach(var mesh in meshes){device.SetVertexBuffer(mesh.Vb);device.Indices=mesh.Ib;Matrix meshWorld=world;if(mesh.Source.Bones.Length>0){for(int i=0;i<mesh.Source.Bones.Length;i++){var b=mesh.Source.Bones[i];mesh.Bones[i]=M(b.Offset)*globals[b.Node]*inverseRoot;}}else{meshWorld=globals[mesh.Source.Node]*world;mesh.Bones[0]=Matrix.Identity;}mesh.Effect.Parameters["World"]?.SetValue(meshWorld);mesh.Effect.Parameters["View"]?.SetValue(view);mesh.Effect.Parameters["Projection"]?.SetValue(projection);mesh.Effect.Parameters["CameraPosition"]?.SetValue(cameraPosition);mesh.Effect.Parameters["LightDirection"]?.SetValue(lightDirection);mesh.Effect.Parameters["ModelTexture"]?.SetValue(mesh.Texture);mesh.Effect.Parameters["Bones"]?.SetValue(mesh.Bones);foreach(var pass in mesh.Effect.CurrentTechnique.Passes){pass.Apply();device.DrawIndexedPrimitives(PrimitiveType.TriangleList,0,0,mesh.Source.Indices.Length/3);}}
-        device.RasterizerState=old;
+        double animationTick = elapsedSeconds * clip.TicksPerSecond;
+
+        if (loop && clip.Duration > 0)
+            return animationTick % clip.Duration;
+
+        return Math.Min(animationTick, clip.Duration);
     }
-    private void BuildGlobals(Matrix[] l,Matrix[] g){for(int i=0;i<l.Length;i++){int p=data.Nodes[i].Parent;g[i]=p<0?l[i]:l[i]*g[p];}}
-    private static Vector3 Interp(VectorKey[] a,double t,Vector3 fallback){if(a.Length==0)return fallback;int i=Key(a,t,x=>x.Time);if(i==a.Length-1)return V(a[i].Value);float q=(float)((t-a[i].Time)/Math.Max(a[i+1].Time-a[i].Time,double.Epsilon));return Vector3.Lerp(V(a[i].Value),V(a[i+1].Value),q);}
-    private static Quaternion Interp(QuaternionKey[] a,double t,Quaternion fallback){if(a.Length==0)return fallback;int i=Key(a,t,x=>x.Time);if(i==a.Length-1)return Q(a[i].Value);float q=(float)((t-a[i].Time)/Math.Max(a[i+1].Time-a[i].Time,double.Epsilon));return Quaternion.Normalize(Quaternion.Slerp(Q(a[i].Value),Q(a[i+1].Value),q));}
-    private static int Key<T>(T[] a,double t,Func<T,double> f){int l=0,h=a.Length-1;while(l<h){int m=(l+h+1)/2;if(f(a[m])<=t)l=m;else h=m-1;}return l;}
-    public void Dispose(){foreach(var m in meshes){m.Vb.Dispose();m.Ib.Dispose();m.Effect.Dispose();}}
-    private static Matrix M(NMatrix m)=>new(m.M11,m.M12,m.M13,m.M14,m.M21,m.M22,m.M23,m.M24,m.M31,m.M32,m.M33,m.M34,m.M41,m.M42,m.M43,m.M44);private static Vector3 V(System.Numerics.Vector3 v)=>new(v.X,v.Y,v.Z);private static Vector4 V(System.Numerics.Vector4 v)=>new(v.X,v.Y,v.Z,v.W);private static Quaternion Q(System.Numerics.Quaternion q)=>new(q.X,q.Y,q.Z,q.W);
-    private sealed record RuntimeMesh(MeshData Source,VertexBuffer Vb,IndexBuffer Ib,Effect Effect,Matrix[] Bones,Texture2D Texture);
+
+    private void ApplyAnimationChannels(ClipData clip, double animationTick)
+    {
+        foreach (ChannelData channel in clip.Channels)
+        {
+            Matrix bindTransform = localTransforms[channel.Node];
+            bindTransform.Decompose(
+                out Vector3 bindScale,
+                out Quaternion bindRotation,
+                out Vector3 bindPosition);
+
+            Vector3 position = InterpolateVectorKeys(
+                channel.Positions,
+                animationTick,
+                bindPosition);
+
+            Quaternion rotation = InterpolateQuaternionKeys(
+                channel.Rotations,
+                animationTick,
+                bindRotation);
+
+            Vector3 scale = InterpolateVectorKeys(
+                channel.Scales,
+                animationTick,
+                bindScale);
+
+            localTransforms[channel.Node] =
+                Matrix.CreateScale(scale) *
+                Matrix.CreateFromQuaternion(rotation) *
+                Matrix.CreateTranslation(position);
+        }
+    }
+
+    private BoundingBox CalculateMeshBounds(MeshData mesh)
+    {
+        var minimum = new Vector3(float.MaxValue);
+        var maximum = new Vector3(float.MinValue);
+        Matrix nodeTransform = bindPoseGlobalTransforms[mesh.Node];
+
+        foreach (VertexData vertex in mesh.Vertices)
+        {
+            Vector3 localPosition = ToXnaVector3(vertex.Position);
+            Vector3 worldPosition = Vector3.Transform(localPosition, nodeTransform);
+
+            minimum = Vector3.Min(minimum, worldPosition);
+            maximum = Vector3.Max(maximum, worldPosition);
+        }
+
+        return new BoundingBox(minimum, maximum);
+    }
+
+    private static bool IsWalkableNode(string nodeName) =>
+        nodeName.StartsWith("Ground", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Bridge", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Trail", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Cylinder", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.Contains("Platform", StringComparison.OrdinalIgnoreCase);
+
+    private RuntimeMesh CreateRuntimeMesh(
+        MeshData sourceMesh,
+        Texture2D texture,
+        Effect toonEffect)
+    {
+        RuntimeVertex[] vertices = ConvertVertices(sourceMesh.Vertices);
+
+        var vertexBuffer = new VertexBuffer(
+            graphicsDevice,
+            RuntimeVertex.Declaration,
+            vertices.Length,
+            BufferUsage.WriteOnly);
+        vertexBuffer.SetData(vertices);
+
+        var indexBuffer = new IndexBuffer(
+            graphicsDevice,
+            IndexElementSize.ThirtyTwoBits,
+            sourceMesh.Indices.Length,
+            BufferUsage.WriteOnly);
+        indexBuffer.SetData(sourceMesh.Indices);
+
+        Effect meshEffect = toonEffect.Clone();
+        Matrix[] boneTransforms = CreateIdentityBoneTransforms();
+
+        return new RuntimeMesh(
+            sourceMesh,
+            vertexBuffer,
+            indexBuffer,
+            meshEffect,
+            boneTransforms,
+            texture);
+    }
+
+    private static RuntimeVertex[] ConvertVertices(VertexData[] sourceVertices)
+    {
+        var runtimeVertices = new RuntimeVertex[sourceVertices.Length];
+
+        for (int vertexIndex = 0; vertexIndex < sourceVertices.Length; vertexIndex++)
+        {
+            VertexData sourceVertex = sourceVertices[vertexIndex];
+
+            runtimeVertices[vertexIndex] = new RuntimeVertex(
+                ToXnaVector3(sourceVertex.Position),
+                ToXnaVector3(sourceVertex.Normal),
+                new Vector2(sourceVertex.Uv.X, sourceVertex.Uv.Y),
+                new Byte4(
+                    sourceVertex.B0,
+                    sourceVertex.B1,
+                    sourceVertex.B2,
+                    sourceVertex.B3),
+                ToXnaVector4(sourceVertex.Weights));
+        }
+
+        return runtimeVertices;
+    }
+
+    private static Matrix[] CreateIdentityBoneTransforms()
+    {
+        var boneTransforms = new Matrix[MaximumBoneCount];
+
+        for (int boneIndex = 0; boneIndex < boneTransforms.Length; boneIndex++)
+            boneTransforms[boneIndex] = Matrix.Identity;
+
+        return boneTransforms;
+    }
+
+    private void DrawMeshes(Matrix world, Matrix view, Matrix projection)
+    {
+        RasterizerState previousRasterizerState = graphicsDevice.RasterizerState;
+        graphicsDevice.RasterizerState = RasterizerState.CullNone;
+
+        try
+        {
+            Vector3 cameraPosition = Matrix.Invert(view).Translation;
+
+            foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
+            {
+                DrawMesh(
+                    runtimeMesh,
+                    world,
+                    view,
+                    projection,
+                    cameraPosition);
+            }
+        }
+        finally
+        {
+            graphicsDevice.RasterizerState = previousRasterizerState;
+        }
+    }
+
+    private void DrawMesh(
+        RuntimeMesh runtimeMesh,
+        Matrix modelWorld,
+        Matrix view,
+        Matrix projection,
+        Vector3 cameraPosition)
+    {
+        graphicsDevice.SetVertexBuffer(runtimeMesh.VertexBuffer);
+        graphicsDevice.Indices = runtimeMesh.IndexBuffer;
+
+        Matrix meshWorld = PrepareMeshTransforms(runtimeMesh, modelWorld);
+        ApplyEffectParameters(
+            runtimeMesh,
+            meshWorld,
+            view,
+            projection,
+            cameraPosition);
+
+        int primitiveCount = runtimeMesh.Source.Indices.Length / 3;
+
+        foreach (EffectPass effectPass in runtimeMesh.Effect.CurrentTechnique.Passes)
+        {
+            effectPass.Apply();
+            graphicsDevice.DrawIndexedPrimitives(
+                PrimitiveType.TriangleList,
+                baseVertex: 0,
+                startIndex: 0,
+                primitiveCount);
+        }
+    }
+
+    private Matrix PrepareMeshTransforms(RuntimeMesh runtimeMesh, Matrix modelWorld)
+    {
+        MeshData sourceMesh = runtimeMesh.Source;
+
+        if (sourceMesh.Bones.Length == 0)
+        {
+            runtimeMesh.BoneTransforms[0] = Matrix.Identity;
+            return globalTransforms[sourceMesh.Node] * modelWorld;
+        }
+
+        for (int boneIndex = 0; boneIndex < sourceMesh.Bones.Length; boneIndex++)
+        {
+            BoneData bone = sourceMesh.Bones[boneIndex];
+
+            runtimeMesh.BoneTransforms[boneIndex] =
+                ToXnaMatrix(bone.Offset) *
+                globalTransforms[bone.Node] *
+                inverseRootTransform;
+        }
+
+        return modelWorld;
+    }
+
+    private static void ApplyEffectParameters(
+        RuntimeMesh runtimeMesh,
+        Matrix world,
+        Matrix view,
+        Matrix projection,
+        Vector3 cameraPosition)
+    {
+        EffectParameterCollection parameters = runtimeMesh.Effect.Parameters;
+
+        parameters["World"]?.SetValue(world);
+        parameters["View"]?.SetValue(view);
+        parameters["Projection"]?.SetValue(projection);
+        parameters["CameraPosition"]?.SetValue(cameraPosition);
+        parameters["LightDirection"]?.SetValue(DefaultLightDirection);
+        parameters["ModelTexture"]?.SetValue(runtimeMesh.Texture);
+        parameters["Bones"]?.SetValue(runtimeMesh.BoneTransforms);
+    }
+
+    private void CalculateGlobalTransforms(
+        Matrix[] sourceLocalTransforms,
+        Matrix[] destinationGlobalTransforms)
+    {
+        for (int nodeIndex = 0; nodeIndex < sourceLocalTransforms.Length; nodeIndex++)
+        {
+            int parentIndex = modelData.Nodes[nodeIndex].Parent;
+            Matrix localTransform = sourceLocalTransforms[nodeIndex];
+
+            destinationGlobalTransforms[nodeIndex] = parentIndex < 0
+                ? localTransform
+                : localTransform * destinationGlobalTransforms[parentIndex];
+        }
+    }
+
+    private static Vector3 InterpolateVectorKeys(
+        VectorKey[] keys,
+        double animationTick,
+        Vector3 fallbackValue)
+    {
+        if (keys.Length == 0)
+            return fallbackValue;
+
+        int firstKeyIndex = FindKeyIndex(keys, animationTick, key => key.Time);
+
+        if (firstKeyIndex == keys.Length - 1)
+            return ToXnaVector3(keys[firstKeyIndex].Value);
+
+        VectorKey firstKey = keys[firstKeyIndex];
+        VectorKey secondKey = keys[firstKeyIndex + 1];
+        float interpolationAmount = CalculateInterpolationAmount(
+            animationTick,
+            firstKey.Time,
+            secondKey.Time);
+
+        return Vector3.Lerp(
+            ToXnaVector3(firstKey.Value),
+            ToXnaVector3(secondKey.Value),
+            interpolationAmount);
+    }
+
+    private static Quaternion InterpolateQuaternionKeys(
+        QuaternionKey[] keys,
+        double animationTick,
+        Quaternion fallbackValue)
+    {
+        if (keys.Length == 0)
+            return fallbackValue;
+
+        int firstKeyIndex = FindKeyIndex(keys, animationTick, key => key.Time);
+
+        if (firstKeyIndex == keys.Length - 1)
+            return ToXnaQuaternion(keys[firstKeyIndex].Value);
+
+        QuaternionKey firstKey = keys[firstKeyIndex];
+        QuaternionKey secondKey = keys[firstKeyIndex + 1];
+        float interpolationAmount = CalculateInterpolationAmount(
+            animationTick,
+            firstKey.Time,
+            secondKey.Time);
+
+        Quaternion interpolatedRotation = Quaternion.Slerp(
+            ToXnaQuaternion(firstKey.Value),
+            ToXnaQuaternion(secondKey.Value),
+            interpolationAmount);
+
+        return Quaternion.Normalize(interpolatedRotation);
+    }
+
+    private static float CalculateInterpolationAmount(
+        double currentTime,
+        double firstKeyTime,
+        double secondKeyTime)
+    {
+        double interval = Math.Max(secondKeyTime - firstKeyTime, double.Epsilon);
+        return (float)((currentTime - firstKeyTime) / interval);
+    }
+
+    private static int FindKeyIndex<T>(
+        T[] keys,
+        double animationTick,
+        Func<T, double> getKeyTime)
+    {
+        int lowerIndex = 0;
+        int upperIndex = keys.Length - 1;
+
+        while (lowerIndex < upperIndex)
+        {
+            int middleIndex = (lowerIndex + upperIndex + 1) / 2;
+
+            if (getKeyTime(keys[middleIndex]) <= animationTick)
+                lowerIndex = middleIndex;
+            else
+                upperIndex = middleIndex - 1;
+        }
+
+        return lowerIndex;
+    }
+
+    public void Dispose()
+    {
+        foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
+        {
+            runtimeMesh.VertexBuffer.Dispose();
+            runtimeMesh.IndexBuffer.Dispose();
+            runtimeMesh.Effect.Dispose();
+        }
+    }
+
+    private static Matrix ToXnaMatrix(NumericsMatrix matrix) => new(
+        matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+        matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+        matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+        matrix.M41, matrix.M42, matrix.M43, matrix.M44);
+
+    private static Vector3 ToXnaVector3(NumericsVector3 vector) =>
+        new(vector.X, vector.Y, vector.Z);
+
+    private static Vector4 ToXnaVector4(NumericsVector4 vector) =>
+        new(vector.X, vector.Y, vector.Z, vector.W);
+
+    private static Quaternion ToXnaQuaternion(NumericsQuaternion quaternion) =>
+        new(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W);
+
+    private sealed record RuntimeMesh(
+        MeshData Source,
+        VertexBuffer VertexBuffer,
+        IndexBuffer IndexBuffer,
+        Effect Effect,
+        Matrix[] BoneTransforms,
+        Texture2D Texture);
 }
-internal readonly struct RuntimeVertex(Vector3 p,Vector3 n,Vector2 uv,Byte4 bi,Vector4 bw):IVertexType
+
+internal readonly struct RuntimeVertex : IVertexType
 {
-    public static readonly VertexDeclaration Declaration=new(new VertexElement(0,VertexElementFormat.Vector3,VertexElementUsage.Position,0),new VertexElement(12,VertexElementFormat.Vector3,VertexElementUsage.Normal,0),new VertexElement(24,VertexElementFormat.Vector2,VertexElementUsage.TextureCoordinate,0),new VertexElement(32,VertexElementFormat.Byte4,VertexElementUsage.BlendIndices,0),new VertexElement(36,VertexElementFormat.Vector4,VertexElementUsage.BlendWeight,0));
-    private readonly Vector3 p=p,n=n;private readonly Vector2 uv=uv;private readonly Byte4 bi=bi;private readonly Vector4 bw=bw;VertexDeclaration IVertexType.VertexDeclaration=>Declaration;
+    public static readonly VertexDeclaration Declaration = new(
+        new VertexElement(
+            offset: 0,
+            VertexElementFormat.Vector3,
+            VertexElementUsage.Position,
+            usageIndex: 0),
+        new VertexElement(
+            offset: 12,
+            VertexElementFormat.Vector3,
+            VertexElementUsage.Normal,
+            usageIndex: 0),
+        new VertexElement(
+            offset: 24,
+            VertexElementFormat.Vector2,
+            VertexElementUsage.TextureCoordinate,
+            usageIndex: 0),
+        new VertexElement(
+            offset: 32,
+            VertexElementFormat.Byte4,
+            VertexElementUsage.BlendIndices,
+            usageIndex: 0),
+        new VertexElement(
+            offset: 36,
+            VertexElementFormat.Vector4,
+            VertexElementUsage.BlendWeight,
+            usageIndex: 0));
+
+    private readonly Vector3 position;
+    private readonly Vector3 normal;
+    private readonly Vector2 textureCoordinate;
+    private readonly Byte4 boneIndices;
+    private readonly Vector4 boneWeights;
+
+    public RuntimeVertex(
+        Vector3 position,
+        Vector3 normal,
+        Vector2 textureCoordinate,
+        Byte4 boneIndices,
+        Vector4 boneWeights)
+    {
+        this.position = position;
+        this.normal = normal;
+        this.textureCoordinate = textureCoordinate;
+        this.boneIndices = boneIndices;
+        this.boneWeights = boneWeights;
+    }
+
+    VertexDeclaration IVertexType.VertexDeclaration => Declaration;
 }

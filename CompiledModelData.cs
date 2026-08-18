@@ -6,6 +6,7 @@ internal static class CompiledModelFormat
 {
     public const uint Magic = 0x4D4C4433;
     public const int Version = 1;
+    public const int MaximumArrayLength = 100_000_000;
 }
 
 internal sealed class ModelData
@@ -15,9 +16,25 @@ internal sealed class ModelData
     public List<ClipData> Clips { get; } = [];
 }
 
-internal sealed record NodeData(string Name, int Parent, Matrix4x4 Bind);
-internal sealed record BoneData(int Node, Matrix4x4 Offset);
-internal readonly record struct VertexData(Vector3 Position, Vector3 Normal, Vector2 Uv, byte B0, byte B1, byte B2, byte B3, Vector4 Weights);
+internal sealed record NodeData(
+    string Name,
+    int Parent,
+    Matrix4x4 Bind);
+
+internal sealed record BoneData(
+    int Node,
+    Matrix4x4 Offset);
+
+internal readonly record struct VertexData(
+    Vector3 Position,
+    Vector3 Normal,
+    Vector2 Uv,
+    byte B0,
+    byte B1,
+    byte B2,
+    byte B3,
+    Vector4 Weights);
+
 internal sealed class MeshData
 {
     public string Name { get; init; } = "Mesh";
@@ -26,8 +43,15 @@ internal sealed class MeshData
     public int[] Indices { get; init; } = [];
     public BoneData[] Bones { get; init; } = [];
 }
-internal readonly record struct VectorKey(double Time, Vector3 Value);
-internal readonly record struct QuaternionKey(double Time, Quaternion Value);
+
+internal readonly record struct VectorKey(
+    double Time,
+    Vector3 Value);
+
+internal readonly record struct QuaternionKey(
+    double Time,
+    Quaternion Value);
+
 internal sealed class ChannelData
 {
     public int Node { get; init; }
@@ -35,6 +59,7 @@ internal sealed class ChannelData
     public QuaternionKey[] Rotations { get; init; } = [];
     public VectorKey[] Scales { get; init; } = [];
 }
+
 internal sealed class ClipData
 {
     public string Name { get; init; } = "Clip";
@@ -47,61 +72,375 @@ internal static class ModelDataIo
 {
     public static void Write(string path, ModelData model)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        using var w = new BinaryWriter(File.Create(path));
-        w.Write(CompiledModelFormat.Magic); w.Write(CompiledModelFormat.Version);
-        w.Write(model.Nodes.Count);
-        foreach (var n in model.Nodes) { w.Write(n.Name); w.Write(n.Parent); Matrix(w, n.Bind); }
-        w.Write(model.Meshes.Count);
-        foreach (var m in model.Meshes)
-        {
-            w.Write(m.Name); w.Write(m.Node); w.Write(m.Vertices.Length);
-            foreach (var v in m.Vertices)
-            {
-                V3(w,v.Position); V3(w,v.Normal); w.Write(v.Uv.X);w.Write(v.Uv.Y);
-                w.Write(v.B0);w.Write(v.B1);w.Write(v.B2);w.Write(v.B3);
-                w.Write(v.Weights.X);w.Write(v.Weights.Y);w.Write(v.Weights.Z);w.Write(v.Weights.W);
-            }
-            w.Write(m.Indices.Length); foreach(int i in m.Indices)w.Write(i);
-            w.Write(m.Bones.Length); foreach(var b in m.Bones){w.Write(b.Node);Matrix(w,b.Offset);}
-        }
-        w.Write(model.Clips.Count);
-        foreach(var c in model.Clips)
-        {
-            w.Write(c.Name);w.Write(c.Duration);w.Write(c.TicksPerSecond);w.Write(c.Channels.Count);
-            foreach(var ch in c.Channels){w.Write(ch.Node);Keys(w,ch.Positions);Keys(w,ch.Rotations);Keys(w,ch.Scales);}
-        }
+        string absolutePath = Path.GetFullPath(path);
+        string outputDirectory = Path.GetDirectoryName(absolutePath)!;
+        Directory.CreateDirectory(outputDirectory);
+
+        using FileStream outputStream = File.Create(absolutePath);
+        using var writer = new BinaryWriter(outputStream);
+
+        writer.Write(CompiledModelFormat.Magic);
+        writer.Write(CompiledModelFormat.Version);
+
+        WriteNodes(writer, model.Nodes);
+        WriteMeshes(writer, model.Meshes);
+        WriteClips(writer, model.Clips);
     }
 
     public static ModelData Read(Stream stream)
     {
-        using var r=new BinaryReader(stream,System.Text.Encoding.UTF8,true);
-        if(r.ReadUInt32()!=CompiledModelFormat.Magic)throw new InvalidDataException("Файл не является моделью 3DLight.");
-        int version=r.ReadInt32();if(version!=CompiledModelFormat.Version)throw new InvalidDataException($"Версия модели {version} не поддерживается.");
-        var d=new ModelData();
-        for(int i=0,n=Count(r);i<n;i++)d.Nodes.Add(new(r.ReadString(),r.ReadInt32(),Matrix(r)));
-        for(int i=0,n=Count(r);i<n;i++)
-        {
-            string name=r.ReadString();int node=r.ReadInt32();var vertices=new VertexData[Count(r)];
-            for(int v=0;v<vertices.Length;v++)vertices[v]=new(V3(r),V3(r),new(r.ReadSingle(),r.ReadSingle()),r.ReadByte(),r.ReadByte(),r.ReadByte(),r.ReadByte(),new(r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle()));
-            var indices=new int[Count(r)];for(int x=0;x<indices.Length;x++)indices[x]=r.ReadInt32();
-            var bones=new BoneData[Count(r)];for(int b=0;b<bones.Length;b++)bones[b]=new(r.ReadInt32(),Matrix(r));
-            d.Meshes.Add(new(){Name=name,Node=node,Vertices=vertices,Indices=indices,Bones=bones});
-        }
-        for(int i=0,n=Count(r);i<n;i++)
-        {
-            var clip=new ClipData{Name=r.ReadString(),Duration=r.ReadDouble(),TicksPerSecond=r.ReadDouble()};
-            for(int c=0,k=Count(r);c<k;c++)clip.Channels.Add(new(){Node=r.ReadInt32(),Positions=VectorKeys(r),Rotations=QuaternionKeys(r),Scales=VectorKeys(r)});
-            d.Clips.Add(clip);
-        }
-        return d;
+        using var reader = new BinaryReader(
+            stream,
+            System.Text.Encoding.UTF8,
+            leaveOpen: true);
+
+        ValidateHeader(reader);
+
+        var model = new ModelData();
+        ReadNodes(reader, model.Nodes);
+        ReadMeshes(reader, model.Meshes);
+        ReadClips(reader, model.Clips);
+
+        return model;
     }
-    private static int Count(BinaryReader r){int n=r.ReadInt32();if(n<0||n>100_000_000)throw new InvalidDataException("Повреждённый размер массива модели.");return n;}
-    private static void Keys(BinaryWriter w,VectorKey[] a){w.Write(a.Length);foreach(var k in a){w.Write(k.Time);V3(w,k.Value);}}
-    private static void Keys(BinaryWriter w,QuaternionKey[] a){w.Write(a.Length);foreach(var k in a){w.Write(k.Time);w.Write(k.Value.X);w.Write(k.Value.Y);w.Write(k.Value.Z);w.Write(k.Value.W);}}
-    private static VectorKey[] VectorKeys(BinaryReader r){var a=new VectorKey[Count(r)];for(int i=0;i<a.Length;i++)a[i]=new(r.ReadDouble(),V3(r));return a;}
-    private static QuaternionKey[] QuaternionKeys(BinaryReader r){var a=new QuaternionKey[Count(r)];for(int i=0;i<a.Length;i++)a[i]=new(r.ReadDouble(),new(r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle()));return a;}
-    private static void V3(BinaryWriter w,Vector3 v){w.Write(v.X);w.Write(v.Y);w.Write(v.Z);} private static Vector3 V3(BinaryReader r)=>new(r.ReadSingle(),r.ReadSingle(),r.ReadSingle());
-    private static void Matrix(BinaryWriter w,Matrix4x4 m){w.Write(m.M11);w.Write(m.M12);w.Write(m.M13);w.Write(m.M14);w.Write(m.M21);w.Write(m.M22);w.Write(m.M23);w.Write(m.M24);w.Write(m.M31);w.Write(m.M32);w.Write(m.M33);w.Write(m.M34);w.Write(m.M41);w.Write(m.M42);w.Write(m.M43);w.Write(m.M44);}
-    private static Matrix4x4 Matrix(BinaryReader r)=>new(r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle(),r.ReadSingle());
+
+    private static void ValidateHeader(BinaryReader reader)
+    {
+        uint magic = reader.ReadUInt32();
+
+        if (magic != CompiledModelFormat.Magic)
+            throw new InvalidDataException("Файл не является моделью 3DLight.");
+
+        int version = reader.ReadInt32();
+
+        if (version != CompiledModelFormat.Version)
+        {
+            throw new InvalidDataException(
+                $"Версия модели {version} не поддерживается.");
+        }
+    }
+
+    private static void WriteNodes(BinaryWriter writer, List<NodeData> nodes)
+    {
+        writer.Write(nodes.Count);
+
+        foreach (NodeData node in nodes)
+        {
+            writer.Write(node.Name);
+            writer.Write(node.Parent);
+            WriteMatrix(writer, node.Bind);
+        }
+    }
+
+    private static void ReadNodes(BinaryReader reader, List<NodeData> nodes)
+    {
+        int nodeCount = ReadArrayLength(reader, "узлов");
+
+        for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++)
+        {
+            string name = reader.ReadString();
+            int parent = reader.ReadInt32();
+            Matrix4x4 bindTransform = ReadMatrix(reader);
+
+            nodes.Add(new NodeData(name, parent, bindTransform));
+        }
+    }
+
+    private static void WriteMeshes(BinaryWriter writer, List<MeshData> meshes)
+    {
+        writer.Write(meshes.Count);
+
+        foreach (MeshData mesh in meshes)
+        {
+            writer.Write(mesh.Name);
+            writer.Write(mesh.Node);
+            WriteVertices(writer, mesh.Vertices);
+            WriteIndices(writer, mesh.Indices);
+            WriteBones(writer, mesh.Bones);
+        }
+    }
+
+    private static void ReadMeshes(BinaryReader reader, List<MeshData> meshes)
+    {
+        int meshCount = ReadArrayLength(reader, "мешей");
+
+        for (int meshIndex = 0; meshIndex < meshCount; meshIndex++)
+        {
+            string name = reader.ReadString();
+            int node = reader.ReadInt32();
+
+            meshes.Add(new MeshData
+            {
+                Name = name,
+                Node = node,
+                Vertices = ReadVertices(reader),
+                Indices = ReadIndices(reader),
+                Bones = ReadBones(reader)
+            });
+        }
+    }
+
+    private static void WriteVertices(BinaryWriter writer, VertexData[] vertices)
+    {
+        writer.Write(vertices.Length);
+
+        foreach (VertexData vertex in vertices)
+        {
+            WriteVector3(writer, vertex.Position);
+            WriteVector3(writer, vertex.Normal);
+            writer.Write(vertex.Uv.X);
+            writer.Write(vertex.Uv.Y);
+            writer.Write(vertex.B0);
+            writer.Write(vertex.B1);
+            writer.Write(vertex.B2);
+            writer.Write(vertex.B3);
+            writer.Write(vertex.Weights.X);
+            writer.Write(vertex.Weights.Y);
+            writer.Write(vertex.Weights.Z);
+            writer.Write(vertex.Weights.W);
+        }
+    }
+
+    private static VertexData[] ReadVertices(BinaryReader reader)
+    {
+        var vertices = new VertexData[ReadArrayLength(reader, "вершин")];
+
+        for (int vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
+        {
+            Vector3 position = ReadVector3(reader);
+            Vector3 normal = ReadVector3(reader);
+            var textureCoordinate = new Vector2(
+                reader.ReadSingle(),
+                reader.ReadSingle());
+
+            byte bone0 = reader.ReadByte();
+            byte bone1 = reader.ReadByte();
+            byte bone2 = reader.ReadByte();
+            byte bone3 = reader.ReadByte();
+
+            var weights = new Vector4(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle());
+
+            vertices[vertexIndex] = new VertexData(
+                position,
+                normal,
+                textureCoordinate,
+                bone0,
+                bone1,
+                bone2,
+                bone3,
+                weights);
+        }
+
+        return vertices;
+    }
+
+    private static void WriteIndices(BinaryWriter writer, int[] indices)
+    {
+        writer.Write(indices.Length);
+
+        foreach (int index in indices)
+            writer.Write(index);
+    }
+
+    private static int[] ReadIndices(BinaryReader reader)
+    {
+        var indices = new int[ReadArrayLength(reader, "индексов")];
+
+        for (int index = 0; index < indices.Length; index++)
+            indices[index] = reader.ReadInt32();
+
+        return indices;
+    }
+
+    private static void WriteBones(BinaryWriter writer, BoneData[] bones)
+    {
+        writer.Write(bones.Length);
+
+        foreach (BoneData bone in bones)
+        {
+            writer.Write(bone.Node);
+            WriteMatrix(writer, bone.Offset);
+        }
+    }
+
+    private static BoneData[] ReadBones(BinaryReader reader)
+    {
+        var bones = new BoneData[ReadArrayLength(reader, "костей")];
+
+        for (int boneIndex = 0; boneIndex < bones.Length; boneIndex++)
+        {
+            int node = reader.ReadInt32();
+            Matrix4x4 offset = ReadMatrix(reader);
+            bones[boneIndex] = new BoneData(node, offset);
+        }
+
+        return bones;
+    }
+
+    private static void WriteClips(BinaryWriter writer, List<ClipData> clips)
+    {
+        writer.Write(clips.Count);
+
+        foreach (ClipData clip in clips)
+        {
+            writer.Write(clip.Name);
+            writer.Write(clip.Duration);
+            writer.Write(clip.TicksPerSecond);
+            writer.Write(clip.Channels.Count);
+
+            foreach (ChannelData channel in clip.Channels)
+            {
+                writer.Write(channel.Node);
+                WriteVectorKeys(writer, channel.Positions);
+                WriteQuaternionKeys(writer, channel.Rotations);
+                WriteVectorKeys(writer, channel.Scales);
+            }
+        }
+    }
+
+    private static void ReadClips(BinaryReader reader, List<ClipData> clips)
+    {
+        int clipCount = ReadArrayLength(reader, "клипов");
+
+        for (int clipIndex = 0; clipIndex < clipCount; clipIndex++)
+        {
+            var clip = new ClipData
+            {
+                Name = reader.ReadString(),
+                Duration = reader.ReadDouble(),
+                TicksPerSecond = reader.ReadDouble()
+            };
+
+            int channelCount = ReadArrayLength(reader, "каналов");
+
+            for (int channelIndex = 0; channelIndex < channelCount; channelIndex++)
+            {
+                clip.Channels.Add(new ChannelData
+                {
+                    Node = reader.ReadInt32(),
+                    Positions = ReadVectorKeys(reader),
+                    Rotations = ReadQuaternionKeys(reader),
+                    Scales = ReadVectorKeys(reader)
+                });
+            }
+
+            clips.Add(clip);
+        }
+    }
+
+    private static void WriteVectorKeys(BinaryWriter writer, VectorKey[] keys)
+    {
+        writer.Write(keys.Length);
+
+        foreach (VectorKey key in keys)
+        {
+            writer.Write(key.Time);
+            WriteVector3(writer, key.Value);
+        }
+    }
+
+    private static VectorKey[] ReadVectorKeys(BinaryReader reader)
+    {
+        var keys = new VectorKey[ReadArrayLength(reader, "векторных ключей")];
+
+        for (int keyIndex = 0; keyIndex < keys.Length; keyIndex++)
+        {
+            double time = reader.ReadDouble();
+            Vector3 value = ReadVector3(reader);
+            keys[keyIndex] = new VectorKey(time, value);
+        }
+
+        return keys;
+    }
+
+    private static void WriteQuaternionKeys(
+        BinaryWriter writer,
+        QuaternionKey[] keys)
+    {
+        writer.Write(keys.Length);
+
+        foreach (QuaternionKey key in keys)
+        {
+            writer.Write(key.Time);
+            writer.Write(key.Value.X);
+            writer.Write(key.Value.Y);
+            writer.Write(key.Value.Z);
+            writer.Write(key.Value.W);
+        }
+    }
+
+    private static QuaternionKey[] ReadQuaternionKeys(BinaryReader reader)
+    {
+        var keys = new QuaternionKey[
+            ReadArrayLength(reader, "кватернионных ключей")];
+
+        for (int keyIndex = 0; keyIndex < keys.Length; keyIndex++)
+        {
+            double time = reader.ReadDouble();
+            var value = new Quaternion(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle());
+
+            keys[keyIndex] = new QuaternionKey(time, value);
+        }
+
+        return keys;
+    }
+
+    private static int ReadArrayLength(BinaryReader reader, string valueName)
+    {
+        int length = reader.ReadInt32();
+
+        if (length < 0 || length > CompiledModelFormat.MaximumArrayLength)
+        {
+            throw new InvalidDataException(
+                $"Повреждённое количество {valueName}: {length}.");
+        }
+
+        return length;
+    }
+
+    private static void WriteVector3(BinaryWriter writer, Vector3 vector)
+    {
+        writer.Write(vector.X);
+        writer.Write(vector.Y);
+        writer.Write(vector.Z);
+    }
+
+    private static Vector3 ReadVector3(BinaryReader reader) => new(
+        reader.ReadSingle(),
+        reader.ReadSingle(),
+        reader.ReadSingle());
+
+    private static void WriteMatrix(BinaryWriter writer, Matrix4x4 matrix)
+    {
+        writer.Write(matrix.M11);
+        writer.Write(matrix.M12);
+        writer.Write(matrix.M13);
+        writer.Write(matrix.M14);
+        writer.Write(matrix.M21);
+        writer.Write(matrix.M22);
+        writer.Write(matrix.M23);
+        writer.Write(matrix.M24);
+        writer.Write(matrix.M31);
+        writer.Write(matrix.M32);
+        writer.Write(matrix.M33);
+        writer.Write(matrix.M34);
+        writer.Write(matrix.M41);
+        writer.Write(matrix.M42);
+        writer.Write(matrix.M43);
+        writer.Write(matrix.M44);
+    }
+
+    private static Matrix4x4 ReadMatrix(BinaryReader reader) => new(
+        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+        reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 }

@@ -202,8 +202,19 @@ public sealed class LightGame : Game
         spriteBatch.Begin();
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
         string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
-        string playerText = $"PLAYER HP: {player.Health}/{player.MaxHealth} | X: {player.Position.X:F2} | Y: {player.Position.Y:F2} | Z: {player.Position.Z:F2} | PLATFORM: {playerPlatform}";
-        string skelText = $"SKELETON HP: {skeleton.Health}/{skeleton.MaxHealth} | X: {skeleton.Position.X:F2} | Y: {skeleton.Position.Y:F2} | Z: {skeleton.Position.Z:F2} | PLATFORM: {skeletonPlatform}";
+        string playerText =
+            $"PLAYER HP: {player.Health}/{player.MaxHealth} | " +
+            $"X: {player.Position.X:F2} | " +
+            $"Y: {player.Position.Y:F2} | " +
+            $"Z: {player.Position.Z:F2} | " +
+            $"PLATFORM: {playerPlatform}";
+
+        string skelText =
+            $"SKELETON HP: {skeleton.Health}/{skeleton.MaxHealth} | " +
+            $"X: {skeleton.Position.X:F2} | " +
+            $"Y: {skeleton.Position.Y:F2} | " +
+            $"Z: {skeleton.Position.Z:F2} | " +
+            $"PLATFORM: {skeletonPlatform}";
         Color skeletonDebugColor = skeleton.IsDead ? Color.Gray : Color.LawnGreen;
 
         spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);

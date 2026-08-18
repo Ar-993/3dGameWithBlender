@@ -22,10 +22,19 @@ namespace _3DLight
 
         public void LoadContent(ContentManager content, string modelPath)
         {
-            var graphics = (IGraphicsDeviceService?)content.ServiceProvider.GetService(typeof(IGraphicsDeviceService));
+            var graphicsService = (IGraphicsDeviceService?)
+                content.ServiceProvider.GetService(typeof(IGraphicsDeviceService));
+
+            GraphicsDevice graphicsDevice = graphicsService?.GraphicsDevice
+                ?? throw new InvalidOperationException("GraphicsDevice unavailable.");
+
             Texture2D texture = content.Load<Texture2D>("Assets/level.fbm/palette_0");
             Effect toonEffect = content.Load<Effect>("ToonShader");
-            model = CompiledModel.Load(graphics?.GraphicsDevice ?? throw new InvalidOperationException("GraphicsDevice unavailable."), modelPath, texture, toonEffect);
+            model = CompiledModel.Load(
+                graphicsDevice,
+                modelPath,
+                texture,
+                toonEffect);
             platforms.Clear();
             platforms.AddRange(model.BuildPlatforms());
         }
