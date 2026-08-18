@@ -5,6 +5,9 @@
 1. [`ModelCompiler.md`](ModelCompiler.md) — как Assimp читает FBX и превращает его в данные игры.
 2. [`CompiledModelData.md`](CompiledModelData.md) — как устроен бинарный формат `.3dmodel`.
 3. [`CompiledModel.md`](CompiledModel.md) — как игра загружает, анимирует и рисует модель.
+4. [`AddingModelsAndAnimations.md`](AddingModelsAndAnimations.md) — практическая инструкция по добавлению моделей и клипов.
+5. [`AddingModelsLineByLine.md`](AddingModelsLineByLine.md) — учебный пример с построчным разбором кода.
+6. [`LoaderClassesLineByLine.md`](LoaderClassesLineByLine.md) — подробный разбор всех классов загрузчика и связей между ними.
 
 Общий путь данных:
 
