@@ -31,8 +31,9 @@ internal sealed class CharacterFacade
         GraphicsDevice graphicsDevice,
         string animationsFolder,
         Dictionary<string, string> animations,
-        Texture2D? texture = null) =>
-        animation.LoadContent(graphicsDevice, animationsFolder, animations, texture);
+        Texture2D texture,
+        Effect toonEffect) =>
+        animation.LoadContent(graphicsDevice, animationsFolder, animations, texture, toonEffect);
 
     public bool TryJump(float impulse) => physics.TryJump(impulse);
 

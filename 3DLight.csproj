@@ -11,63 +11,27 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AssimpNetter" Version="6.0.4" />
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
     <!-- Компилирует FBX, материалы и текстуры в понятный MonoGame формат XNB. -->
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Assets\level.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueAttack.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueDeath.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueFlyKick.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueIdle.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueJump.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueRun.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueTPose.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <Compile Remove="AnimatedMixamoModel.cs" />
+    <Compile Remove="LevelColliderLoader.cs" />
+    <Compile Remove="Tools\**\*.cs" />
+    <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Player\rogue_texture.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Player\RogueHurt.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Skeleton\SkeletonAttack.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Skeleton\SkeletonDeath.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Skeleton\SkeletonHurt.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Skeleton\SkeletonIdle.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Skeleton\SkeletonRun.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Assets\Skeleton\SkeletonTPose.fbx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Content\Assets\Skeleton\skeleton_texture.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <Target Name="CompileModels" BeforeTargets="Build">
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\Tools\ModelCompiler\ModelCompiler.csproj&quot; -- &quot;$(MSBuildProjectDirectory)\Assets\models.json&quot;" />
+    <MakeDir Directories="$(TargetDir)Content\Models" />
+    <ItemGroup><CompiledModelFile Include="$(MSBuildProjectDirectory)\Content\Models\*.3dmodel" /></ItemGroup>
+    <Copy SourceFiles="@(CompiledModelFile)" DestinationFolder="$(TargetDir)Content\Models" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

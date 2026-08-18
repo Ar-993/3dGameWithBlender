@@ -1,0 +1,9 @@
+{
+  "models": [
+    { "name": "level", "source": "level.fbx", "output": "../Content/Models/level.3dmodel" },
+    { "name": "player", "source": "../Content/Assets/Player/RogueTPose.fbx", "output": "../Content/Models/player.3dmodel",
+      "clips": { "TPose":"../Content/Assets/Player/RogueTPose.fbx", "Idle":"../Content/Assets/Player/RogueIdle.fbx", "Run":"../Content/Assets/Player/RogueRun.fbx", "Jump":"../Content/Assets/Player/RogueJump.fbx", "Attack":"../Content/Assets/Player/RogueAttack.fbx", "FlyKick":"../Content/Assets/Player/RogueFlyKick.fbx", "Hurt":"../Content/Assets/Player/RogueHurt.fbx", "Die":"../Content/Assets/Player/RogueDeath.fbx" } },
+    { "name": "skeleton", "source": "../Content/Assets/Skeleton/SkeletonTPose.fbx", "output": "../Content/Models/skeleton.3dmodel",
+      "clips": { "Idle":"../Content/Assets/Skeleton/SkeletonIdle.fbx", "Run":"../Content/Assets/Skeleton/SkeletonRun.fbx", "Attack":"../Content/Assets/Skeleton/SkeletonAttack.fbx", "Hurt":"../Content/Assets/Skeleton/SkeletonHurt.fbx", "Die":"../Content/Assets/Skeleton/SkeletonDeath.fbx" } }
+  ]
+}

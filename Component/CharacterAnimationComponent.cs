@@ -20,8 +20,9 @@ internal sealed class CharacterAnimationComponent : IGameComponent
         GraphicsDevice graphicsDevice,
         string animationsFolder,
         Dictionary<string, string> animations,
-        Texture2D? texture = null) =>
-        animator.LoadContent(graphicsDevice, animationsFolder, animations, texture);
+        Texture2D texture,
+        Effect toonEffect) =>
+        animator.LoadContent(graphicsDevice, animationsFolder, animations, texture, toonEffect);
 
     public void Play(string clipName, bool loop, float deltaTime)
     {

@@ -64,6 +64,7 @@ public class Player
 
         Texture2D knightTexture =
             content.Load<Texture2D>("Assets/Player/rogue_texture");
+        Effect toonEffect = content.Load<Effect>("ToonShader");
 
         var playerAnims = new Dictionary<string, string>
     {
@@ -81,7 +82,8 @@ public class Player
             graphicsDevice,
             knightFolder,
             playerAnims,
-            knightTexture);
+            knightTexture,
+            toonEffect);
 
         attack.SetDuration(animation.GetClipDuration("Attack"));
         flyKick.SetDuration(animation.GetClipDuration("FlyKick"));

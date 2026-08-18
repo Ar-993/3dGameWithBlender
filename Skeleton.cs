@@ -35,6 +35,7 @@ public class Skeleton
     {
         string skeletonFolder = Path.Combine(animsFolder, "Skeleton");
         Texture2D skeletonTexture = content.Load<Texture2D>("Assets/Skeleton/skeleton_texture");
+        Effect toonEffect = content.Load<Effect>("ToonShader");
 
         var monsterAnims = new Dictionary<string, string>
         {
@@ -45,7 +46,7 @@ public class Skeleton
             { "Die", "SkeletonDeath.fbx" }
         };
 
-        character.LoadContent(graphicsDevice, skeletonFolder, monsterAnims, skeletonTexture);
+        character.LoadContent(graphicsDevice, skeletonFolder, monsterAnims, skeletonTexture, toonEffect);
         ai.SetAttackDuration(animation.GetClipDuration("Attack"));
         ai.SetHurtDuration(animation.GetClipDuration("Hurt"));
     }

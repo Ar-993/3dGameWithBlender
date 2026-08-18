@@ -6,7 +6,7 @@ using System.IO;
 
 public class CharacterAnimator
 {
-    private AnimatedMixamoModel model = null!;
+    private CompiledModel model = null!;
     public string CurrentClip { get; private set; } = "";
     private float stateTime;
     private bool isLooping = true;
@@ -17,18 +17,12 @@ public class CharacterAnimator
         : model.GetClipDuration(CurrentClip);
 
     // Загрузка любого набора анимаций
-    public void LoadContent(GraphicsDevice graphicsDevice, string directoryPath, Dictionary<string, string> animations, Texture2D? texture = null)
+    public void LoadContent(GraphicsDevice graphicsDevice, string directoryPath, Dictionary<string, string> animations, Texture2D texture, Effect toonEffect)
     {
-        model = new AnimatedMixamoModel(graphicsDevice);
-
-        var fullPaths = new Dictionary<string, string>();
-        foreach (var (clipName, fileName) in animations)
-        {
-            fullPaths[clipName] = Path.Combine(directoryPath, fileName);
-        }
-
-        // Передаем текстуру в модель 4-м аргументом
-        model.Load(fullPaths, texture);
+        string assetName = new DirectoryInfo(directoryPath).Name.Equals("Skeleton", StringComparison.OrdinalIgnoreCase)
+            ? "skeleton"
+            : "player";
+        model = CompiledModel.Load(graphicsDevice, assetName, texture, toonEffect);
 
         foreach (var clipName in animations.Keys)
         {

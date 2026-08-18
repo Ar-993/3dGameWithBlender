@@ -95,8 +95,7 @@ public sealed class LightGame : Game
         debugFont = Content.Load<SpriteFont>("DebugFont");
         string animsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
 
-        string levelSource = Path.Combine(AppContext.BaseDirectory, "Assets", "level.fbx");
-        level.LoadContent(Content, "level", levelSource);
+        level.LoadContent(Content, "level");
         player.LoadContent(
     GraphicsDevice,
     Content,

@@ -7,8 +7,7 @@ namespace _3DLight
 {
     public class Level
     {
-        private Model model = null!;
-        private Matrix[] boneTransforms = [];
+        private CompiledModel model = null!;
         private readonly List<Platform> platforms = [];
 
         public sealed record Platform(int Id, string Name, BoundingBox Bounds)
@@ -20,13 +19,14 @@ namespace _3DLight
                 position.Z >= Bounds.Min.Z + margin && position.Z <= Bounds.Max.Z - margin;
         }
 
-        public void LoadContent(ContentManager content, string modelPath, string sourceModelPath)
+        public void LoadContent(ContentManager content, string modelPath)
         {
-            model = content.Load<Model>(modelPath);
-            boneTransforms = new Matrix[model.Bones.Count];
-            model.CopyAbsoluteBoneTransformsTo(boneTransforms);
+            var graphics = (IGraphicsDeviceService?)content.ServiceProvider.GetService(typeof(IGraphicsDeviceService));
+            Texture2D texture = content.Load<Texture2D>("Assets/level.fbm/palette_0");
+            Effect toonEffect = content.Load<Effect>("ToonShader");
+            model = CompiledModel.Load(graphics?.GraphicsDevice ?? throw new InvalidOperationException("GraphicsDevice unavailable."), modelPath, texture, toonEffect);
             platforms.Clear();
-            platforms.AddRange(LevelColliderLoader.Load(sourceModelPath));
+            platforms.AddRange(model.BuildPlatforms());
         }
 
         public Vector3 MoveCharacter(
@@ -121,23 +121,7 @@ namespace _3DLight
 
         public void Draw(Matrix view, Matrix projection)
         {
-            foreach (var mesh in model.Meshes)
-            {
-                foreach (BasicEffect effect in mesh.Effects)
-                {
-                    effect.World = boneTransforms[mesh.ParentBone.Index];
-                    effect.View = view;
-                    effect.Projection = projection;
-
-                    effect.LightingEnabled = true;
-                    effect.PreferPerPixelLighting = true;
-                    effect.AmbientLightColor = new Vector3(0.35f);
-                    effect.DirectionalLight0.Enabled = true;
-                    effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(-0.7f, -1f, -0.4f));
-                    effect.DirectionalLight0.DiffuseColor = Vector3.One;
-                }
-                mesh.Draw();
-            }
+            model.Draw(Matrix.Identity, view, projection);
         }
 
     }
