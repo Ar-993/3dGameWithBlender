@@ -46,6 +46,11 @@ internal sealed class CharacterFacade
     public void Play(string clipName, bool loop, float deltaTime) =>
         animation.Play(clipName, loop, deltaTime);
 
-    public void Draw(Matrix view, Matrix projection) =>
-        animation.Draw(Position, view, projection);
+    public void Draw(
+        Matrix view,
+        Matrix projection,
+        Effect? effect = null)
+    {
+        animation.Draw(Position, view, projection, effect);
+    }
 }

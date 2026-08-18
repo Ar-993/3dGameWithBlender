@@ -61,17 +61,20 @@ public class Skeleton
         ai.Update(Position, player.Position, samePlatform, deltaTime);
         Vector3 horizontalMovement = Vector3.Zero;
 
-        if (ai.Direction != Vector3.Zero)
-            character.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
-
+        // Поворот и движение разрешаем только в режиме преследования
         if (ai.State == AIComponent.AiState.Chasing)
         {
+            if (ai.Direction != Vector3.Zero)
+                character.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
+
             Vector3 newPos = Position + ai.Direction * Speed * deltaTime;
             if (CurrentPlatform!.ContainsHorizontal(newPos, character.CollisionRadius))
                 horizontalMovement = ai.Direction * Speed * deltaTime;
         }
 
         Vector3 oldPosition = Position;
+
+        // Передаем horizontalMovement (во время Hurt, Attacking и Dead он равен Vector3.Zero)
         character.Move(level, horizontalMovement, deltaTime);
 
         bool isRunning = horizontalMovement != Vector3.Zero &&
@@ -86,7 +89,6 @@ public class Skeleton
                 animation.Play("Hurt", loop: false, deltaTime);
                 break;
             case AIComponent.AiState.Dead:
-                // Клип не зациклен: после завершения модель остаётся на последнем кадре.
                 animation.Play("Die", loop: false, deltaTime);
                 break;
             case AIComponent.AiState.Chasing when isRunning:
@@ -101,8 +103,8 @@ public class Skeleton
             player.TakeDamage(10);
     }
 
-    public void Draw(Matrix view, Matrix projection)
+    public void Draw(Matrix view, Matrix projection, Effect? customEffect = null)
     {
-        character.Draw(view, projection);
+        character.Draw(view, projection, customEffect);
     }
 }

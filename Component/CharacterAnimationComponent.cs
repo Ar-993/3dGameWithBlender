@@ -7,11 +7,7 @@ internal sealed class CharacterAnimationComponent : IGameComponent
     private readonly CharacterAnimator animator = new();
     private readonly float modelScale;
 
-    public float CurrentClipDuration =>
-    animator.CurrentClipDuration;
-
-    public float CurrentTime =>
-        animator.CurrentTime;
+    public float CurrentClipDuration => animator.CurrentClipDuration;
     public float RotationY { get; set; }
 
     public CharacterAnimationComponent(float modelScale) => this.modelScale = modelScale;
@@ -29,17 +25,15 @@ internal sealed class CharacterAnimationComponent : IGameComponent
         animator.Update(deltaTime);
     }
 
-    public void Draw(Vector3 position, Matrix view, Matrix projection)
+    public void Draw(Vector3 position, Matrix view, Matrix projection, Effect? effect = null)
     {
         Matrix world =
             Matrix.CreateScale(modelScale) *
             Matrix.CreateRotationY(RotationY) *
             Matrix.CreateTranslation(position);
-        animator.Draw(world, view, projection);
+
+        animator.Draw(world, view, projection, effect);
     }
 
-    public float GetClipDuration(string clipName)
-    {
-        return animator.GetClipDuration(clipName);
-    }
+    public float GetClipDuration(string clipName) => animator.GetClipDuration(clipName);
 }

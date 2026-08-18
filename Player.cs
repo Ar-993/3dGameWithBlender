@@ -88,12 +88,12 @@ public class Player
     }
 
     public void Update(
-        GameTime gameTime,
-        KeyboardState keyboard,
-        float cameraYaw,
-        Level level,
-        bool attackPressed,
-        bool flyKickPressed)
+    GameTime gameTime,
+    KeyboardState keyboard,
+    float cameraYaw,
+    Level level,
+    bool attackPressed,
+    bool flyKickPressed)
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -106,46 +106,58 @@ public class Player
         attack.Update(deltaTime);
         flyKick.Update(deltaTime);
 
-
         Vector3 moveDir = Vector3.Zero;
         Vector3 horizontalMovement = Vector3.Zero;
 
-        // 1. Считываем движение WASD
-        if (keyboard.IsKeyDown(Keys.W)) moveDir.Z = -1;
-        if (keyboard.IsKeyDown(Keys.S)) moveDir.Z = 1;
-        if (keyboard.IsKeyDown(Keys.A)) moveDir.X = -1;
-        if (keyboard.IsKeyDown(Keys.D)) moveDir.X = 1;
+        bool isMovementBlocked = IsDead || attack.IsAttacking || flyKick.IsAttacking;
+
+        // 1. Обычное движение WASD (если не заблокировано)
+        if (!isMovementBlocked)
+        {
+            if (keyboard.IsKeyDown(Keys.W)) moveDir.Z = -1;
+            if (keyboard.IsKeyDown(Keys.S)) moveDir.Z = 1;
+            if (keyboard.IsKeyDown(Keys.A)) moveDir.X = -1;
+            if (keyboard.IsKeyDown(Keys.D)) moveDir.X = 1;
+
+            if (moveDir != Vector3.Zero)
+            {
+                moveDir.Normalize();
+                Matrix cameraRotation = Matrix.CreateRotationY(cameraYaw);
+                Vector3 rotatedDir = Vector3.TransformNormal(moveDir, cameraRotation);
+
+                horizontalMovement = rotatedDir * Speed * deltaTime;
+                character.RotationY = MathF.Atan2(rotatedDir.X, rotatedDir.Z);
+            }
+        }
+        // 2. Небольшой пролет вперед во время FlyKick
+        else if (flyKick.IsAttacking)
+        {
+            // Вычисляем направление взгляда игрока
+            Vector3 forward = new Vector3(MathF.Sin(RotationY), 0f, MathF.Cos(RotationY));
+
+            float flyKickDashSpeed = Speed * 1.2f;
+            horizontalMovement = forward * flyKickDashSpeed * deltaTime;
+        }
 
         bool isMoving = moveDir != Vector3.Zero;
 
-        if (isMoving)
-        {
-            moveDir.Normalize();
-
-            // Поворачиваем вектор движения относительно взгляда камеры
-            Matrix cameraRotation = Matrix.CreateRotationY(cameraYaw);
-            Vector3 rotatedDir = Vector3.TransformNormal(moveDir, cameraRotation);
-
-            horizontalMovement = rotatedDir * Speed * deltaTime;
-            character.RotationY = MathF.Atan2(rotatedDir.X, rotatedDir.Z);
-        }
-
-        // Движение и прыжок разрешены во время атаки.
-        if (!IsDead &&
+        // Прыжок доступен только когда управление не заблокировано
+        if (!isMovementBlocked &&
             keyboard.IsKeyDown(Keys.Space) &&
             previousKeyboard.IsKeyUp(Keys.Space))
+        {
             character.TryJump(JumpImpulse);
+        }
 
         character.Move(level, horizontalMovement, deltaTime);
 
-        // 5. УПРАВЛЕНИЕ АНИМАЦИЯМИ
+        // Управление анимациями
         if (IsDead)
         {
             character.Play("Die", loop: false, deltaTime);
         }
         else if (flyKick.IsAttacking)
         {
-            // FlyKick перекрывает всё тело; движение, записанное в FBX, сохраняется.
             character.Play("FlyKick", loop: false, deltaTime);
         }
         else if (attack.IsAttacking)
@@ -168,8 +180,8 @@ public class Player
         previousKeyboard = keyboard;
     }
 
-    public void Draw(Matrix view, Matrix projection)
+    public void Draw(Matrix view, Matrix projection, Effect? customEffect = null)
     {
-        character.Draw(view, projection);
+        character.Draw(view, projection, customEffect);
     }
 }

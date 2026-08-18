@@ -6,6 +6,7 @@ using Assimp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Graphics.PackedVector;
+
 using NumericsMatrix = System.Numerics.Matrix4x4;
 using NumericsQuaternion = System.Numerics.Quaternion;
 using NumericsVector3 = System.Numerics.Vector3;
@@ -24,11 +25,16 @@ internal sealed class AnimatedMixamoModel
     private bool transposeMatrices;
     private readonly Texture2D dummyTexture;
 
+    private string currentClip = "";
+    private string previousClip = "";
+    private float currentClipTime;
+    private float previousClipTime;
+    private float transitionTime;
+    private readonly float transitionDuration = 0.15f;
+
     public AnimatedMixamoModel(GraphicsDevice graphicsDevice)
     {
         this.graphicsDevice = graphicsDevice;
-
-        // Создаем 1x1 белую текстуру-заглушку
         dummyTexture = new Texture2D(graphicsDevice, 1, 1);
         dummyTexture.SetData(new[] { Color.White });
     }
@@ -38,7 +44,6 @@ internal sealed class AnimatedMixamoModel
         if (animationFiles.Count == 0)
             throw new ArgumentException("Нужно передать хотя бы один файл анимации.");
 
-        // Если текстуру передали из MGCB — берем её, иначе берем белую заглушку
         Texture2D modelTexture = texture ?? dummyTexture;
 
         using var importer = new AssimpContext();
@@ -61,12 +66,33 @@ internal sealed class AnimatedMixamoModel
                 inverseRoot = Matrix.Invert(ToMatrix(root.Transform));
                 IndexNodes(root);
 
-                // Передаем модельную текстуру в BuildMeshes
                 BuildMeshes(scene, modelTexture);
                 isFirstMesh = false;
             }
 
             clips[clipName] = ReadClip(scene);
+        }
+    }
+
+    public void Update(string clipName, float deltaTime)
+    {
+        if (currentClip != clipName)
+        {
+            previousClip = currentClip;
+            previousClipTime = currentClipTime;
+            currentClip = clipName;
+            currentClipTime = 0f;
+            transitionTime = 0f;
+        }
+        else
+        {
+            currentClipTime += deltaTime;
+        }
+
+        if (!string.IsNullOrEmpty(previousClip) && transitionTime < transitionDuration)
+        {
+            transitionTime += deltaTime;
+            previousClipTime += deltaTime;
         }
     }
 
@@ -178,9 +204,10 @@ internal sealed class AnimatedMixamoModel
                     weights[i].Count > 2 ? weights[i][2].Weight / total : 0f,
                     weights[i].Count > 3 ? weights[i][3].Weight / total : 0f);
 
-                var p = source.Vertices[i];
-                var n = source.HasNormals ? source.Normals[i] : new NumericsVector3(0, 1, 0);
-                var uv = source.HasTextureCoords(0) ? source.TextureCoordinateChannels[0][i] : new NumericsVector3();
+                NumericsVector3 p = source.Vertices[i];
+                NumericsVector3 n = source.HasNormals ? source.Normals[i] : new NumericsVector3(0, 1, 0);
+                NumericsVector3 uv = source.HasTextureCoords(0) ? source.TextureCoordinateChannels[0][i] : new NumericsVector3();
+
                 vertices[i] = new SkinnedVertex(
                     new Vector3(p.X, p.Y, p.Z), new Vector3(n.X, n.Y, n.Z),
                     new Vector2(uv.X, uv.Y), indices, blend);
@@ -194,7 +221,7 @@ internal sealed class AnimatedMixamoModel
 
             var effect = new SkinnedEffect(graphicsDevice)
             {
-                Texture = modelTexture, // Наша MGCB текстура
+                Texture = modelTexture,
                 DiffuseColor = Vector3.One,
                 AmbientLightColor = new Vector3(0.4f),
                 SpecularColor = Vector3.Zero,
@@ -210,8 +237,8 @@ internal sealed class AnimatedMixamoModel
             meshes.Add(new AnimatedMesh(vertexBuffer, indexBuffer, indicesArray.Length / 3, source.Bones, offsets, effect));
         }
 
-        if (meshes.Count == 0)
-            throw new InvalidOperationException("Файл FBX не содержит мешей со скелетом.");
+        if (meshes.Count == 0 && rigidMeshes.Count == 0)
+            throw new InvalidOperationException("Файл FBX не содержит мешей.");
     }
 
     private void BuildRigidMesh(Assimp.Mesh source, string ownerNode, Texture2D modelTexture)
@@ -219,13 +246,9 @@ internal sealed class AnimatedMixamoModel
         var vertices = new VertexPositionNormalTexture[source.VertexCount];
         for (int i = 0; i < vertices.Length; i++)
         {
-            System.Numerics.Vector3 position = source.Vertices[i];
-            System.Numerics.Vector3 normal = source.HasNormals
-                ? source.Normals[i]
-                : new System.Numerics.Vector3(0, 1, 0);
-            System.Numerics.Vector3 uv = source.HasTextureCoords(0)
-                ? source.TextureCoordinateChannels[0][i]
-                : new System.Numerics.Vector3();
+            NumericsVector3 position = source.Vertices[i];
+            NumericsVector3 normal = source.HasNormals ? source.Normals[i] : new NumericsVector3(0, 1, 0);
+            NumericsVector3 uv = source.HasTextureCoords(0) ? source.TextureCoordinateChannels[0][i] : new NumericsVector3();
 
             vertices[i] = new VertexPositionNormalTexture(
                 new Vector3(position.X, position.Y, position.Z),
@@ -234,18 +257,10 @@ internal sealed class AnimatedMixamoModel
         }
 
         int[] indices = source.GetIndices().ToArray();
-        var vertexBuffer = new VertexBuffer(
-            graphicsDevice,
-            VertexPositionNormalTexture.VertexDeclaration,
-            vertices.Length,
-            BufferUsage.WriteOnly);
+        var vertexBuffer = new VertexBuffer(graphicsDevice, VertexPositionNormalTexture.VertexDeclaration, vertices.Length, BufferUsage.WriteOnly);
         vertexBuffer.SetData(vertices);
 
-        var indexBuffer = new IndexBuffer(
-            graphicsDevice,
-            IndexElementSize.ThirtyTwoBits,
-            indices.Length,
-            BufferUsage.WriteOnly);
+        var indexBuffer = new IndexBuffer(graphicsDevice, IndexElementSize.ThirtyTwoBits, indices.Length, BufferUsage.WriteOnly);
         indexBuffer.SetData(indices);
 
         var effect = new BasicEffect(graphicsDevice)
@@ -263,12 +278,7 @@ internal sealed class AnimatedMixamoModel
         effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.4f));
         effect.DirectionalLight0.DiffuseColor = Vector3.One;
 
-        rigidMeshes.Add(new RigidMesh(
-            vertexBuffer,
-            indexBuffer,
-            indices.Length / 3,
-            ownerNode,
-            effect));
+        rigidMeshes.Add(new RigidMesh(vertexBuffer, indexBuffer, indices.Length / 3, ownerNode, effect));
     }
 
     private static Clip ReadClip(Scene scene)
@@ -292,14 +302,51 @@ internal sealed class AnimatedMixamoModel
         return (float)(clip.Duration / clip.TicksPerSecond);
     }
 
-    public void Draw(string clipName, float seconds, bool loop, Matrix world, Matrix view, Matrix projection)
+    private (Vector3 scale, Quaternion rotation, Vector3 translation) EvaluateNodeTransformDecomposed(Assimp.Node node, string clipName, float seconds, bool loop)
+    {
+        if (clips.TryGetValue(clipName, out var clip) && clip.Channels.TryGetValue(node.Name, out var channel))
+        {
+            double tick = seconds * clip.TicksPerSecond;
+            tick = loop ? tick % clip.Duration : Math.Min(tick, clip.Duration);
+            Vector3 pos = InterpolatePosition(channel, tick);
+            Quaternion rot = InterpolateRotation(channel, tick);
+            Vector3 scale = InterpolateScale(channel, tick);
+            return (scale, rot, pos);
+        }
+
+        Matrix bind = bindPose[node.Name];
+        bind.Decompose(out Vector3 s, out Quaternion r, out Vector3 t);
+        return (s, r, t);
+    }
+
+    public Matrix GetBoneTransform(string boneName, bool loop, Matrix world)
+    {
+        var globals = new Dictionary<string, Matrix>(nodes.Count, StringComparer.Ordinal);
+        EvaluateNode(root, Matrix.Identity, globals, loop);
+
+        if (globals.TryGetValue(boneName, out Matrix boneGlobal))
+        {
+            return boneGlobal * inverseRoot * world;
+        }
+
+        return world;
+    }
+
+    // ИСПРАВЛЕНО: Стандартная сигнатура Draw без требования передачи кастомного эффекта
+    public void Draw(
+    Matrix world,
+    Matrix view,
+    Matrix projection,
+    bool loop = true,
+    Effect? customEffect = null)
     {
         var oldRasterizerState = graphicsDevice.RasterizerState;
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
 
         var globals = new Dictionary<string, Matrix>(nodes.Count, StringComparer.Ordinal);
-        EvaluateNode(root, Matrix.Identity, clips[clipName], seconds, loop, globals);
+        EvaluateNode(root, Matrix.Identity, globals, loop);
 
+        // 1. Отрисовка скелетных мешей (AnimatedMesh)
         foreach (var mesh in meshes)
         {
             var skin = new Matrix[mesh.Bones.Count];
@@ -313,15 +360,45 @@ internal sealed class AnimatedMixamoModel
             mesh.Effect.World = world;
             mesh.Effect.View = view;
             mesh.Effect.Projection = projection;
+
             graphicsDevice.SetVertexBuffer(mesh.VertexBuffer);
             graphicsDevice.Indices = mesh.IndexBuffer;
-            foreach (var pass in mesh.Effect.CurrentTechnique.Passes)
+
+            if (customEffect != null)
             {
-                pass.Apply();
-                graphicsDevice.DrawIndexedPrimitives(Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList, 0, 0, mesh.PrimitiveCount);
+                customEffect.Parameters["World"]?.SetValue(world);
+                customEffect.Parameters["View"]?.SetValue(view);
+                customEffect.Parameters["Projection"]?.SetValue(projection);
+
+                customEffect.Parameters["Bones"]?.SetValue(skin);
+
+                foreach (var pass in customEffect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+
+                    graphicsDevice.DrawIndexedPrimitives(
+                        Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList,
+                        0,
+                        0,
+                        mesh.PrimitiveCount);
+                }
+            }
+            else
+            {
+                foreach (var pass in mesh.Effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+
+                    graphicsDevice.DrawIndexedPrimitives(
+                        Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList,
+                        0,
+                        0,
+                        mesh.PrimitiveCount);
+                }
             }
         }
 
+        // 2. Отрисовка жестких мешей (RigidMesh)
         foreach (var mesh in rigidMeshes)
         {
             if (!globals.TryGetValue(mesh.OwnerNode, out Matrix nodeTransform))
@@ -330,13 +407,15 @@ internal sealed class AnimatedMixamoModel
             mesh.Effect.World = nodeTransform * inverseRoot * world;
             mesh.Effect.View = view;
             mesh.Effect.Projection = projection;
+
             graphicsDevice.SetVertexBuffer(mesh.VertexBuffer);
             graphicsDevice.Indices = mesh.IndexBuffer;
-            foreach (EffectPass pass in mesh.Effect.CurrentTechnique.Passes)
+
+            foreach (var pass in mesh.Effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 graphicsDevice.DrawIndexedPrimitives(
-                    Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList,
+                    Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList, // ИСПРАВЛЕНО: Явное указание пространства имен
                     0,
                     0,
                     mesh.PrimitiveCount);
@@ -346,23 +425,35 @@ internal sealed class AnimatedMixamoModel
         graphicsDevice.RasterizerState = oldRasterizerState;
     }
 
-    private void EvaluateNode(Assimp.Node node, Matrix parent, Clip clip, float seconds, bool loop, Dictionary<string, Matrix> globals)
+    private void EvaluateNode(Assimp.Node node, Matrix parent, Dictionary<string, Matrix> globals, bool loop)
     {
-        Matrix local = bindPose[node.Name];
-        if (clip.Channels.TryGetValue(node.Name, out var channel))
+        var (sCurr, rCurr, tCurr) = EvaluateNodeTransformDecomposed(node, currentClip, currentClipTime, loop);
+
+        Vector3 finalS = sCurr;
+        Quaternion finalR = rCurr;
+        Vector3 finalT = tCurr;
+
+        if (!string.IsNullOrEmpty(previousClip) && transitionTime < transitionDuration)
         {
-            double tick = seconds * clip.TicksPerSecond;
-            tick = loop ? tick % clip.Duration : Math.Min(tick, clip.Duration);
-            Vector3 position = InterpolatePosition(channel, tick);
-            Quaternion rotation = InterpolateRotation(channel, tick);
-            Vector3 scale = InterpolateScale(channel, tick);
-            local = Matrix.CreateScale(scale) * Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(position);
+            var (sPrev, rPrev, tPrev) = EvaluateNodeTransformDecomposed(node, previousClip, previousClipTime, loop);
+            float t = MathHelper.Clamp(transitionTime / transitionDuration, 0f, 1f);
+
+            finalS = Vector3.Lerp(sPrev, sCurr, t);
+            finalR = Quaternion.Slerp(rPrev, rCurr, t);
+            finalT = Vector3.Lerp(tPrev, tCurr, t);
         }
+
+        Matrix local = Matrix.CreateScale(finalS) *
+                       Matrix.CreateFromQuaternion(finalR) *
+                       Matrix.CreateTranslation(finalT);
 
         Matrix global = local * parent;
         globals[node.Name] = global;
+
         foreach (var child in node.Children)
-            EvaluateNode(child, global, clip, seconds, loop, globals);
+        {
+            EvaluateNode(child, global, globals, loop);
+        }
     }
 
     private static Vector3 InterpolatePosition(NodeAnimationChannel channel, double time)
@@ -403,11 +494,13 @@ internal sealed class AnimatedMixamoModel
     }
 
     private Matrix ToMatrix(NumericsMatrix m) => ConvertMatrix(m, transposeMatrices);
+
     private static Matrix ConvertMatrix(NumericsMatrix m, bool transpose) =>
         transpose ? Matrix.Transpose(new Matrix(m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44))
                   : new Matrix(m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44);
 
     private static Vector3 ToVector(NumericsVector3 v) => new(v.X, v.Y, v.Z);
+
     private static Quaternion ToQuaternion(NumericsQuaternion q) => new(q.X, q.Y, q.Z, q.W);
 
     private sealed record Clip(double Duration, double TicksPerSecond, Dictionary<string, NodeAnimationChannel> Channels);

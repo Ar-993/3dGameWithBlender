@@ -80,3 +80,11 @@
 /processorParam:Version=3.8.5.0
 /build:DebugFont.spritefont
 
+#begin Shader.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/processorParam:Defines=
+/processorParam:Version=3.8.5.0
+/build:Shader.fx
+
