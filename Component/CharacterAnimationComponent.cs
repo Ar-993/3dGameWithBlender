@@ -26,14 +26,14 @@ internal sealed class CharacterAnimationComponent : IGameComponent
         animator.Update(deltaTime);
     }
 
-    public void Draw(Vector3 position, Matrix view, Matrix projection, Effect? effect = null)
+    public void Draw(Vector3 position, Matrix view, Matrix projection)
     {
         Matrix world =
             Matrix.CreateScale(modelScale) *
             Matrix.CreateRotationY(RotationY) *
             Matrix.CreateTranslation(position);
 
-        animator.Draw(world, view, projection, effect);
+        animator.Draw(world, view, projection);
     }
 
     public float GetClipDuration(string clipName)

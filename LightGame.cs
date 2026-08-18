@@ -51,9 +51,6 @@ public sealed class LightGame : Game
     private SpriteBatch spriteBatch = null!;
     private SpriteFont debugFont = null!;
 
-    private RenderTarget2D renderTarget = null!;
-    private Effect postProcessEffect = null!;
-
     private KeyboardState previousKeyboard;
     private MouseState previousMouse;
     private bool mouseCaptured;
@@ -105,16 +102,6 @@ public sealed class LightGame : Game
     animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
 
-        // ⭐ Загружаем Shader
-        try
-        {
-            postProcessEffect = Content.Load<Effect>("Shader");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"⚠️ Не удалось загрузить шейдер: {ex.Message}");
-            postProcessEffect = null!;
-        }
     }
 
     protected override void Update(GameTime gameTime)
@@ -192,14 +179,6 @@ public sealed class LightGame : Game
 
         camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
 
-        // ⭐ Устанавливаем параметры Toon Shader
-        if (postProcessEffect != null)
-        {
-            postProcessEffect.Parameters["CameraPosition"]?.SetValue(camera.Position);
-            postProcessEffect.Parameters["LightDirection"]?.SetValue(
-                Vector3.Normalize(new Vector3(-0.7f, -1f, -0.4f)));
-        }
-
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         skeleton.Update(player, level, deltaTime);
         DebugConsole.Update(gameTime, player, skeleton);
@@ -212,21 +191,13 @@ public sealed class LightGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.SetRenderTarget(renderTarget);
         GraphicsDevice.Clear(new Color(25, 30, 40));
         GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
 
-        level.Draw(camera.View, camera.Projection, postProcessEffect);
-        player.Draw(camera.View, camera.Projection, postProcessEffect);
-        skeleton.Draw(camera.View, camera.Projection, postProcessEffect);
-
-        GraphicsDevice.SetRenderTarget(null);
-        GraphicsDevice.Clear(Color.Black);
-
-        spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, postProcessEffect);
-        spriteBatch.Draw(renderTarget, Vector2.Zero, Color.White);
-        spriteBatch.End();
+        level.Draw(camera.View, camera.Projection);
+        player.Draw(camera.View, camera.Projection);
+        skeleton.Draw(camera.View, camera.Projection);
 
         spriteBatch.Begin();
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";

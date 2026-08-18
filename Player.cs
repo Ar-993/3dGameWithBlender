@@ -182,8 +182,8 @@ public class Player
         previousKeyboard = keyboard;
     }
 
-    public void Draw(Matrix view, Matrix projection, Effect? customEffect = null)
+    public void Draw(Matrix view, Matrix projection)
     {
-        character.Draw(view, projection, customEffect);
+        character.Draw(view, projection);
     }
 }

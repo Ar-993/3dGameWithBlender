@@ -116,9 +116,5 @@ namespace _3DLight
             model.Draw(Matrix.Identity, view, projection);
         }
 
-                    modelMesh.Draw();
-                }
-            }
-        }
     }
 }
