@@ -58,15 +58,16 @@ public sealed class CharacterAnimator
         string clipName,
         bool loop = true,
         float? blendDuration = null,
-        bool restart = false) =>
-        PlayState(
-            clipName,
+        bool restart = false)
+    {
+        PlayAnimation(
             clipName,
             rangeStartNormalized: 0f,
             rangeEndNormalized: 1f,
             loop,
             blendDuration,
             restart);
+    }
 
     public void PlaySegment(
         string stateName,
@@ -76,24 +77,25 @@ public sealed class CharacterAnimator
         bool loop = true,
         float? blendDuration = null,
         bool restart = false) =>
-        PlayState(
-            stateName,
+        PlayAnimation(
             clipName,
             rangeStartNormalized,
             rangeEndNormalized,
             loop,
             blendDuration,
-            restart);
+            restart,
+            stateName);
 
-    private void PlayState(
-        string stateName,
+    private void PlayAnimation(
         string clipName,
         float rangeStartNormalized,
         float rangeEndNormalized,
         bool loop,
         float? blendDuration,
-        bool restart)
+        bool restart,
+        string? stateName = null)
     {
+        stateName ??= clipName;
         ValidatePlaybackRange(rangeStartNormalized, rangeEndNormalized);
 
         if (!restart &&
