@@ -24,6 +24,7 @@ public class Player
     public int Health => stats.Health;
     public int MaxHealth => stats.MaxHealth;
     public bool IsDead => stats.IsDead;
+    public bool IsAnimationBlocked => isAnimationBlocked;
     public bool AttackShouldDealDamage =>
         attack.ShouldDealDamage || flyKick.ShouldDealDamage;
     public int AttackDamage => flyKick.ShouldDealDamage
@@ -45,6 +46,7 @@ public class Player
     private float landingAnimationDuration;
     private float landingAnimationTimeRemaining;
     private bool wasAirborne;
+    private bool isAnimationBlocked;
 
     internal Player(CharacterFacade character)
     {
@@ -192,6 +194,11 @@ public class Player
             fallingDuration = 0f;
         }
 
+        if (fallingDuration >= BadFallThreshold)
+        {
+            isAnimationBlocked = true;
+        }
+
         wasAirborne = !character.IsGrounded;
 
         if (isMoving && landingAnimationTimeRemaining > 0f)
@@ -203,10 +210,14 @@ public class Player
 
         // Управление анимациями
         float animationTimeScale = 1f;
-
+        
         if (IsDead)
         {
             character.Play("Die", loop: false);
+        }
+        else if (IsAnimationBlocked)
+        {
+            character.Play("FallingBad", loop: true);
         }
         else if (flyKick.IsAttacking)
         {
@@ -223,11 +234,7 @@ public class Player
         }
         else if (!character.IsGrounded)
         {
-            string fallingClip = fallingDuration >= BadFallThreshold
-                ? "FallingBad"
-                : "Falling";
-
-            character.Play(fallingClip, loop: true);
+            character.Play("Falling", loop: true);
         }
         else if (landingAnimationTimeRemaining > 0f)
         {
