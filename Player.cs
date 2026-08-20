@@ -9,6 +9,21 @@ using System.IO;
 
 public class Player
 {
+    private enum PlayerAnimationState
+    {
+        TPose,
+        Idle,
+        Run,
+        Jump,
+        Falling,
+        FallingBad,
+        Landing,
+        Attack,
+        FlyKick,
+        Hurt,
+        Die
+    }
+
     private readonly CharacterFacade character;
     private readonly StatsComponent stats;
     private readonly CharacterAnimationComponent animation;
@@ -78,17 +93,17 @@ public class Player
 
         var playerAnims = new Dictionary<string, string>
     {
-        { "TPose",  "RogueTPose.fbx"  },
-        { "Idle",   "RogueIdle.fbx"   },
-        { "Run",    "RogueRun.fbx"    },
-        { "Jump",   "RogueJump.fbx"   },
-        { "Falling", "RogueFalling.fbx" },
-        { "FallingBad", "RogueFallingBad.fbx" },
-        { "Landing", "RogueFallingToLanding.fbx" },
-        { "Attack", "RogueAttack.fbx" },
-        { "FlyKick", "RogueFlyKick.fbx" },
-        { "Hurt",   "RogueHurt.fbx"   },
-        { "Die",    "RogueDeath.fbx"  }
+        { nameof(PlayerAnimationState.TPose), "RogueTPose.fbx" },
+        { nameof(PlayerAnimationState.Idle), "RogueIdle.fbx" },
+        { nameof(PlayerAnimationState.Run), "RogueRun.fbx" },
+        { nameof(PlayerAnimationState.Jump), "RogueJump.fbx" },
+        { nameof(PlayerAnimationState.Falling), "RogueFalling.fbx" },
+        { nameof(PlayerAnimationState.FallingBad), "RogueFallingBad.fbx" },
+        { nameof(PlayerAnimationState.Landing), "RogueFallingToLanding.fbx" },
+        { nameof(PlayerAnimationState.Attack), "RogueAttack.fbx" },
+        { nameof(PlayerAnimationState.FlyKick), "RogueFlyKick.fbx" },
+        { nameof(PlayerAnimationState.Hurt), "RogueHurt.fbx" },
+        { nameof(PlayerAnimationState.Die), "RogueDeath.fbx" }
     };
 
         character.LoadContent(
@@ -98,11 +113,15 @@ public class Player
             knightTexture,
             toonEffect);
 
-        attack.SetDuration(animation.GetClipDuration("Attack"));
-        flyKick.SetDuration(animation.GetClipDuration("FlyKick"));
-        landingAnimationDuration = animation.GetClipDuration("Landing");
+        attack.SetDuration(animation.GetClipDuration(
+            nameof(PlayerAnimationState.Attack)));
+        flyKick.SetDuration(animation.GetClipDuration(
+            nameof(PlayerAnimationState.FlyKick)));
+        landingAnimationDuration = animation.GetClipDuration(
+            nameof(PlayerAnimationState.Landing));
 
-        float jumpClipDuration = animation.GetClipDuration("Jump");
+        float jumpClipDuration = animation.GetClipDuration(
+            nameof(PlayerAnimationState.Jump));
         float jumpRiseDuration =
             character.CalculateJumpRiseDuration(JumpImpulse);
 
@@ -177,27 +196,30 @@ public class Player
         }
 
         character.Move(level, horizontalMovement, deltaTime);
+        UpdateAirAnimationState(deltaTime, isMoving);
 
+        PlayerAnimationState animationState = ResolveAnimationState(isMoving);
+        float animationTimeScale = PlayAnimation(animationState);
+        character.UpdateAnimation(deltaTime * animationTimeScale);
+
+        previousKeyboard = keyboard;
+    }
+
+    private void UpdateAirAnimationState(float deltaTime, bool isMoving)
+    {
+        bool isFalling =
+            !character.IsGrounded && character.VerticalVelocity <= 0f;
         bool landedThisFrame = wasAirborne && character.IsGrounded;
 
+        fallingDuration = isFalling
+            ? fallingDuration + deltaTime
+            : 0f;
+
         if (landedThisFrame)
-        {
-            fallingDuration = 0f;
             landingAnimationTimeRemaining = landingAnimationDuration;
-        }
-        else if (!character.IsGrounded && character.VerticalVelocity <= 0f)
-        {
-            fallingDuration += deltaTime;
-        }
-        else
-        {
-            fallingDuration = 0f;
-        }
 
         if (fallingDuration >= BadFallThreshold)
-        {
             isAnimationBlocked = true;
-        }
 
         wasAirborne = !character.IsGrounded;
 
@@ -207,51 +229,49 @@ public class Player
                 landingAnimationTimeRemaining,
                 MovingLandingReleaseTime);
         }
+    }
 
-        // Управление анимациями
-        float animationTimeScale = 1f;
-        
+    private PlayerAnimationState ResolveAnimationState(bool isMoving)
+    {
         if (IsDead)
-        {
-            character.Play("Die", loop: false);
-        }
-        else if (IsAnimationBlocked)
-        {
-            character.Play("FallingBad", loop: true);
-        }
-        else if (flyKick.IsAttacking)
-        {
-            character.Play("FlyKick", loop: false);
-        }
-        else if (attack.IsAttacking)
-        {
-            character.Play("Attack", loop: false);
-        }
-        else if (!character.IsGrounded && character.VerticalVelocity > 0f)
-        {
-            character.Play("Jump", loop: false);
-            animationTimeScale = jumpAnimationTimeScale;
-        }
-        else if (!character.IsGrounded)
-        {
-            character.Play("Falling", loop: true);
-        }
-        else if (landingAnimationTimeRemaining > 0f)
-        {
-            character.Play("Landing", loop: false);
-        }
-        else if (isMoving)
-        {
-            character.Play("Run", loop: true);
-        }
-        else
-        {
-            character.Play("Idle", loop: true);
-        }
+            return PlayerAnimationState.Die;
 
-        character.UpdateAnimation(deltaTime * animationTimeScale);
+        if (IsAnimationBlocked)
+            return PlayerAnimationState.FallingBad;
 
-        previousKeyboard = keyboard;
+        if (flyKick.IsAttacking)
+            return PlayerAnimationState.FlyKick;
+
+        if (attack.IsAttacking)
+            return PlayerAnimationState.Attack;
+
+        if (!character.IsGrounded && character.VerticalVelocity > 0f)
+            return PlayerAnimationState.Jump;
+
+        if (!character.IsGrounded)
+            return PlayerAnimationState.Falling;
+
+        if (landingAnimationTimeRemaining > 0f)
+            return PlayerAnimationState.Landing;
+
+        return isMoving
+            ? PlayerAnimationState.Run
+            : PlayerAnimationState.Idle;
+    }
+
+    private float PlayAnimation(PlayerAnimationState state)
+    {
+        bool loop = state is
+            PlayerAnimationState.Idle or
+            PlayerAnimationState.Run or
+            PlayerAnimationState.Falling or
+            PlayerAnimationState.FallingBad;
+
+        character.Play(state.ToString(), loop);
+
+        return state == PlayerAnimationState.Jump
+            ? jumpAnimationTimeScale
+            : 1f;
     }
 
     public void Draw(Matrix view, Matrix projection)
