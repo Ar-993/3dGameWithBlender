@@ -21,12 +21,15 @@ internal sealed class CompiledModel : IDisposable
     private readonly RuntimeMesh[] runtimeMeshes;
     private readonly Dictionary<string, ClipData> clipsByName;
 
+    private readonly BonePose[] bindLocalPoses;
+    private readonly BonePose[] sampledPose;
     private readonly Matrix[] localTransforms;
     private readonly Matrix[] globalTransforms;
     private readonly Matrix[] bindPoseGlobalTransforms;
     private readonly Matrix inverseRootTransform;
 
     public IEnumerable<string> ClipNames => clipsByName.Keys;
+    public int NodeCount => modelData.Nodes.Count;
 
     private CompiledModel(
         GraphicsDevice graphicsDevice,
@@ -41,6 +44,15 @@ internal sealed class CompiledModel : IDisposable
             clip => clip.Name,
             StringComparer.OrdinalIgnoreCase);
 
+        bindLocalPoses = clipsByName.Count == 0
+            ? []
+            : modelData.Nodes
+                .Select(node => BonePose.FromMatrix(
+                    ToXnaMatrix(node.Bind),
+                    node.Name))
+                .ToArray();
+
+        sampledPose = new BonePose[bindLocalPoses.Length];
         localTransforms = modelData.Nodes
             .Select(node => ToXnaMatrix(node.Bind))
             .ToArray();
@@ -106,17 +118,61 @@ internal sealed class CompiledModel : IDisposable
         Matrix view,
         Matrix projection)
     {
+        SamplePose(clipName, elapsedSeconds, loop, sampledPose);
+        DrawPose(sampledPose, world, view, projection);
+    }
+
+    public void SamplePose(
+        string clipName,
+        float elapsedSeconds,
+        bool loop,
+        BonePose[] destination)
+    {
         if (!clipsByName.TryGetValue(clipName, out ClipData? clip))
             throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
 
-        ResetLocalTransformsToBindPose();
+        ValidatePoseLength(destination);
+        Array.Copy(bindLocalPoses, destination, bindLocalPoses.Length);
 
         double animationTick = CalculateAnimationTick(
             clip,
             elapsedSeconds,
             loop);
 
-        ApplyAnimationChannels(clip, animationTick);
+        foreach (ChannelData channel in clip.Channels)
+        {
+            BonePose bindPose = bindLocalPoses[channel.Node];
+
+            Vector3 position = InterpolateVectorKeys(
+                channel.Positions,
+                animationTick,
+                bindPose.Position);
+
+            Quaternion rotation = InterpolateQuaternionKeys(
+                channel.Rotations,
+                animationTick,
+                bindPose.Rotation);
+
+            Vector3 scale = InterpolateVectorKeys(
+                channel.Scales,
+                animationTick,
+                bindPose.Scale);
+
+            destination[channel.Node] = new BonePose(position, rotation, scale);
+        }
+    }
+
+    public void DrawPose(
+        BonePose[] pose,
+        Matrix world,
+        Matrix view,
+        Matrix projection)
+    {
+        ValidatePoseLength(pose);
+
+        for (int nodeIndex = 0; nodeIndex < pose.Length; nodeIndex++)
+            localTransforms[nodeIndex] = pose[nodeIndex].ToMatrix();
+
         CalculateGlobalTransforms(localTransforms, globalTransforms);
         DrawMeshes(world, view, projection);
     }
@@ -153,10 +209,14 @@ internal sealed class CompiledModel : IDisposable
         return platforms;
     }
 
-    private void ResetLocalTransformsToBindPose()
+    private void ValidatePoseLength(BonePose[] pose)
     {
-        for (int nodeIndex = 0; nodeIndex < localTransforms.Length; nodeIndex++)
-            localTransforms[nodeIndex] = ToXnaMatrix(modelData.Nodes[nodeIndex].Bind);
+        if (pose.Length != NodeCount)
+        {
+            throw new ArgumentException(
+                $"Поза содержит {pose.Length} узлов вместо {NodeCount}.",
+                nameof(pose));
+        }
     }
 
     private static double CalculateAnimationTick(
@@ -170,38 +230,6 @@ internal sealed class CompiledModel : IDisposable
             return animationTick % clip.Duration;
 
         return Math.Min(animationTick, clip.Duration);
-    }
-
-    private void ApplyAnimationChannels(ClipData clip, double animationTick)
-    {
-        foreach (ChannelData channel in clip.Channels)
-        {
-            Matrix bindTransform = localTransforms[channel.Node];
-            bindTransform.Decompose(
-                out Vector3 bindScale,
-                out Quaternion bindRotation,
-                out Vector3 bindPosition);
-
-            Vector3 position = InterpolateVectorKeys(
-                channel.Positions,
-                animationTick,
-                bindPosition);
-
-            Quaternion rotation = InterpolateQuaternionKeys(
-                channel.Rotations,
-                animationTick,
-                bindRotation);
-
-            Vector3 scale = InterpolateVectorKeys(
-                channel.Scales,
-                animationTick,
-                bindScale);
-
-            localTransforms[channel.Node] =
-                Matrix.CreateScale(scale) *
-                Matrix.CreateFromQuaternion(rotation) *
-                Matrix.CreateTranslation(position);
-        }
     }
 
     private BoundingBox CalculateMeshBounds(MeshData mesh)
@@ -467,7 +495,8 @@ internal sealed class CompiledModel : IDisposable
         double secondKeyTime)
     {
         double interval = Math.Max(secondKeyTime - firstKeyTime, double.Epsilon);
-        return (float)((currentTime - firstKeyTime) / interval);
+        double amount = (currentTime - firstKeyTime) / interval;
+        return MathHelper.Clamp((float)amount, 0f, 1f);
     }
 
     private static int FindKeyIndex<T>(
@@ -523,6 +552,43 @@ internal sealed class CompiledModel : IDisposable
         Effect Effect,
         Matrix[] BoneTransforms,
         Texture2D Texture);
+}
+
+internal readonly record struct BonePose(
+    Vector3 Position,
+    Quaternion Rotation,
+    Vector3 Scale)
+{
+    public static BonePose FromMatrix(Matrix matrix, string nodeName)
+    {
+        if (!matrix.Decompose(
+                out Vector3 scale,
+                out Quaternion rotation,
+                out Vector3 position))
+        {
+            throw new InvalidDataException(
+                $"Локальную трансформацию узла '{nodeName}' нельзя разложить на TRS.");
+        }
+
+        return new BonePose(
+            position,
+            Quaternion.Normalize(rotation),
+            scale);
+    }
+
+    public static BonePose Blend(BonePose source, BonePose target, float amount) =>
+        new(
+            Vector3.Lerp(source.Position, target.Position, amount),
+            Quaternion.Normalize(Quaternion.Slerp(
+                source.Rotation,
+                target.Rotation,
+                amount)),
+            Vector3.Lerp(source.Scale, target.Scale, amount));
+
+    public Matrix ToMatrix() =>
+        Matrix.CreateScale(Scale) *
+        Matrix.CreateFromQuaternion(Rotation) *
+        Matrix.CreateTranslation(Position);
 }
 
 internal readonly struct RuntimeVertex : IVertexType

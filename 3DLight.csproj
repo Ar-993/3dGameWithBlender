@@ -16,6 +16,10 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="Shared\ModelFormat\ModelFormat.csproj" />
+  </ItemGroup>
+
 	<ItemGroup>
 		<MonoGameContentReference Include="Content/Content.mgcb" />
 	</ItemGroup>
@@ -23,8 +27,18 @@
   <ItemGroup>
     <Compile Remove="AnimatedMixamoModel.cs" />
     <Compile Remove="LevelColliderLoader.cs" />
+    <Compile Remove="Shared\**\*.cs" />
     <Compile Remove="Tools\**\*.cs" />
     <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\Player\RogueFalling.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Player\RogueFallingBad.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Player\RogueFallingToLanding.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Content\Assets\Player\rogue_texture.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>

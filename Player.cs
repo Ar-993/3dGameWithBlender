@@ -20,6 +20,7 @@ public class Player
     public Vector3 Position => character.Position;
     public float RotationY => character.RotationY;
     public float Speed { get; set; } = 6f;
+    public float CollisionRadius => character.CollisionRadius;
     public int Health => stats.Health;
     public int MaxHealth => stats.MaxHealth;
     public bool IsDead => stats.IsDead;
@@ -33,10 +34,17 @@ public class Player
         : attack.Range;
 
     private const float JumpImpulse = 30f;
+    private const float BadFallThreshold = 5f;
+    private const float MovingLandingReleaseTime = 0.08f;
 
     public Level.Platform? CurrentPlatform => character.CurrentPlatform;
 
     private KeyboardState previousKeyboard;
+    private float jumpAnimationTimeScale = 1f;
+    private float fallingDuration;
+    private float landingAnimationDuration;
+    private float landingAnimationTimeRemaining;
+    private bool wasAirborne;
 
     internal Player(CharacterFacade character)
     {
@@ -72,6 +80,9 @@ public class Player
         { "Idle",   "RogueIdle.fbx"   },
         { "Run",    "RogueRun.fbx"    },
         { "Jump",   "RogueJump.fbx"   },
+        { "Falling", "RogueFalling.fbx" },
+        { "FallingBad", "RogueFallingBad.fbx" },
+        { "Landing", "RogueFallingToLanding.fbx" },
         { "Attack", "RogueAttack.fbx" },
         { "FlyKick", "RogueFlyKick.fbx" },
         { "Hurt",   "RogueHurt.fbx"   },
@@ -87,6 +98,14 @@ public class Player
 
         attack.SetDuration(animation.GetClipDuration("Attack"));
         flyKick.SetDuration(animation.GetClipDuration("FlyKick"));
+        landingAnimationDuration = animation.GetClipDuration("Landing");
+
+        float jumpClipDuration = animation.GetClipDuration("Jump");
+        float jumpRiseDuration =
+            character.CalculateJumpRiseDuration(JumpImpulse);
+
+        if (jumpRiseDuration > 0f)
+            jumpAnimationTimeScale = jumpClipDuration / jumpRiseDuration;
     }
 
     public void Update(
@@ -98,6 +117,9 @@ public class Player
     bool flyKickPressed)
     {
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        landingAnimationTimeRemaining = MathF.Max(
+            0f,
+            landingAnimationTimeRemaining - deltaTime);
 
         if (attackPressed && !IsDead && !flyKick.IsAttacking)
             attack.TryStart();
@@ -111,7 +133,8 @@ public class Player
         Vector3 moveDir = Vector3.Zero;
         Vector3 horizontalMovement = Vector3.Zero;
 
-        bool isMovementBlocked = IsDead || attack.IsAttacking || flyKick.IsAttacking;
+        bool isMovementBlocked = IsDead || flyKick.IsAttacking;
+        bool isJumpBlocked = isMovementBlocked || attack.IsAttacking;
 
         // 1. Обычное движение WASD (если не заблокировано)
         if (!isMovementBlocked)
@@ -144,7 +167,7 @@ public class Player
         bool isMoving = moveDir != Vector3.Zero;
 
         // Прыжок доступен только когда управление не заблокировано
-        if (!isMovementBlocked &&
+        if (!isJumpBlocked &&
             keyboard.IsKeyDown(Keys.Space) &&
             previousKeyboard.IsKeyUp(Keys.Space))
         {
@@ -153,31 +176,73 @@ public class Player
 
         character.Move(level, horizontalMovement, deltaTime);
 
-        // Управление анимациями
-        if (IsDead)
+        bool landedThisFrame = wasAirborne && character.IsGrounded;
+
+        if (landedThisFrame)
         {
-            character.Play("Die", loop: false, deltaTime);
+            fallingDuration = 0f;
+            landingAnimationTimeRemaining = landingAnimationDuration;
         }
-        else if (flyKick.IsAttacking)
+        else if (!character.IsGrounded && character.VerticalVelocity <= 0f)
         {
-            character.Play("FlyKick", loop: false, deltaTime);
-        }
-        else if (attack.IsAttacking)
-        {
-            character.Play("Attack", loop: false, deltaTime);
-        }
-        else if (!character.IsGrounded)
-        {
-            character.Play("Jump", loop: false, deltaTime);
-        }
-        else if (isMoving)
-        {
-            character.Play("Run", loop: true, deltaTime);
+            fallingDuration += deltaTime;
         }
         else
         {
-            character.Play("Idle", loop: true, deltaTime);
+            fallingDuration = 0f;
         }
+
+        wasAirborne = !character.IsGrounded;
+
+        if (isMoving && landingAnimationTimeRemaining > 0f)
+        {
+            landingAnimationTimeRemaining = MathF.Min(
+                landingAnimationTimeRemaining,
+                MovingLandingReleaseTime);
+        }
+
+        // Управление анимациями
+        float animationTimeScale = 1f;
+
+        if (IsDead)
+        {
+            character.Play("Die", loop: false);
+        }
+        else if (flyKick.IsAttacking)
+        {
+            character.Play("FlyKick", loop: false);
+        }
+        else if (attack.IsAttacking)
+        {
+            character.Play("Attack", loop: false);
+        }
+        else if (!character.IsGrounded && character.VerticalVelocity > 0f)
+        {
+            character.Play("Jump", loop: false);
+            animationTimeScale = jumpAnimationTimeScale;
+        }
+        else if (!character.IsGrounded)
+        {
+            string fallingClip = fallingDuration >= BadFallThreshold
+                ? "FallingBad"
+                : "Falling";
+
+            character.Play(fallingClip, loop: true);
+        }
+        else if (landingAnimationTimeRemaining > 0f)
+        {
+            character.Play("Landing", loop: false);
+        }
+        else if (isMoving)
+        {
+            character.Play("Run", loop: true);
+        }
+        else
+        {
+            character.Play("Idle", loop: true);
+        }
+
+        character.UpdateAnimation(deltaTime * animationTimeScale);
 
         previousKeyboard = keyboard;
     }

@@ -11,6 +11,15 @@ internal sealed class CharacterPhysicsComponent : IGameComponent
     public float Height { get; }
     public Level.Platform? CurrentPlatform { get; private set; }
     public bool IsGrounded => CurrentPlatform is not null;
+    public float VerticalVelocity => verticalVelocity;
+
+    public float CalculateRiseDuration(float initialVelocity)
+    {
+        if (initialVelocity <= 0f || gravity >= 0f)
+            return 0f;
+
+        return initialVelocity / -gravity;
+    }
 
     public CharacterPhysicsComponent(Vector3 startPosition, float radius, float height, float gravity)
     {

@@ -20,11 +20,27 @@ internal sealed class CharacterAnimationComponent : IGameComponent
         Effect toonEffect) =>
         animator.LoadContent(graphicsDevice, animationsFolder, animations, texture, toonEffect);
 
-    public void Play(string clipName, bool loop, float deltaTime)
-    {
+    public void Play(string clipName, bool loop) =>
         animator.Play(clipName, loop);
+
+    public void PlaySegment(
+        string stateName,
+        string clipName,
+        float rangeStartNormalized,
+        float rangeEndNormalized,
+        bool loop) =>
+        animator.PlaySegment(
+            stateName,
+            clipName,
+            rangeStartNormalized,
+            rangeEndNormalized,
+            loop);
+
+    public void Restart(string clipName, bool loop) =>
+        animator.Play(clipName, loop, restart: true);
+
+    public void Update(float deltaTime) =>
         animator.Update(deltaTime);
-    }
 
     public void Draw(Vector3 position, Matrix view, Matrix projection)
     {

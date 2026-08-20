@@ -12,6 +12,7 @@ internal sealed class CharacterFacade
     public Vector3 Position => physics.Position;
     public float CollisionRadius => physics.Radius;
     public bool IsGrounded => physics.IsGrounded;
+    public float VerticalVelocity => physics.VerticalVelocity;
     public Level.Platform? CurrentPlatform => physics.CurrentPlatform;
 
     public float RotationY
@@ -37,6 +38,9 @@ internal sealed class CharacterFacade
 
     public bool TryJump(float impulse) => physics.TryJump(impulse);
 
+    public float CalculateJumpRiseDuration(float impulse) =>
+        physics.CalculateRiseDuration(impulse);
+
     public T GetComponent<T>() where T : class, IGameComponent => entity.Get<T>();
 
     public bool HasComponent<T>() where T : class, IGameComponent => entity.Has<T>();
@@ -44,8 +48,24 @@ internal sealed class CharacterFacade
     public void Move(Level level, Vector3 horizontalMovement, float deltaTime) =>
         physics.Move(level, horizontalMovement, deltaTime);
 
-    public void Play(string clipName, bool loop, float deltaTime) =>
-        animation.Play(clipName, loop, deltaTime);
+    public void Play(string clipName, bool loop) =>
+        animation.Play(clipName, loop);
+
+    public void PlaySegment(
+        string stateName,
+        string clipName,
+        float rangeStartNormalized,
+        float rangeEndNormalized,
+        bool loop) =>
+        animation.PlaySegment(
+            stateName,
+            clipName,
+            rangeStartNormalized,
+            rangeEndNormalized,
+            loop);
+
+    public void UpdateAnimation(float deltaTime) =>
+        animation.Update(deltaTime);
 
     public void Draw(Matrix view, Matrix projection) =>
         animation.Draw(Position, view, projection);

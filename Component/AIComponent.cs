@@ -52,6 +52,11 @@ internal abstract class AIComponent : global::IGameComponent
         hurtDuration = MathF.Max(duration, 0.0001f);
     }
 
+    public bool IsTargetInAttackRange(
+        Vector3 ownerPosition,
+        Vector3 targetPosition) =>
+        Vector3.Distance(ownerPosition, targetPosition) <= AttackRange;
+
     public void BindStats(StatsComponent stats)
     {
         stats.Damaged += OnDamaged;
@@ -125,7 +130,7 @@ internal abstract class AIComponent : global::IGameComponent
         // Начатый удар доигрывается, даже если цель успела отойти.
         if (State == AiState.Attacking)
         {
-            UpdateAttack(distance, deltaTime);
+            UpdateAttack(deltaTime);
             return;
         }
 
@@ -139,7 +144,10 @@ internal abstract class AIComponent : global::IGameComponent
         if (distance <= AttackRange)
         {
             if (cooldownTime <= 0f && attackDuration > 0f)
+            {
                 BeginAttack();
+                UpdateAttack(deltaTime);
+            }
             else
                 State = AiState.Idle;
 
@@ -156,7 +164,7 @@ internal abstract class AIComponent : global::IGameComponent
         hitWasApplied = false;
     }
 
-    private void UpdateAttack(float distance, float deltaTime)
+    private void UpdateAttack(float deltaTime)
     {
         attackTime += deltaTime;
         float hitTime = attackDuration * HitTimeNormalized;
@@ -164,7 +172,7 @@ internal abstract class AIComponent : global::IGameComponent
         if (!hitWasApplied && attackTime >= hitTime)
         {
             hitWasApplied = true;
-            ShouldDealDamage = distance <= AttackRange;
+            ShouldDealDamage = true;
         }
 
         if (attackTime < attackDuration)

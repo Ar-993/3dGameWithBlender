@@ -1,4 +1,9 @@
 <Solution>
   <Project Path="3DLight.csproj" />
-  <Project Path="Tools/ModelCompiler/ModelCompiler.csproj" />
+  <Folder Name="/Shared/">
+    <Project Path="Shared/ModelFormat/ModelFormat.csproj" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="Tools/ModelCompiler/ModelCompiler.csproj" />
+  </Folder>
 </Solution>

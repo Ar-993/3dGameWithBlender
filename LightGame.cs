@@ -171,7 +171,6 @@ public sealed class LightGame : Game
         if (player.AttackShouldDealDamage && !skeleton.IsDead)
         {
             Vector3 difference = skeleton.Position - player.Position;
-            difference.Y = 0f;
 
             if (difference.Length() <= player.AttackRange)
                 skeleton.TakeDamage(player.AttackDamage);

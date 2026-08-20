@@ -51,7 +51,13 @@ public class Skeleton
         ai.SetHurtDuration(animation.GetClipDuration("Hurt"));
     }
 
-    public void TakeDamage(int damage) => stats.TakeDamage(damage);
+    public void TakeDamage(int damage)
+    {
+        int appliedDamage = stats.TakeDamage(damage);
+
+        if (appliedDamage > 0 && !IsDead)
+            animation.Restart("Hurt", loop: false);
+    }
 
     public void Update(Player player, Level level, float deltaTime)
     {
@@ -62,20 +68,45 @@ public class Skeleton
         ai.Update(Position, player.Position, samePlatform, deltaTime);
         Vector3 horizontalMovement = Vector3.Zero;
 
-        // Поворот и движение разрешаем только в режиме преследования
-        if (ai.State == AIComponent.AiState.Chasing)
-        {
-            if (ai.Direction != Vector3.Zero)
-                character.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
+        bool canMoveTowardPlayer =
+            ai.State is AIComponent.AiState.Chasing or AIComponent.AiState.Attacking;
 
-            Vector3 newPos = Position + ai.Direction * Speed * deltaTime;
-            if (CurrentPlatform!.ContainsHorizontal(newPos, character.CollisionRadius))
-                horizontalMovement = ai.Direction * Speed * deltaTime;
+        // Во время атаки скелет преследует цель, не делая свой шаг внутрь её радиуса.
+        if (canMoveTowardPlayer &&
+            ai.Direction != Vector3.Zero &&
+            CurrentPlatform is { } currentPlatform)
+        {
+            character.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
+
+            float movementDistance = Speed * deltaTime;
+
+            if (ai.State == AIComponent.AiState.Attacking)
+            {
+                Vector3 difference = player.Position - Position;
+                difference.Y = 0f;
+
+                float minimumDistance =
+                    character.CollisionRadius + player.CollisionRadius;
+                float availableDistance =
+                    MathF.Max(0f, difference.Length() - minimumDistance);
+
+                movementDistance = MathF.Min(movementDistance, availableDistance);
+            }
+
+            Vector3 requestedMovement = ai.Direction * movementDistance;
+            Vector3 newPosition = Position + requestedMovement;
+
+            if (currentPlatform.ContainsHorizontal(
+                    newPosition,
+                    character.CollisionRadius))
+            {
+                horizontalMovement = requestedMovement;
+            }
         }
 
         Vector3 oldPosition = Position;
 
-        // Передаем horizontalMovement (во время Hurt, Attacking и Dead он равен Vector3.Zero)
+        // Во время Hurt и Dead движение равно Vector3.Zero; Attacking сохраняет преследование.
         character.Move(level, horizontalMovement, deltaTime);
 
         bool isRunning = horizontalMovement != Vector3.Zero &&
@@ -84,24 +115,30 @@ public class Skeleton
         switch (ai.State)
         {
             case AIComponent.AiState.Attacking:
-                animation.Play("Attack", loop: false, deltaTime);
+                animation.Play("Attack", loop: false);
                 break;
             case AIComponent.AiState.Hurt:
-                animation.Play("Hurt", loop: false, deltaTime);
+                animation.Play("Hurt", loop: false);
                 break;
             case AIComponent.AiState.Dead:
-                animation.Play("Die", loop: false, deltaTime);
+                animation.Play("Die", loop: false);
                 break;
             case AIComponent.AiState.Chasing when isRunning:
-                animation.Play("Run", loop: true, deltaTime);
+                animation.Play("Run", loop: true);
                 break;
             default:
-                animation.Play("Idle", loop: true, deltaTime);
+                animation.Play("Idle", loop: true);
                 break;
         }
 
-        if (ai.ShouldDealDamage && !player.IsDead)
+        animation.Update(deltaTime);
+
+        if (ai.ShouldDealDamage &&
+            !player.IsDead &&
+            ai.IsTargetInAttackRange(Position, player.Position))
+        {
             player.TakeDamage(10);
+        }
     }
 
     public void Draw(Matrix view, Matrix projection)
