@@ -188,7 +188,10 @@ public sealed class LightGame : Game
                 skeleton.TakeDamage(player.AttackDamage);
         }
 
-        camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
+        camera.UpdateMatrices(
+            player.Position,
+            GraphicsDevice.Viewport.AspectRatio,
+            level);
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         skeleton.Update(player, level, deltaTime);

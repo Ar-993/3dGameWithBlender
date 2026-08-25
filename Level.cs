@@ -123,6 +123,47 @@ namespace _3DLight
             first.Min.Y < second.Max.Y && first.Max.Y > second.Min.Y &&
             first.Min.Z < second.Max.Z && first.Max.Z > second.Min.Z;
 
+        public Vector3 ResolveCameraPosition(
+            Vector3 target,
+            Vector3 desiredPosition,
+            float cameraRadius,
+            float minimumDistance)
+        {
+            Vector3 offset = desiredPosition - target;
+            float desiredDistance = offset.Length();
+
+            if (desiredDistance <= 0.0001f)
+                return target;
+
+            Vector3 direction = offset / desiredDistance;
+            var ray = new Ray(target, direction);
+            float allowedDistance = desiredDistance;
+
+            foreach (Platform platform in platforms)
+            {
+                BoundingBox bounds = platform.Bounds;
+                var expandedBounds = new BoundingBox(
+                    bounds.Min - new Vector3(cameraRadius),
+                    bounds.Max + new Vector3(cameraRadius));
+
+                float? hitDistance = ray.Intersects(expandedBounds);
+
+                if (hitDistance is { } distance &&
+                    distance >= 0f &&
+                    distance < allowedDistance)
+                {
+                    allowedDistance = distance;
+                }
+            }
+
+            // Небольшой отступ не даёт near plane камеры войти в стену.
+            allowedDistance = MathHelper.Clamp(
+                allowedDistance - 0.05f,
+                minimumDistance,
+                desiredDistance);
+            return target + direction * allowedDistance;
+        }
+
         public void Draw(Matrix view, Matrix projection)
         {
             model.Draw(Matrix.Identity, view, projection);

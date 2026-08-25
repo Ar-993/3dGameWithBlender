@@ -20,6 +20,12 @@ namespace _3DLight
         // Высота точки, на которую смотрит камера (уровень головы/плеч)
         public float TargetHeight { get; set; } = 1.4f;
 
+        // Приблизительный радиус камеры для отступа от стен и потолка.
+        public float CollisionRadius { get; set; } = 0.2f;
+
+        // Камера не приближается настолько, чтобы оказаться внутри персонажа.
+        public float MinimumDistance { get; set; } = 0.9f;
+
         public Matrix View { get; private set; }
         public Matrix Projection { get; private set; }
 
@@ -35,7 +41,10 @@ namespace _3DLight
             Pitch = MathHelper.Clamp(Pitch, MathHelper.ToRadians(-5f), MathHelper.ToRadians(75f));
         }
 
-        public void UpdateMatrices(Vector3 targetPosition, float aspectRatio)
+        public void UpdateMatrices(
+            Vector3 targetPosition,
+            float aspectRatio,
+            Level level)
         {
             // Точка, на которую направлен взгляд (центр тела / голова)
             Vector3 targetLookAt = targetPosition + new Vector3(0f, TargetHeight, 0f);
@@ -51,7 +60,12 @@ namespace _3DLight
             );
 
             // Позиция камеры = Точка взгляда + Смещение
-            Position = targetLookAt + cameraOffset;
+            Vector3 desiredPosition = targetLookAt + cameraOffset;
+            Position = level.ResolveCameraPosition(
+                targetLookAt,
+                desiredPosition,
+                CollisionRadius,
+                MinimumDistance);
 
             // Строим матрицу вида
             View = Matrix.CreateLookAt(Position, targetLookAt, Vector3.Up);
