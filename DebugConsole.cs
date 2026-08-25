@@ -19,7 +19,12 @@ internal static class DebugConsole
         Console.WriteLine("Координаты персонажей (обновление 10 раз/с):");
     }
 
-    public static void Update(GameTime gameTime, Player player, Skeleton skeleton)
+    public static void Update(
+        GameTime gameTime,
+        Player player,
+        Skeleton skeleton,
+        double realFps,
+        double workingSetMegabytes)
     {
         if (!isOpen)
             return;
@@ -33,7 +38,8 @@ internal static class DebugConsole
         string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
         string line =
             $"PLAYER {Format(player.Position)} [{playerPlatform}]  " +
-            $"SKELETON {Format(skeleton.Position)} [{skeletonPlatform}]";
+            $"SKELETON {Format(skeleton.Position)} [{skeletonPlatform}]  " +
+            $"FPS:{realFps,5:F1} RAM:{workingSetMegabytes,7:F1} MB";
 
         Console.Write('\r');
         Console.Write(line.PadRight(previousLineLength));

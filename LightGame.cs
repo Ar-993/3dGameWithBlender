@@ -3,10 +3,15 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Diagnostics;
 using System.IO;
 
 public sealed class LightGame : Game
 {
+    private const string ActiveLevelModel = "level_one";
+    private const string ActiveLevelTexture = "Assets/level_one.fbm/palette_0";
+    private static readonly Vector3 PlayerStartPosition = new(-1f, 0.03f, -0.06f);
+    private static readonly Vector3 SkeletonStartPosition = new(3f, 0.03f, -0.06f);
     private const float Gravity = -28f;
     private const float CharacterCollisionRadius = 0.35f;
     private const float CharacterCollisionHeight = 1.8f;
@@ -18,7 +23,7 @@ public sealed class LightGame : Game
     new CharacterFacade(
         CharacterFactory.Create(
             new CharacterPhysicsComponent(
-                new Vector3(850f, 17.5f, 45f),
+                PlayerStartPosition,
                 CharacterCollisionRadius,
                 CharacterCollisionHeight,
                 Gravity),
@@ -33,7 +38,7 @@ public sealed class LightGame : Game
     private readonly Skeleton skeleton = new(new CharacterFacade(
         CharacterFactory.Create(
             new CharacterPhysicsComponent(
-                new Vector3(840f, 17.5f, 40f),
+                SkeletonStartPosition,
                 CharacterCollisionRadius,
                 CharacterCollisionHeight,
                 Gravity),
@@ -55,6 +60,10 @@ public sealed class LightGame : Game
     private MouseState previousMouse;
     private bool mouseCaptured;
     private bool wasActive;
+    private long fpsSampleStarted = Stopwatch.GetTimestamp();
+    private int framesInSample;
+    private double realFps;
+    private double workingSetMegabytes;
 
     public LightGame()
     {
@@ -95,7 +104,10 @@ public sealed class LightGame : Game
         debugFont = Content.Load<SpriteFont>("DebugFont");
         string animsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
 
-        level.LoadContent(Content, "level");
+        level.LoadContent(
+            Content,
+            ActiveLevelModel,
+            ActiveLevelTexture);
         player.LoadContent(
     GraphicsDevice,
     Content,
@@ -180,7 +192,12 @@ public sealed class LightGame : Game
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         skeleton.Update(player, level, deltaTime);
-        DebugConsole.Update(gameTime, player, skeleton);
+        DebugConsole.Update(
+            gameTime,
+            player,
+            skeleton,
+            realFps,
+            workingSetMegabytes);
 
         previousKeyboard = keyboard;
         previousMouse = mouse;
@@ -190,6 +207,8 @@ public sealed class LightGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        UpdatePerformanceMetrics();
+
         GraphicsDevice.Clear(new Color(25, 30, 40));
         GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -214,13 +233,36 @@ public sealed class LightGame : Game
             $"Y: {skeleton.Position.Y:F2} | " +
             $"Z: {skeleton.Position.Z:F2} | " +
             $"PLATFORM: {skeletonPlatform}";
+        string performanceText =
+            $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB";
         Color skeletonDebugColor = skeleton.IsDead ? Color.Gray : Color.LawnGreen;
 
         spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);
         spriteBatch.DrawString(debugFont, skelText, new Vector2(15, 35), skeletonDebugColor);
+        spriteBatch.DrawString(debugFont, performanceText, new Vector2(15, 55), Color.Cyan);
         spriteBatch.End();
 
         base.Draw(gameTime);
+    }
+
+    private void UpdatePerformanceMetrics()
+    {
+        const double sampleDurationSeconds = 0.5;
+
+        framesInSample++;
+        long now = Stopwatch.GetTimestamp();
+        double elapsedSeconds = Stopwatch.GetElapsedTime(
+            fpsSampleStarted,
+            now).TotalSeconds;
+
+        if (elapsedSeconds >= sampleDurationSeconds)
+        {
+            realFps = framesInSample / elapsedSeconds;
+            framesInSample = 0;
+            fpsSampleStarted = now;
+        }
+
+        workingSetMegabytes = Environment.WorkingSet / (1024d * 1024d);
     }
 
     private void CaptureMouse()

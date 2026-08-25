@@ -26,6 +26,19 @@
 /processorParam:Version=3.8.5.0
 /build:../Assets/level.fbm/palette.png;Assets/level.fbm/palette_0.png
 
+#begin ../Assets/level_one.fbm/palette.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=True
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.0
+/build:../Assets/level_one.fbm/palette.png;Assets/level_one.fbm/palette_0.png
+
 #begin Assets/Player/rogue_texture.png
 /importer:TextureImporter
 /processor:TextureProcessor

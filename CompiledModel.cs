@@ -180,24 +180,25 @@ internal sealed class CompiledModel : IDisposable
     public List<Level.Platform> BuildPlatforms()
     {
         var platforms = new List<Level.Platform>();
-        int nextPlatformId = 0;
 
         foreach (MeshData mesh in modelData.Meshes)
         {
             string nodeName = modelData.Nodes[mesh.Node].Name;
 
-            if (!IsWalkableNode(nodeName) || mesh.Vertices.Length == 0)
+            if (!IsCollidableLevelNode(nodeName) || mesh.Vertices.Length == 0)
                 continue;
 
             BoundingBox meshBounds = CalculateMeshBounds(mesh);
             float width = meshBounds.Max.X - meshBounds.Min.X;
             float depth = meshBounds.Max.Z - meshBounds.Min.Z;
 
-            if (width < 0.5f || depth < 0.5f)
+            // Пол должен быть достаточно большим хотя бы по одной горизонтальной
+            // оси: тонкие стены тоже участвуют в столкновениях.
+            if (width < 0.5f && depth < 0.5f)
                 continue;
 
             platforms.Add(new Level.Platform(
-                nextPlatformId++,
+                platforms.Count,
                 nodeName,
                 meshBounds));
         }
@@ -206,8 +207,88 @@ internal sealed class CompiledModel : IDisposable
             throw new InvalidOperationException(
                 "В скомпилированной модели уровня нет платформ.");
 
-        return platforms;
+        return MergeAdjacentFloorTiles(platforms);
     }
+
+    private static List<Level.Platform> MergeAdjacentFloorTiles(
+        List<Level.Platform> sourcePlatforms)
+    {
+        const float maximumFloorHeightDifference = 0.08f;
+        const float maximumTileGap = 0.12f;
+
+        var merged = new List<Level.Platform>();
+
+        foreach (Level.Platform source in sourcePlatforms)
+        {
+            if (!IsMergeableFloorNode(source.Name))
+            {
+                merged.Add(source);
+                continue;
+            }
+
+            BoundingBox combinedBounds = source.Bounds;
+            bool absorbedAnotherTile;
+
+            // Повторяем проход, чтобы собрать всю связанную область плиток,
+            // а не только непосредственных соседей первой плитки.
+            do
+            {
+                absorbedAnotherTile = false;
+
+                for (int index = merged.Count - 1; index >= 0; index--)
+                {
+                    Level.Platform candidate = merged[index];
+
+                    if (!IsMergeableFloorNode(candidate.Name) ||
+                        MathF.Abs(candidate.SurfaceY - combinedBounds.Max.Y) >
+                            maximumFloorHeightDifference ||
+                        !AreHorizontallyConnected(
+                            candidate.Bounds,
+                            combinedBounds,
+                            maximumTileGap))
+                    {
+                        continue;
+                    }
+
+                    combinedBounds = BoundingBox.CreateMerged(
+                        combinedBounds,
+                        candidate.Bounds);
+                    merged.RemoveAt(index);
+                    absorbedAnotherTile = true;
+                }
+            }
+            while (absorbedAnotherTile);
+
+            merged.Add(new Level.Platform(0, source.Name, combinedBounds));
+        }
+
+        for (int index = 0; index < merged.Count; index++)
+            merged[index] = merged[index] with { Id = index };
+
+        return merged;
+    }
+
+    private static bool AreHorizontallyConnected(
+        BoundingBox first,
+        BoundingBox second,
+        float maximumGap)
+    {
+        float gapX = MathF.Max(
+            0f,
+            MathF.Max(first.Min.X - second.Max.X, second.Min.X - first.Max.X));
+        float gapZ = MathF.Max(
+            0f,
+            MathF.Max(first.Min.Z - second.Max.Z, second.Min.Z - first.Max.Z));
+
+        return gapX <= maximumGap && gapZ <= maximumGap;
+    }
+
+    private static bool IsMergeableFloorNode(string nodeName) =>
+        nodeName.StartsWith("Ground", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Floor", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Bridge", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Trail", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.Contains("Platform", StringComparison.OrdinalIgnoreCase);
 
     private void ValidatePoseLength(BonePose[] pose)
     {
@@ -250,8 +331,10 @@ internal sealed class CompiledModel : IDisposable
         return new BoundingBox(minimum, maximum);
     }
 
-    private static bool IsWalkableNode(string nodeName) =>
+    private static bool IsCollidableLevelNode(string nodeName) =>
         nodeName.StartsWith("Ground", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Floor", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.StartsWith("Wall", StringComparison.OrdinalIgnoreCase) ||
         nodeName.StartsWith("Bridge", StringComparison.OrdinalIgnoreCase) ||
         nodeName.StartsWith("Trail", StringComparison.OrdinalIgnoreCase) ||
         nodeName.StartsWith("Cylinder", StringComparison.OrdinalIgnoreCase) ||

@@ -20,7 +20,10 @@ namespace _3DLight
                 position.Z >= Bounds.Min.Z + margin && position.Z <= Bounds.Max.Z - margin;
         }
 
-        public void LoadContent(ContentManager content, string modelPath)
+        public void LoadContent(
+            ContentManager content,
+            string modelPath,
+            string texturePath = "Assets/level.fbm/palette_0")
         {
             var graphicsService = (IGraphicsDeviceService?)
                 content.ServiceProvider.GetService(typeof(IGraphicsDeviceService));
@@ -28,7 +31,7 @@ namespace _3DLight
             GraphicsDevice graphicsDevice = graphicsService?.GraphicsDevice
                 ?? throw new InvalidOperationException("GraphicsDevice unavailable.");
 
-            Texture2D texture = content.Load<Texture2D>("Assets/level.fbm/palette_0");
+            Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
             model = CompiledModel.Load(
                 graphicsDevice,
