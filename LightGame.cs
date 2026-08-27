@@ -8,10 +8,22 @@ using System.IO;
 
 public sealed class LightGame : Game
 {
+    private enum SpawnMode
+    {
+        Coordinates,
+        BlenderEmpty
+    }
+
     private const string ActiveLevelModel = "level_one";
     private const string ActiveLevelTexture = "Assets/level_one.fbm/palette_0";
-    private static readonly Vector3 PlayerStartPosition = new(-1f, 0.03f, -0.06f);
-    private static readonly Vector3 SkeletonStartPosition = new(3f, 0.03f, -0.06f);
+    private static readonly SpawnMode ActivePlayerSpawnMode =
+        SpawnMode.BlenderEmpty;
+    private const string PlayerSpawnObjectName = "PlayerSpawn";
+    private static readonly Vector3 PlayerSpawnCoordinates = new(-1f, 0.03f, -0.06f);
+    private static readonly SpawnMode ActiveSkeletonSpawnMode =
+        SpawnMode.BlenderEmpty;
+    private const string SkeletonSpawnObjectName = "SkeletonSpawn";
+    private static readonly Vector3 SkeletonSpawnCoordinates = new(3f, 0.03f, -0.06f);
     private const float Gravity = -28f;
     private const float CharacterCollisionRadius = 0.35f;
     private const float CharacterCollisionHeight = 1.8f;
@@ -23,7 +35,7 @@ public sealed class LightGame : Game
     new CharacterFacade(
         CharacterFactory.Create(
             new CharacterPhysicsComponent(
-                PlayerStartPosition,
+                PlayerSpawnCoordinates,
                 CharacterCollisionRadius,
                 CharacterCollisionHeight,
                 Gravity),
@@ -34,11 +46,12 @@ public sealed class LightGame : Game
                 range: 1.6f,
                 hitTimeNormalized: 0.45f))));
     private readonly ThirdPersonCamera camera = new();
+    private LevelHotReload? levelHotReload;
 
     private readonly Skeleton skeleton = new(new CharacterFacade(
         CharacterFactory.Create(
             new CharacterPhysicsComponent(
-                SkeletonStartPosition,
+                SkeletonSpawnCoordinates,
                 CharacterCollisionRadius,
                 CharacterCollisionHeight,
                 Gravity),
@@ -64,6 +77,7 @@ public sealed class LightGame : Game
     private int framesInSample;
     private double realFps;
     private double workingSetMegabytes;
+    private string activeLevelVersion = "base";
 
     public LightGame()
     {
@@ -108,6 +122,9 @@ public sealed class LightGame : Game
             Content,
             ActiveLevelModel,
             ActiveLevelTexture);
+        levelHotReload = LevelHotReload.TryCreate();
+        TryLoadLatestLevelVersion();
+        SpawnCharacters();
         player.LoadContent(
     GraphicsDevice,
     Content,
@@ -116,8 +133,105 @@ public sealed class LightGame : Game
 
     }
 
+    private void SpawnCharacters()
+    {
+        player.SpawnAt(ResolveSpawnPosition(
+            ActivePlayerSpawnMode,
+            PlayerSpawnObjectName,
+            PlayerSpawnCoordinates,
+            "Player"));
+        skeleton.SpawnAt(ResolveSpawnPosition(
+            ActiveSkeletonSpawnMode,
+            SkeletonSpawnObjectName,
+            SkeletonSpawnCoordinates,
+            "Skeleton"));
+    }
+
+    private void TryLoadLatestLevelVersion()
+    {
+        if (levelHotReload is null)
+            return;
+
+        try
+        {
+            if (levelHotReload.TryTakePendingModel(
+                    out byte[] modelBytes,
+                    out string version))
+            {
+                ApplyLevelVersion(modelBytes, version, respawnCharacters: false);
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine($"Initial level hot reload failed: {error.Message}");
+        }
+    }
+
+    private void UpdateLevelHotReload()
+    {
+        if (levelHotReload is null)
+            return;
+
+        try
+        {
+            if (levelHotReload.TryTakePendingModel(
+                    out byte[] modelBytes,
+                    out string version))
+            {
+                ApplyLevelVersion(modelBytes, version, respawnCharacters: true);
+            }
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine($"Level hot reload failed: {error.Message}");
+        }
+    }
+
+    private void ApplyLevelVersion(
+        byte[] modelBytes,
+        string version,
+        bool respawnCharacters)
+    {
+        level.ReloadContent(Content, modelBytes, ActiveLevelTexture);
+
+        if (respawnCharacters)
+            SpawnCharacters();
+
+        activeLevelVersion = version;
+        Console.WriteLine($"Level hot reload applied: {version}");
+    }
+
+    private Vector3 ResolveSpawnPosition(
+        SpawnMode mode,
+        string objectName,
+        Vector3 fallbackCoordinates,
+        string characterName)
+    {
+        if (mode == SpawnMode.Coordinates)
+        {
+            Console.WriteLine(
+                $"{characterName} spawn from coordinates: {fallbackCoordinates}");
+            return fallbackCoordinates;
+        }
+
+        if (level.TryGetMarkerPosition(objectName, out Vector3 markerPosition))
+        {
+            Console.WriteLine(
+                $"{characterName} spawn from Blender Empty '{objectName}': " +
+                markerPosition);
+            return markerPosition;
+        }
+
+        Console.WriteLine(
+            $"Blender Empty '{objectName}' was not found for {characterName}. " +
+            $"Using fallback coordinates: {fallbackCoordinates}");
+        return fallbackCoordinates;
+    }
+
     protected override void Update(GameTime gameTime)
     {
+        UpdateLevelHotReload();
+
         KeyboardState keyboard = Keyboard.GetState();
         MouseState mouse = Mouse.GetState();
         bool capturedThisFrame = false;
@@ -237,7 +351,8 @@ public sealed class LightGame : Game
             $"Z: {skeleton.Position.Z:F2} | " +
             $"PLATFORM: {skeletonPlatform}";
         string performanceText =
-            $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB";
+            $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB | " +
+            $"LEVEL: {activeLevelVersion}";
         Color skeletonDebugColor = skeleton.IsDead ? Color.Gray : Color.LawnGreen;
 
         spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);
@@ -288,6 +403,7 @@ public sealed class LightGame : Game
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
+        levelHotReload?.Dispose();
         DebugConsole.Close();
         base.OnExiting(sender, args);
     }

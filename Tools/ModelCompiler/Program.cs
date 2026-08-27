@@ -5,9 +5,18 @@ using _3DLight.Assets;
 using AssetQuaternionKey = _3DLight.Assets.QuaternionKey;
 using AssetVectorKey = _3DLight.Assets.VectorKey;
 
+if (args is ["--single", string singleSource, string singleOutput])
+{
+    CompileSingleModel(singleSource, singleOutput);
+    return 0;
+}
+
 if (args.Length != 1)
 {
-    Console.Error.WriteLine("Usage: ModelCompiler <models.json>");
+    Console.Error.WriteLine(
+        "Usage:\n" +
+        "  ModelCompiler <models.json>\n" +
+        "  ModelCompiler --single <source.fbx> <output.3dmodel>");
     return 2;
 }
 
@@ -19,6 +28,23 @@ foreach (ModelEntry modelEntry in manifest.Models)
     CompileManifestEntry(modelEntry, manifestDirectory);
 
 return 0;
+
+static void CompileSingleModel(string sourceArgument, string outputArgument)
+{
+    string sourcePath = Path.GetFullPath(sourceArgument);
+    string outputPath = Path.GetFullPath(outputArgument);
+    string sourceDirectory = Path.GetDirectoryName(sourcePath)!;
+
+    Console.WriteLine($"Compiling hot-reload level '{sourcePath}'...");
+
+    ModelData model = CompileModel(
+        sourcePath,
+        clipFiles: null,
+        manifestDirectory: sourceDirectory);
+
+    ModelDataIo.Write(outputPath, model);
+    Console.WriteLine($"  -> {outputPath}");
+}
 
 static ModelManifest ReadManifest(string manifestPath)
 {

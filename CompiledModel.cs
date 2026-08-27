@@ -92,12 +92,50 @@ internal sealed class CompiledModel : IDisposable
             toonEffect);
     }
 
+    public static CompiledModel LoadFromBytes(
+        GraphicsDevice graphicsDevice,
+        byte[] modelBytes,
+        Texture2D texture,
+        Effect toonEffect)
+    {
+        using var modelStream = new MemoryStream(
+            modelBytes,
+            writable: false);
+        ModelData modelData = ModelDataIo.Read(modelStream);
+
+        return new CompiledModel(
+            graphicsDevice,
+            modelData,
+            texture,
+            toonEffect);
+    }
+
     public float GetClipDuration(string clipName)
     {
         if (!clipsByName.TryGetValue(clipName, out ClipData? clip))
             throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
 
         return (float)(clip.Duration / clip.TicksPerSecond);
+    }
+
+    public bool TryGetNodePosition(string nodeName, out Vector3 position)
+    {
+        for (int nodeIndex = 0; nodeIndex < modelData.Nodes.Count; nodeIndex++)
+        {
+            if (!string.Equals(
+                    modelData.Nodes[nodeIndex].Name,
+                    nodeName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            position = bindPoseGlobalTransforms[nodeIndex].Translation;
+            return true;
+        }
+
+        position = default;
+        return false;
     }
 
     public void Draw(Matrix world, Matrix view, Matrix projection)

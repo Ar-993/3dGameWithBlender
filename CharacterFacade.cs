@@ -38,6 +38,8 @@ internal sealed class CharacterFacade
 
     public bool TryJump(float impulse) => physics.TryJump(impulse);
 
+    public void SpawnAt(Vector3 position) => physics.SpawnAt(position);
+
     public float CalculateJumpRiseDuration(float impulse) =>
         physics.CalculateRiseDuration(impulse);
 

@@ -8,7 +8,7 @@ namespace _3DLight
 {
     public class Level
     {
-        private CompiledModel model = null!;
+        private CompiledModel? model;
         private readonly List<Platform> platforms = [];
 
         public sealed record Platform(int Id, string Name, BoundingBox Bounds)
@@ -33,13 +33,62 @@ namespace _3DLight
 
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
-            model = CompiledModel.Load(
+            ReplaceModel(CompiledModel.Load(
                 graphicsDevice,
                 modelPath,
                 texture,
-                toonEffect);
+                toonEffect));
+        }
+
+        public void ReloadContent(
+            ContentManager content,
+            byte[] modelBytes,
+            string texturePath = "Assets/level.fbm/palette_0")
+        {
+            var graphicsService = (IGraphicsDeviceService?)
+                content.ServiceProvider.GetService(typeof(IGraphicsDeviceService));
+
+            GraphicsDevice graphicsDevice = graphicsService?.GraphicsDevice
+                ?? throw new InvalidOperationException("GraphicsDevice unavailable.");
+
+            Texture2D texture = content.Load<Texture2D>(texturePath);
+            Effect toonEffect = content.Load<Effect>("ToonShader");
+
+            ReplaceModel(CompiledModel.LoadFromBytes(
+                graphicsDevice,
+                modelBytes,
+                texture,
+                toonEffect));
+        }
+
+        private void ReplaceModel(CompiledModel replacement)
+        {
+            List<Platform> replacementPlatforms;
+
+            try
+            {
+                replacementPlatforms = replacement.BuildPlatforms();
+            }
+            catch
+            {
+                replacement.Dispose();
+                throw;
+            }
+
+            CompiledModel? previousModel = model;
+            model = replacement;
             platforms.Clear();
-            platforms.AddRange(model.BuildPlatforms());
+            platforms.AddRange(replacementPlatforms);
+            previousModel?.Dispose();
+        }
+
+        public bool TryGetMarkerPosition(string markerName, out Vector3 position)
+        {
+            if (model is not null)
+                return model.TryGetNodePosition(markerName, out position);
+
+            position = default;
+            return false;
         }
 
         public Vector3 MoveCharacter(
@@ -166,7 +215,7 @@ namespace _3DLight
 
         public void Draw(Matrix view, Matrix projection)
         {
-            model.Draw(Matrix.Identity, view, projection);
+            model?.Draw(Matrix.Identity, view, projection);
         }
 
     }

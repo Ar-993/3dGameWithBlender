@@ -59,6 +59,8 @@ public class Skeleton
             animation.Restart("Hurt", loop: false);
     }
 
+    public void SpawnAt(Vector3 position) => character.SpawnAt(position);
+
     public void Update(Player player, Level level, float deltaTime)
     {
         bool samePlatform = CurrentPlatform is not null &&

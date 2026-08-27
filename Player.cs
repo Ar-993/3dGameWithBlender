@@ -80,6 +80,8 @@ public class Player
         Console.WriteLine($"Игрок получил {damage} урона. HP: {Health}");
     }
 
+    public void SpawnAt(Vector3 position) => character.SpawnAt(position);
+
     public void LoadContent(
     GraphicsDevice graphicsDevice,
     ContentManager content,

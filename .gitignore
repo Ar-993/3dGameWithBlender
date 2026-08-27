@@ -3,3 +3,5 @@ obj/
 .vs/
 *.user
 *.blend1
+Assets/LevelVersions/
+Content/Models/LevelVersions/

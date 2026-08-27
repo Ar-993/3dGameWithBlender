@@ -39,6 +39,13 @@ internal sealed class CharacterPhysicsComponent : IGameComponent
         return true;
     }
 
+    public void SpawnAt(Vector3 position)
+    {
+        Position = position;
+        verticalVelocity = 0f;
+        CurrentPlatform = null;
+    }
+
     public void Move(Level level, Vector3 horizontalMovement, float deltaTime)
     {
         verticalVelocity += gravity * deltaTime;
