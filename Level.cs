@@ -92,14 +92,17 @@ namespace _3DLight
         }
 
         public Vector3 MoveCharacter(
-            Vector3 position,
-            Vector3 movement,
-            float radius,
-            float height,
-            ref float verticalVelocity,
-            out Platform? groundPlatform)
+    Vector3 position,
+    Vector3 movement,
+    float radius,
+    float height,
+    ref float verticalVelocity,
+    out Platform? groundPlatform)
         {
             groundPlatform = null;
+
+            // Максимальная высота ступеньки, на которую персонаж может наступить (например, 0.3f или 0.4f)
+            const float maxStepHeight = 0.4f;
 
             // 1. Смещение по оси X и разрешение столкновений
             position.X += movement.X;
@@ -108,12 +111,25 @@ namespace _3DLight
             {
                 if (Overlaps(boundsX, platform.Bounds))
                 {
-                    if (movement.X > 0f)
-                        position.X = platform.Bounds.Min.X - radius;
-                    else if (movement.X < 0f)
-                        position.X = platform.Bounds.Max.X + radius;
+                    // Проверяем: это низкая ступенька или высокая стена
+                    float stepHeight = platform.Bounds.Max.Y - position.Y;
 
-                    boundsX = CreateCharacterBounds(position, radius, height);
+                    if (stepHeight > 0f && stepHeight <= maxStepHeight)
+                    {
+                        // Шагаем вверх: поднимаем позицию игрока на уровень поверхности ступеньки
+                        position.Y = platform.Bounds.Max.Y;
+                        boundsX = CreateCharacterBounds(position, radius, height);
+                    }
+                    else
+                    {
+                        // Это высокая стена — блокируем движение по X
+                        if (movement.X > 0f)
+                            position.X = platform.Bounds.Min.X - radius;
+                        else if (movement.X < 0f)
+                            position.X = platform.Bounds.Max.X + radius;
+
+                        boundsX = CreateCharacterBounds(position, radius, height);
+                    }
                 }
             }
 
@@ -124,12 +140,24 @@ namespace _3DLight
             {
                 if (Overlaps(boundsZ, platform.Bounds))
                 {
-                    if (movement.Z > 0f)
-                        position.Z = platform.Bounds.Min.Z - radius;
-                    else if (movement.Z < 0f)
-                        position.Z = platform.Bounds.Max.Z + radius;
+                    float stepHeight = platform.Bounds.Max.Y - position.Y;
 
-                    boundsZ = CreateCharacterBounds(position, radius, height);
+                    if (stepHeight > 0f && stepHeight <= maxStepHeight)
+                    {
+                        // Шагаем вверх
+                        position.Y = platform.Bounds.Max.Y;
+                        boundsZ = CreateCharacterBounds(position, radius, height);
+                    }
+                    else
+                    {
+                        // Это высокая стена — блокируем движение по Z
+                        if (movement.Z > 0f)
+                            position.Z = platform.Bounds.Min.Z - radius;
+                        else if (movement.Z < 0f)
+                            position.Z = platform.Bounds.Max.Z + radius;
+
+                        boundsZ = CreateCharacterBounds(position, radius, height);
+                    }
                 }
             }
 
@@ -143,7 +171,8 @@ namespace _3DLight
                     continue;
 
                 // Движение вниз — приземление на верхнюю грань блока
-                if (movement.Y <= 0f && (position.Y - movement.Y) >= platform.Bounds.Max.Y - 0.2f)
+                // Немного увеличиваем порог (с 0.2f до половины высоты шага), чтобы не срываться со ступенек
+                if (movement.Y <= 0f && (position.Y - movement.Y) >= platform.Bounds.Max.Y - (maxStepHeight + 0.05f))
                 {
                     position.Y = platform.Bounds.Max.Y;
                     verticalVelocity = 0f;
@@ -161,6 +190,7 @@ namespace _3DLight
 
             return position;
         }
+
 
         private static BoundingBox CreateCharacterBounds(Vector3 feetPosition, float radius, float height) =>
             new(
