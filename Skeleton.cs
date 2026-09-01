@@ -143,8 +143,11 @@ public class Skeleton
         }
     }
 
-    public void Draw(Matrix view, Matrix projection)
+    public void Draw(
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
     {
-        character.Draw(view, projection);
+        character.Draw(view, projection, lighting);
     }
 }

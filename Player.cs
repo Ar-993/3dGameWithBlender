@@ -50,6 +50,8 @@ public class Player
         : attack.Range;
 
     private const float JumpImpulse = 30f;
+    private const float NormalAttackDuration = 2f;
+    private const string UpperBodyRootBone = "spine";
     private const float BadFallThreshold = 5f;
     private const float MovingLandingReleaseTime = 0.08f;
 
@@ -57,6 +59,7 @@ public class Player
 
     private KeyboardState previousKeyboard;
     private float jumpAnimationTimeScale = 1f;
+    private float attackAnimationTimeScale = 1f;
     private float fallingDuration;
     private float landingAnimationDuration;
     private float landingAnimationTimeRemaining;
@@ -115,8 +118,14 @@ public class Player
             knightTexture,
             toonEffect);
 
-        attack.SetDuration(animation.GetClipDuration(
-            nameof(PlayerAnimationState.Attack)));
+        float attackClipDuration = animation.GetClipDuration(
+            nameof(PlayerAnimationState.Attack));
+        float attackDuration = MathF.Min(
+            NormalAttackDuration,
+            attackClipDuration);
+
+        attack.SetDuration(attackDuration);
+        attackAnimationTimeScale = attackClipDuration / attackDuration;
         flyKick.SetDuration(animation.GetClipDuration(
             nameof(PlayerAnimationState.FlyKick)));
         landingAnimationDuration = animation.GetClipDuration(
@@ -200,7 +209,27 @@ public class Player
         character.Move(level, horizontalMovement, deltaTime);
         UpdateAirAnimationState(deltaTime, isMoving);
 
-        PlayerAnimationState animationState = ResolveAnimationState(isMoving);
+        bool useRunningAttackOverlay =
+            attack.IsAttacking &&
+            isMoving &&
+            character.IsGrounded &&
+            !IsAnimationBlocked;
+
+        if (useRunningAttackOverlay)
+        {
+            character.SetUpperBodyOverlay(
+                nameof(PlayerAnimationState.Attack),
+                UpperBodyRootBone,
+                attack.ElapsedSeconds * attackAnimationTimeScale);
+        }
+        else
+        {
+            character.ClearUpperBodyOverlay();
+        }
+
+        PlayerAnimationState animationState = ResolveAnimationState(
+            isMoving,
+            useRunningAttackOverlay);
         float animationTimeScale = PlayAnimation(animationState);
         character.UpdateAnimation(deltaTime * animationTimeScale);
 
@@ -233,7 +262,9 @@ public class Player
         }
     }
 
-    private PlayerAnimationState ResolveAnimationState(bool isMoving)
+    private PlayerAnimationState ResolveAnimationState(
+        bool isMoving,
+        bool useRunningAttackOverlay)
     {
         if (IsDead)
             return PlayerAnimationState.Die;
@@ -244,7 +275,7 @@ public class Player
         if (flyKick.IsAttacking)
             return PlayerAnimationState.FlyKick;
 
-        if (attack.IsAttacking)
+        if (attack.IsAttacking && !useRunningAttackOverlay)
             return PlayerAnimationState.Attack;
 
         if (!character.IsGrounded && character.VerticalVelocity > 0f)
@@ -271,13 +302,19 @@ public class Player
 
         character.Play(state.ToString(), loop);
 
-        return state == PlayerAnimationState.Jump
-            ? jumpAnimationTimeScale
-            : 1f;
+        return state switch
+        {
+            PlayerAnimationState.Jump => jumpAnimationTimeScale,
+            PlayerAnimationState.Attack => attackAnimationTimeScale,
+            _ => 1f
+        };
     }
 
-    public void Draw(Matrix view, Matrix projection)
+    public void Draw(
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
     {
-        character.Draw(view, projection);
+        character.Draw(view, projection, lighting);
     }
 }

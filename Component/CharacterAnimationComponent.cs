@@ -1,3 +1,4 @@
+using _3DLight;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
@@ -42,14 +43,30 @@ internal sealed class CharacterAnimationComponent : IGameComponent
     public void Update(float deltaTime) =>
         animator.Update(deltaTime);
 
-    public void Draw(Vector3 position, Matrix view, Matrix projection)
+    public void SetUpperBodyOverlay(
+        string clipName,
+        string rootNodeName,
+        float elapsedSeconds) =>
+        animator.SetUpperBodyOverlay(
+            clipName,
+            rootNodeName,
+            elapsedSeconds);
+
+    public void ClearUpperBodyOverlay() =>
+        animator.ClearUpperBodyOverlay();
+
+    public void Draw(
+        Vector3 position,
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
     {
         Matrix world =
             Matrix.CreateScale(modelScale) *
             Matrix.CreateRotationY(RotationY) *
             Matrix.CreateTranslation(position);
 
-        animator.Draw(world, view, projection);
+        animator.Draw(world, view, projection, lighting);
     }
 
     public float GetClipDuration(string clipName)

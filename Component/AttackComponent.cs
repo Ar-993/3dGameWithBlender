@@ -16,6 +16,7 @@ internal sealed class AttackComponent : global::IGameComponent
     public float HitTimeNormalized { get; }
 
     public bool IsAttacking { get; private set; }
+    public float ElapsedSeconds => elapsedTime;
 
     // Равен true только один кадр за одну атаку.
     public bool ShouldDealDamage { get; private set; }

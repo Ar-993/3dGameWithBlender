@@ -29,6 +29,7 @@ public sealed class LightGame : Game
     private const float CharacterCollisionHeight = 1.8f;
 
     private readonly GraphicsDeviceManager graphics;
+    private readonly SceneLighting lighting = new();
 
     private readonly Level level = new();
     private readonly Player player = new(
@@ -309,6 +310,11 @@ public sealed class LightGame : Game
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         skeleton.Update(player, level, deltaTime);
+        lighting.FollowPlayer(player.Position);
+
+        if (keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L))
+            lighting.Enabled = !lighting.Enabled;
+
         DebugConsole.Update(
             gameTime,
             player,
@@ -330,9 +336,9 @@ public sealed class LightGame : Game
         GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
 
-        level.Draw(camera.View, camera.Projection);
-        player.Draw(camera.View, camera.Projection);
-        skeleton.Draw(camera.View, camera.Projection);
+        level.Draw(camera.View, camera.Projection, lighting);
+        player.Draw(camera.View, camera.Projection, lighting);
+        skeleton.Draw(camera.View, camera.Projection, lighting);
 
         spriteBatch.Begin();
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
@@ -352,7 +358,8 @@ public sealed class LightGame : Game
             $"PLATFORM: {skeletonPlatform}";
         string performanceText =
             $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB | " +
-            $"LEVEL: {activeLevelVersion}";
+            $"LEVEL: {activeLevelVersion} | " +
+            $"LIGHT: {(lighting.Enabled ? "ON" : "OFF")} (L)";
         Color skeletonDebugColor = skeleton.IsDead ? Color.Gray : Color.LawnGreen;
 
         spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);

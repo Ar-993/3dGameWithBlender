@@ -213,9 +213,12 @@ namespace _3DLight
             return target + direction * allowedDistance;
         }
 
-        public void Draw(Matrix view, Matrix projection)
+        public void Draw(
+            Matrix view,
+            Matrix projection,
+            SceneLighting lighting)
         {
-            model?.Draw(Matrix.Identity, view, projection);
+            model?.Draw(Matrix.Identity, view, projection, lighting);
         }
 
     }

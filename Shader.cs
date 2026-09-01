@@ -1,3 +1,4 @@
+using _3DLight;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -15,14 +16,14 @@ public sealed class Shader
         Matrix view,
         Matrix projection,
         Vector3 cameraPosition,
-        Vector3 lightDirection,
-        Texture2D texture)
+        Texture2D texture,
+        SceneLighting lighting)
     {
         Effect.Parameters["World"]?.SetValue(world);
         Effect.Parameters["View"]?.SetValue(view);
         Effect.Parameters["Projection"]?.SetValue(projection);
         Effect.Parameters["CameraPosition"]?.SetValue(cameraPosition);
-        Effect.Parameters["LightDirection"]?.SetValue(lightDirection);
         Effect.Parameters["ModelTexture"]?.SetValue(texture);
+        lighting.Apply(Effect.Parameters);
     }
 }

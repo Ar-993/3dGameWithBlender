@@ -7,11 +7,14 @@ using System.IO;
 public sealed class CharacterAnimator
 {
     private const float DefaultBlendDuration = 0.15f;
+    private const float UpperBodyBlendDuration = 0.08f;
 
     private CompiledModel model = null!;
     private BonePose[] currentPose = [];
     private BonePose[] transitionSourcePose = [];
     private BonePose[] blendedPose = [];
+    private BonePose[] upperBodyPose = [];
+    private bool[] upperBodyMask = [];
 
     private float currentTime;
     private bool currentLooping = true;
@@ -27,6 +30,12 @@ public sealed class CharacterAnimator
     private float blendTime;
     private float blendDuration;
     private bool isBlending;
+
+    private string upperBodyClip = "";
+    private string upperBodyRoot = "";
+    private float upperBodyTime;
+    private float upperBodyWeight;
+    private float upperBodyTargetWeight;
 
     public string CurrentState { get; private set; } = "";
     public string CurrentClip { get; private set; } = "";
@@ -45,6 +54,7 @@ public sealed class CharacterAnimator
         currentPose = new BonePose[model.NodeCount];
         transitionSourcePose = new BonePose[model.NodeCount];
         blendedPose = new BonePose[model.NodeCount];
+        upperBodyPose = new BonePose[model.NodeCount];
 
         string initialClip = animations.Keys.FirstOrDefault(
             clipName => clipName.Equals("Idle", StringComparison.OrdinalIgnoreCase))
@@ -154,9 +164,44 @@ public sealed class CharacterAnimator
             StopBlending();
     }
 
+    public void SetUpperBodyOverlay(
+        string clipName,
+        string rootNodeName,
+        float elapsedSeconds)
+    {
+        if (!string.Equals(
+                upperBodyRoot,
+                rootNodeName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            upperBodyMask = model.CreateNodeHierarchyMask(rootNodeName);
+            upperBodyRoot = rootNodeName;
+        }
+
+        upperBodyClip = clipName;
+        upperBodyTime = Math.Max(0f, elapsedSeconds);
+        upperBodyTargetWeight = 1f;
+    }
+
+    public void ClearUpperBodyOverlay()
+    {
+        upperBodyTargetWeight = 0f;
+    }
+
     public void Update(float deltaTime)
     {
         currentTime += deltaTime;
+
+        float overlayStep = UpperBodyBlendDuration > 0f
+            ? deltaTime / UpperBodyBlendDuration
+            : 1f;
+
+        upperBodyWeight = upperBodyTargetWeight > upperBodyWeight
+            ? Math.Min(upperBodyTargetWeight, upperBodyWeight + overlayStep)
+            : Math.Max(upperBodyTargetWeight, upperBodyWeight - overlayStep);
+
+        if (upperBodyTargetWeight <= 0f && upperBodyWeight <= 0f)
+            upperBodyClip = "";
 
         if (!isBlending)
             return;
@@ -172,10 +217,14 @@ public sealed class CharacterAnimator
 
     public float GetClipDuration(string clipName) => model.GetClipDuration(clipName);
 
-    public void Draw(Matrix world, Matrix view, Matrix projection)
+    public void Draw(
+        Matrix world,
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
     {
         EvaluateCurrentPose(blendedPose);
-        model.DrawPose(blendedPose, world, view, projection);
+        model.DrawPose(blendedPose, world, view, projection, lighting);
     }
 
     private void EvaluateCurrentPose(BonePose[] destination)
@@ -191,29 +240,64 @@ public sealed class CharacterAnimator
         if (!isBlending)
         {
             Array.Copy(currentPose, destination, currentPose.Length);
-            return;
         }
-
-        if (!transitionSourceIsSnapshot)
+        else
         {
-            SamplePlaybackPose(
-                transitionSourceClip,
-                transitionSourceTime,
-                transitionSourceLooping,
-                transitionSourceRangeStartNormalized,
-                transitionSourceRangeEndNormalized,
-                transitionSourcePose);
+            if (!transitionSourceIsSnapshot)
+            {
+                SamplePlaybackPose(
+                    transitionSourceClip,
+                    transitionSourceTime,
+                    transitionSourceLooping,
+                    transitionSourceRangeStartNormalized,
+                    transitionSourceRangeEndNormalized,
+                    transitionSourcePose);
+            }
+
+            float linearAmount = MathHelper.Clamp(
+                blendTime / blendDuration,
+                0f,
+                1f);
+            float smoothAmount =
+                linearAmount * linearAmount * (3f - 2f * linearAmount);
+
+            for (int nodeIndex = 0; nodeIndex < destination.Length; nodeIndex++)
+            {
+                destination[nodeIndex] = BonePose.Blend(
+                    transitionSourcePose[nodeIndex],
+                    currentPose[nodeIndex],
+                    smoothAmount);
+            }
         }
 
-        float linearAmount = MathHelper.Clamp(blendTime / blendDuration, 0f, 1f);
-        float smoothAmount = linearAmount * linearAmount * (3f - 2f * linearAmount);
+        ApplyUpperBodyOverlay(destination);
+    }
+
+    private void ApplyUpperBodyOverlay(BonePose[] destination)
+    {
+        if (string.IsNullOrEmpty(upperBodyClip) || upperBodyWeight <= 0f)
+            return;
+
+        SamplePlaybackPose(
+            upperBodyClip,
+            upperBodyTime,
+            loop: false,
+            rangeStartNormalized: 0f,
+            rangeEndNormalized: 1f,
+            upperBodyPose);
+
+        float smoothWeight =
+            upperBodyWeight * upperBodyWeight * (3f - 2f * upperBodyWeight);
 
         for (int nodeIndex = 0; nodeIndex < destination.Length; nodeIndex++)
         {
+            if (!upperBodyMask[nodeIndex])
+                continue;
+
             destination[nodeIndex] = BonePose.Blend(
-                transitionSourcePose[nodeIndex],
-                currentPose[nodeIndex],
-                smoothAmount);
+                destination[nodeIndex],
+                upperBodyPose[nodeIndex],
+                smoothWeight);
         }
     }
 
@@ -270,6 +354,15 @@ public sealed class CharacterAnimator
         {
             return 0.06f;
         }
+
+        bool isAttackLocomotionTransition =
+            sourceState.Equals("Attack", StringComparison.OrdinalIgnoreCase) &&
+            IsLocomotionState(targetState) ||
+            targetState.Equals("Attack", StringComparison.OrdinalIgnoreCase) &&
+            IsLocomotionState(sourceState);
+
+        if (isAttackLocomotionTransition)
+            return 0.08f;
 
         if (targetState.Equals("Jump", StringComparison.OrdinalIgnoreCase) ||
             targetState.Equals("Falling", StringComparison.OrdinalIgnoreCase) ||

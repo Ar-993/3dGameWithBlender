@@ -69,6 +69,21 @@ internal sealed class CharacterFacade
     public void UpdateAnimation(float deltaTime) =>
         animation.Update(deltaTime);
 
-    public void Draw(Matrix view, Matrix projection) =>
-        animation.Draw(Position, view, projection);
+    public void SetUpperBodyOverlay(
+        string clipName,
+        string rootNodeName,
+        float elapsedSeconds) =>
+        animation.SetUpperBodyOverlay(
+            clipName,
+            rootNodeName,
+            elapsedSeconds);
+
+    public void ClearUpperBodyOverlay() =>
+        animation.ClearUpperBodyOverlay();
+
+    public void Draw(
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting) =>
+        animation.Draw(Position, view, projection, lighting);
 }

@@ -13,9 +13,6 @@ internal sealed class CompiledModel : IDisposable
 {
     private const int MaximumBoneCount = 72;
 
-    private static readonly Vector3 DefaultLightDirection =
-        Vector3.Normalize(new Vector3(-0.5f, -1f, -0.4f));
-
     private readonly GraphicsDevice graphicsDevice;
     private readonly ModelData modelData;
     private readonly RuntimeMesh[] runtimeMeshes;
@@ -138,14 +135,46 @@ internal sealed class CompiledModel : IDisposable
         return false;
     }
 
-    public void Draw(Matrix world, Matrix view, Matrix projection)
+    public bool[] CreateNodeHierarchyMask(string rootNodeName)
+    {
+        int rootNodeIndex = modelData.Nodes.FindIndex(node =>
+            string.Equals(
+                node.Name,
+                rootNodeName,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (rootNodeIndex < 0)
+        {
+            throw new InvalidOperationException(
+                $"Кость '{rootNodeName}' отсутствует в модели.");
+        }
+
+        var mask = new bool[modelData.Nodes.Count];
+        mask[rootNodeIndex] = true;
+
+        for (int nodeIndex = rootNodeIndex + 1;
+             nodeIndex < modelData.Nodes.Count;
+             nodeIndex++)
+        {
+            int parentIndex = modelData.Nodes[nodeIndex].Parent;
+            mask[nodeIndex] = parentIndex >= 0 && mask[parentIndex];
+        }
+
+        return mask;
+    }
+
+    public void Draw(
+        Matrix world,
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
     {
         Array.Copy(
             bindPoseGlobalTransforms,
             globalTransforms,
             bindPoseGlobalTransforms.Length);
 
-        DrawMeshes(world, view, projection);
+        DrawMeshes(world, view, projection, lighting);
     }
 
     public void Draw(
@@ -154,10 +183,11 @@ internal sealed class CompiledModel : IDisposable
         bool loop,
         Matrix world,
         Matrix view,
-        Matrix projection)
+        Matrix projection,
+        SceneLighting lighting)
     {
         SamplePose(clipName, elapsedSeconds, loop, sampledPose);
-        DrawPose(sampledPose, world, view, projection);
+        DrawPose(sampledPose, world, view, projection, lighting);
     }
 
     public void SamplePose(
@@ -204,7 +234,8 @@ internal sealed class CompiledModel : IDisposable
         BonePose[] pose,
         Matrix world,
         Matrix view,
-        Matrix projection)
+        Matrix projection,
+        SceneLighting lighting)
     {
         ValidatePoseLength(pose);
 
@@ -212,7 +243,7 @@ internal sealed class CompiledModel : IDisposable
             localTransforms[nodeIndex] = pose[nodeIndex].ToMatrix();
 
         CalculateGlobalTransforms(localTransforms, globalTransforms);
-        DrawMeshes(world, view, projection);
+        DrawMeshes(world, view, projection, lighting);
     }
 
     public List<Level.Platform> BuildPlatforms()
@@ -444,7 +475,11 @@ internal sealed class CompiledModel : IDisposable
         return boneTransforms;
     }
 
-    private void DrawMeshes(Matrix world, Matrix view, Matrix projection)
+    private void DrawMeshes(
+        Matrix world,
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
     {
         RasterizerState previousRasterizerState = graphicsDevice.RasterizerState;
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -460,7 +495,8 @@ internal sealed class CompiledModel : IDisposable
                     world,
                     view,
                     projection,
-                    cameraPosition);
+                    cameraPosition,
+                    lighting);
             }
         }
         finally
@@ -474,7 +510,8 @@ internal sealed class CompiledModel : IDisposable
         Matrix modelWorld,
         Matrix view,
         Matrix projection,
-        Vector3 cameraPosition)
+        Vector3 cameraPosition,
+        SceneLighting lighting)
     {
         graphicsDevice.SetVertexBuffer(runtimeMesh.VertexBuffer);
         graphicsDevice.Indices = runtimeMesh.IndexBuffer;
@@ -485,7 +522,8 @@ internal sealed class CompiledModel : IDisposable
             meshWorld,
             view,
             projection,
-            cameraPosition);
+            cameraPosition,
+            lighting);
 
         int primitiveCount = runtimeMesh.Source.Indices.Length / 3;
 
@@ -528,7 +566,8 @@ internal sealed class CompiledModel : IDisposable
         Matrix world,
         Matrix view,
         Matrix projection,
-        Vector3 cameraPosition)
+        Vector3 cameraPosition,
+        SceneLighting lighting)
     {
         EffectParameterCollection parameters = runtimeMesh.Effect.Parameters;
 
@@ -536,9 +575,9 @@ internal sealed class CompiledModel : IDisposable
         parameters["View"]?.SetValue(view);
         parameters["Projection"]?.SetValue(projection);
         parameters["CameraPosition"]?.SetValue(cameraPosition);
-        parameters["LightDirection"]?.SetValue(DefaultLightDirection);
         parameters["ModelTexture"]?.SetValue(runtimeMesh.Texture);
         parameters["Bones"]?.SetValue(runtimeMesh.BoneTransforms);
+        lighting.Apply(parameters);
     }
 
     private void CalculateGlobalTransforms(

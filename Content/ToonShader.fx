@@ -10,9 +10,18 @@
 matrix World;
 matrix View;
 matrix Projection;
-float3 LightDirection;
 float3 CameraPosition;
 texture ModelTexture;
+
+float LightingEnabled;
+float3 AmbientColor;
+float3 SunDirection;
+float3 SunColor;
+float SunIntensity;
+float3 PointLightPosition;
+float3 PointLightColor;
+float PointLightIntensity;
+float PointLightRange;
 
 #define MAX_BONES 72
 matrix Bones[MAX_BONES];
@@ -63,16 +72,26 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
     float3 N = normalize(input.Normal);
-    float3 L = normalize(-LightDirection);
-    float3 V = normalize(CameraPosition - input.WorldPosition);
-    float NdotL = max(0.0, dot(N, L));
-    float lightIntensity = 0.3;
-    if (NdotL > 0.6) lightIntensity = 1.0;
-    else if (NdotL > 0.2) lightIntensity = 0.6;
-    float rim = 1.0 - max(0.0, dot(V, N));
-    rim = smoothstep(0.6, 1.0, rim) * 0.5;
     float4 texColor = tex2D(TextureSampler, input.TextureCoordinate);
-    float3 finalColor = texColor.rgb * lightIntensity + rim.xxx;
+
+    // Направленный свет: одинаково освещает всю сцену, как солнце.
+    float3 sunToSurface = normalize(-SunDirection);
+    float sunDiffuse = max(0.0, dot(N, sunToSurface));
+    float3 sunLight = SunColor * sunDiffuse * SunIntensity;
+
+    // Точечный свет: яркость плавно затухает к границе радиуса.
+    float3 toPointLight = PointLightPosition - input.WorldPosition;
+    float pointDistance = length(toPointLight);
+    float3 pointDirection = toPointLight / max(pointDistance, 0.0001);
+    float pointDiffuse = max(0.0, dot(N, pointDirection));
+    float pointAttenuation = saturate(1.0 - pointDistance / PointLightRange);
+    pointAttenuation *= pointAttenuation;
+    float3 pointLight = PointLightColor * pointDiffuse *
+        pointAttenuation * PointLightIntensity;
+
+    float3 totalLight = saturate(AmbientColor + sunLight + pointLight);
+    float3 litColor = texColor.rgb * totalLight;
+    float3 finalColor = lerp(texColor.rgb, litColor, LightingEnabled);
     return float4(finalColor, texColor.a);
 }
 
