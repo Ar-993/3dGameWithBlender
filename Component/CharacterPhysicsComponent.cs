@@ -57,6 +57,7 @@ internal sealed class CharacterPhysicsComponent : IGameComponent
             movement,
             Radius,
             Height,
+            CurrentPlatform,
             ref verticalVelocity,
             out Level.Platform? platform);
         CurrentPlatform = platform;

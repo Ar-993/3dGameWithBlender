@@ -3,13 +3,20 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace _3DLight
 {
     public class Level
     {
+        // В модели level_one высота одной ступени равна 0.5.
+        // Небольшой запас покрывает погрешность координат после импорта.
+        private const float MaximumStepHeight = 0.55f;
+        private const float MaximumGroundRecoveryDistance = 0.08f;
+
         private CompiledModel? model;
         private readonly List<Platform> platforms = [];
+        private readonly List<StairRamp> stairRamps = [];
 
         public sealed record Platform(int Id, string Name, BoundingBox Bounds)
         {
@@ -64,10 +71,13 @@ namespace _3DLight
         private void ReplaceModel(CompiledModel replacement)
         {
             List<Platform> replacementPlatforms;
+            List<StairRamp> replacementStairRamps;
 
             try
             {
                 replacementPlatforms = replacement.BuildPlatforms();
+                replacementStairRamps = BuildStairRamps(replacementPlatforms);
+                replacementPlatforms.RemoveAll(IsStairStepPlatform);
             }
             catch
             {
@@ -79,6 +89,8 @@ namespace _3DLight
             model = replacement;
             platforms.Clear();
             platforms.AddRange(replacementPlatforms);
+            stairRamps.Clear();
+            stairRamps.AddRange(replacementStairRamps);
             previousModel?.Dispose();
         }
 
@@ -92,32 +104,46 @@ namespace _3DLight
         }
 
         public Vector3 MoveCharacter(
-    Vector3 position,
-    Vector3 movement,
-    float radius,
-    float height,
-    ref float verticalVelocity,
-    out Platform? groundPlatform)
+            Vector3 position,
+            Vector3 movement,
+            float radius,
+            float height,
+            Platform? currentPlatform,
+            ref float verticalVelocity,
+            out Platform? groundPlatform)
         {
             groundPlatform = null;
-
-            // Максимальная высота ступеньки, на которую персонаж может наступить (например, 0.3f или 0.4f)
-            const float maxStepHeight = 0.4f;
+            bool canUseSteps = currentPlatform is not null;
+            bool steppedUp = false;
+            StairRamp? activeRamp = FindReachableRamp(
+                position,
+                movement,
+                currentPlatform);
 
             // 1. Смещение по оси X и разрешение столкновений
             position.X += movement.X;
             BoundingBox boundsX = CreateCharacterBounds(position, radius, height);
             foreach (Platform platform in platforms)
             {
+                if (activeRamp is not null &&
+                    IsFloorAtRampExit(platform, activeRamp))
+                {
+                    continue;
+                }
+
                 if (Overlaps(boundsX, platform.Bounds))
                 {
                     // Проверяем: это низкая ступенька или высокая стена
                     float stepHeight = platform.Bounds.Max.Y - position.Y;
 
-                    if (stepHeight > 0f && stepHeight <= maxStepHeight)
+                    if (canUseSteps &&
+                        !steppedUp &&
+                        stepHeight > 0f &&
+                        stepHeight <= MaximumStepHeight)
                     {
                         // Шагаем вверх: поднимаем позицию игрока на уровень поверхности ступеньки
                         position.Y = platform.Bounds.Max.Y;
+                        steppedUp = true;
                         boundsX = CreateCharacterBounds(position, radius, height);
                     }
                     else
@@ -138,14 +164,24 @@ namespace _3DLight
             BoundingBox boundsZ = CreateCharacterBounds(position, radius, height);
             foreach (Platform platform in platforms)
             {
+                if (activeRamp is not null &&
+                    IsFloorAtRampExit(platform, activeRamp))
+                {
+                    continue;
+                }
+
                 if (Overlaps(boundsZ, platform.Bounds))
                 {
                     float stepHeight = platform.Bounds.Max.Y - position.Y;
 
-                    if (stepHeight > 0f && stepHeight <= maxStepHeight)
+                    if (canUseSteps &&
+                        !steppedUp &&
+                        stepHeight > 0f &&
+                        stepHeight <= MaximumStepHeight)
                     {
                         // Шагаем вверх
                         position.Y = platform.Bounds.Max.Y;
+                        steppedUp = true;
                         boundsZ = CreateCharacterBounds(position, radius, height);
                     }
                     else
@@ -161,34 +197,352 @@ namespace _3DLight
                 }
             }
 
-            // 3. Смещение по оси Y (падение / прыжок) и проверка приземления/потолка
-            position.Y += movement.Y;
-            BoundingBox boundsY = CreateCharacterBounds(position, radius, height);
-
-            foreach (Platform platform in platforms)
+            if (activeRamp is not null &&
+                activeRamp.ContainsHorizontal(position))
             {
-                if (!Overlaps(boundsY, platform.Bounds))
-                    continue;
+                position.Y = activeRamp.GetHeight(position);
+                verticalVelocity = 0f;
+                groundPlatform = activeRamp.SupportPlatform;
+                return position;
+            }
 
-                // Движение вниз — приземление на верхнюю грань блока
-                // Немного увеличиваем порог (с 0.2f до половины высоты шага), чтобы не срываться со ступенек
-                if (movement.Y <= 0f && (position.Y - movement.Y) >= platform.Bounds.Max.Y - (maxStepHeight + 0.05f))
+            // При спуске удерживаем ноги на ближайшей ступени. Без этого между
+            // ступенями персонаж на несколько кадров переходит в состояние падения.
+            if (canUseSteps && !steppedUp)
+            {
+                Platform? stepBelow = FindStepBelow(position);
+
+                if (stepBelow is not null)
+                    position.Y = stepBelow.SurfaceY;
+            }
+
+            // 3. Смещение по оси Y (падение / прыжок) и проверка приземления/потолка
+            StairRamp? landingRamp = movement.Y <= 0f
+                ? FindLandingRamp(position, movement.Y)
+                : null;
+
+            if (landingRamp is not null)
+            {
+                position.Y = landingRamp.GetHeight(position);
+                verticalVelocity = 0f;
+                groundPlatform = landingRamp.SupportPlatform;
+                return position;
+            }
+
+            float previousFeetY = position.Y;
+            float nextFeetY = position.Y + movement.Y;
+
+            if (movement.Y <= 0f)
+            {
+                // Берём самую высокую поверхность, которую ноги действительно
+                // пересекли за этот кадр. Абсолютная высота этажа не важна.
+                Platform? landingPlatform = platforms
+                    .Where(platform => HorizontallyOverlaps(
+                        position,
+                        radius,
+                        platform.Bounds))
+                    .Where(platform =>
+                        previousFeetY >= platform.SurfaceY -
+                            MaximumGroundRecoveryDistance &&
+                        nextFeetY <= platform.SurfaceY)
+                    .OrderByDescending(platform => platform.SurfaceY)
+                    .FirstOrDefault();
+
+                if (landingPlatform is not null)
                 {
-                    position.Y = platform.Bounds.Max.Y;
+                    position.Y = landingPlatform.SurfaceY;
                     verticalVelocity = 0f;
-                    groundPlatform = platform;
-                    boundsY = CreateCharacterBounds(position, radius, height);
+                    groundPlatform = landingPlatform;
+                    return position;
                 }
-                // Движение вверх — удар головой о нижнюю грань блока
-                else if (movement.Y > 0f)
+            }
+            else
+            {
+                float previousHeadY = previousFeetY + height;
+                float nextHeadY = nextFeetY + height;
+
+                // Аналогично ищем ближайшую снизу горизонтальную поверхность,
+                // которую пересекла голова, а не условный "потолок этажа".
+                Platform? ceilingPlatform = platforms
+                    .Where(platform => HorizontallyOverlaps(
+                        position,
+                        radius,
+                        platform.Bounds))
+                    .Where(platform =>
+                        previousHeadY <= platform.Bounds.Min.Y + 0.001f &&
+                        nextHeadY >= platform.Bounds.Min.Y)
+                    .OrderBy(platform => platform.Bounds.Min.Y)
+                    .FirstOrDefault();
+
+                if (ceilingPlatform is not null)
                 {
-                    position.Y = platform.Bounds.Min.Y - height;
+                    position.Y = ceilingPlatform.Bounds.Min.Y - height;
                     verticalVelocity = 0f;
-                    boundsY = CreateCharacterBounds(position, radius, height);
+                    return position;
                 }
             }
 
+            position.Y = nextFeetY;
+
             return position;
+        }
+
+        private Platform? FindStepBelow(Vector3 position) =>
+            platforms
+                .Where(platform =>
+                    platform.ContainsHorizontal(position) &&
+                    platform.SurfaceY <= position.Y &&
+                    position.Y - platform.SurfaceY <= MaximumStepHeight)
+                .OrderByDescending(platform => platform.SurfaceY)
+                .FirstOrDefault();
+
+        private StairRamp? FindReachableRamp(
+            Vector3 position,
+            Vector3 movement,
+            Platform? currentPlatform)
+        {
+            if (currentPlatform is null)
+                return null;
+
+            var destination = new Vector3(
+                position.X + movement.X,
+                position.Y,
+                position.Z + movement.Z);
+
+            return stairRamps.FirstOrDefault(ramp =>
+                ramp.ContainsHorizontal(destination) &&
+                MathF.Abs(ramp.GetHeight(destination) - position.Y) <=
+                    MaximumStepHeight &&
+                (currentPlatform.Id == ramp.SupportPlatform.Id ||
+                    ramp.CanEnterThroughEnd(position, destination)));
+        }
+
+        private StairRamp? FindLandingRamp(
+            Vector3 position,
+            float verticalMovement) =>
+            stairRamps.FirstOrDefault(ramp =>
+            {
+                if (!ramp.ContainsHorizontal(position))
+                    return false;
+
+                float surfaceY = ramp.GetHeight(position);
+                return position.Y >= surfaceY &&
+                    position.Y + verticalMovement <= surfaceY;
+            });
+
+        private static bool IsFloorAtRampExit(
+            Platform platform,
+            StairRamp ramp) =>
+            IsFloorPlatform(platform.Name) &&
+            MathF.Abs(platform.SurfaceY - ramp.MaximumHeight) <= 0.1f;
+
+        private static bool IsFloorPlatform(string platformName) =>
+            platformName.StartsWith("Ground", StringComparison.OrdinalIgnoreCase) ||
+            platformName.StartsWith("Floor", StringComparison.OrdinalIgnoreCase) ||
+            platformName.StartsWith("Bridge", StringComparison.OrdinalIgnoreCase) ||
+            platformName.StartsWith("Trail", StringComparison.OrdinalIgnoreCase) ||
+            platformName.Contains("Platform", StringComparison.OrdinalIgnoreCase);
+
+        private static List<StairRamp> BuildStairRamps(
+            List<Platform> sourcePlatforms)
+        {
+            var ramps = new List<StairRamp>();
+
+            foreach (IGrouping<string, Platform> group in sourcePlatforms
+                .Where(IsStairStepPlatform)
+                .GroupBy(GetStaircaseName))
+            {
+                List<Platform> steps = group
+                    .OrderBy(platform => platform.SurfaceY)
+                    .ToList();
+
+                if (steps.Count < 2)
+                    continue;
+
+                Platform first = steps[0];
+                Platform second = steps[1];
+                Vector3 firstCenter = GetHorizontalCenter(first.Bounds);
+                Vector3 secondCenter = GetHorizontalCenter(second.Bounds);
+                bool runsAlongX = MathF.Abs(secondCenter.X - firstCenter.X) >=
+                    MathF.Abs(secondCenter.Z - firstCenter.Z);
+                float firstCoordinate = runsAlongX
+                    ? firstCenter.X
+                    : firstCenter.Z;
+                float secondCoordinate = runsAlongX
+                    ? secondCenter.X
+                    : secondCenter.Z;
+                bool risesTowardMinimum = secondCoordinate < firstCoordinate;
+
+                float minimumCoordinate = steps.Min(step => runsAlongX
+                    ? step.Bounds.Min.X
+                    : step.Bounds.Min.Z);
+                float maximumCoordinate = steps.Max(step => runsAlongX
+                    ? step.Bounds.Max.X
+                    : step.Bounds.Max.Z);
+                float crossMinimum = steps.Max(step => runsAlongX
+                    ? step.Bounds.Min.Z
+                    : step.Bounds.Min.X);
+                float crossMaximum = steps.Min(step => runsAlongX
+                    ? step.Bounds.Max.Z
+                    : step.Bounds.Max.X);
+
+                if (crossMinimum >= crossMaximum)
+                    continue;
+
+                float stepRise = steps
+                    .Zip(steps.Skip(1), (lower, upper) =>
+                        upper.SurfaceY - lower.SurfaceY)
+                    .Where(rise => rise > 0.001f)
+                    .DefaultIfEmpty(MaximumStepHeight)
+                    .Min();
+                float minimumHeight = first.SurfaceY - stepRise;
+                float maximumHeight = steps[^1].SurfaceY;
+                float bottomCoordinate = risesTowardMinimum
+                    ? maximumCoordinate
+                    : minimumCoordinate;
+                float topCoordinate = risesTowardMinimum
+                    ? minimumCoordinate
+                    : maximumCoordinate;
+
+                ramps.Add(new StairRamp(
+                    int.MinValue + ramps.Count,
+                    group.Key,
+                    runsAlongX,
+                    bottomCoordinate,
+                    topCoordinate,
+                    crossMinimum,
+                    crossMaximum,
+                    minimumHeight,
+                    maximumHeight));
+            }
+
+            return ramps;
+        }
+
+        private static bool IsStairStepPlatform(Platform platform) =>
+            platform.Name.Contains(".Step", StringComparison.OrdinalIgnoreCase);
+
+        private static string GetStaircaseName(Platform platform)
+        {
+            int stepSuffix = platform.Name.LastIndexOf(
+                ".Step",
+                StringComparison.OrdinalIgnoreCase);
+            return stepSuffix >= 0
+                ? platform.Name[..stepSuffix]
+                : platform.Name;
+        }
+
+        private static Vector3 GetHorizontalCenter(BoundingBox bounds) =>
+            new(
+                (bounds.Min.X + bounds.Max.X) * 0.5f,
+                0f,
+                (bounds.Min.Z + bounds.Max.Z) * 0.5f);
+
+        private static bool HorizontallyOverlaps(
+            Vector3 position,
+            float radius,
+            BoundingBox bounds) =>
+            position.X - radius < bounds.Max.X &&
+            position.X + radius > bounds.Min.X &&
+            position.Z - radius < bounds.Max.Z &&
+            position.Z + radius > bounds.Min.Z;
+
+        private sealed class StairRamp
+        {
+            private readonly bool runsAlongX;
+            private readonly float bottomCoordinate;
+            private readonly float topCoordinate;
+            private readonly float crossMinimum;
+            private readonly float crossMaximum;
+            private readonly float minimumHeight;
+
+            public float MaximumHeight { get; }
+            public Platform SupportPlatform { get; }
+
+            public StairRamp(
+                int id,
+                string name,
+                bool runsAlongX,
+                float bottomCoordinate,
+                float topCoordinate,
+                float crossMinimum,
+                float crossMaximum,
+                float minimumHeight,
+                float maximumHeight)
+            {
+                this.runsAlongX = runsAlongX;
+                this.bottomCoordinate = bottomCoordinate;
+                this.topCoordinate = topCoordinate;
+                this.crossMinimum = crossMinimum;
+                this.crossMaximum = crossMaximum;
+                this.minimumHeight = minimumHeight;
+                MaximumHeight = maximumHeight;
+
+                float axisMinimum = MathF.Min(bottomCoordinate, topCoordinate);
+                float axisMaximum = MathF.Max(bottomCoordinate, topCoordinate);
+                var minimum = runsAlongX
+                    ? new Vector3(axisMinimum, minimumHeight, crossMinimum)
+                    : new Vector3(crossMinimum, minimumHeight, axisMinimum);
+                var maximum = runsAlongX
+                    ? new Vector3(axisMaximum, maximumHeight, crossMaximum)
+                    : new Vector3(crossMaximum, maximumHeight, axisMaximum);
+
+                SupportPlatform = new Platform(
+                    id,
+                    name + ".Ramp",
+                    new BoundingBox(minimum, maximum));
+            }
+
+            public bool ContainsHorizontal(Vector3 position)
+            {
+                float coordinate = runsAlongX ? position.X : position.Z;
+                float crossCoordinate = runsAlongX ? position.Z : position.X;
+                float axisMinimum = MathF.Min(bottomCoordinate, topCoordinate);
+                float axisMaximum = MathF.Max(bottomCoordinate, topCoordinate);
+
+                return coordinate >= axisMinimum &&
+                    coordinate <= axisMaximum &&
+                    crossCoordinate >= crossMinimum &&
+                    crossCoordinate <= crossMaximum;
+            }
+
+            public float GetHeight(Vector3 position)
+            {
+                float coordinate = runsAlongX ? position.X : position.Z;
+                float amount = (coordinate - bottomCoordinate) /
+                    (topCoordinate - bottomCoordinate);
+                amount = MathHelper.Clamp(amount, 0f, 1f);
+                return MathHelper.Lerp(minimumHeight, MaximumHeight, amount);
+            }
+
+            public bool CanEnterThroughEnd(
+                Vector3 position,
+                Vector3 destination)
+            {
+                const float endTolerance = 0.05f;
+
+                float currentCoordinate = runsAlongX
+                    ? position.X
+                    : position.Z;
+                float destinationCoordinate = runsAlongX
+                    ? destination.X
+                    : destination.Z;
+                float currentProgress =
+                    (currentCoordinate - bottomCoordinate) /
+                    (topCoordinate - bottomCoordinate);
+                float destinationProgress =
+                    (destinationCoordinate - bottomCoordinate) /
+                    (topCoordinate - bottomCoordinate);
+
+                bool entersAtBottom =
+                    currentProgress <= endTolerance &&
+                    destinationProgress > currentProgress;
+                bool entersAtTop =
+                    currentProgress >= 1f - endTolerance &&
+                    destinationProgress < currentProgress;
+
+                return entersAtBottom || entersAtTop;
+            }
         }
 
 

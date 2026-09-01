@@ -254,6 +254,15 @@ internal sealed class CompiledModel : IDisposable
         {
             string nodeName = modelData.Nodes[mesh.Node].Name;
 
+            if (IsStaircaseNode(nodeName))
+            {
+                platforms.AddRange(BuildStairPlatforms(
+                    mesh,
+                    nodeName,
+                    platforms.Count));
+                continue;
+            }
+
             if (!IsCollidableLevelNode(nodeName) || mesh.Vertices.Length == 0)
                 continue;
 
@@ -276,88 +285,86 @@ internal sealed class CompiledModel : IDisposable
             throw new InvalidOperationException(
                 "В скомпилированной модели уровня нет платформ.");
 
-        return MergeAdjacentFloorTiles(platforms);
+        // Не объединяем соседние плиты через общий BoundingBox: для Г-образных
+        // этажей такой прямоугольник заполняет лестничные проёмы невидимым полом.
+        return platforms;
     }
 
-    private static List<Level.Platform> MergeAdjacentFloorTiles(
-        List<Level.Platform> sourcePlatforms)
+    private List<Level.Platform> BuildStairPlatforms(
+        MeshData mesh,
+        string nodeName,
+        int firstPlatformId)
     {
-        const float maximumFloorHeightDifference = 0.08f;
-        const float maximumTileGap = 0.12f;
+        const float minimumUpNormal = 0.98f;
+        const float surfaceHeightTolerance = 0.02f;
+        const float colliderThickness = 0.05f;
+        const float minimumSurfaceSize = 0.1f;
 
-        var merged = new List<Level.Platform>();
+        Matrix nodeTransform = bindPoseGlobalTransforms[mesh.Node];
+        Vector3[] worldVertices = mesh.Vertices
+            .Select(vertex => Vector3.Transform(
+                ToXnaVector3(vertex.Position),
+                nodeTransform))
+            .ToArray();
 
-        foreach (Level.Platform source in sourcePlatforms)
+        var surfaces = new List<StairSurface>();
+
+        for (int index = 0; index < mesh.Indices.Length; index += 3)
         {
-            if (!IsMergeableFloorNode(source.Name))
-            {
-                merged.Add(source);
+            Vector3 first = worldVertices[mesh.Indices[index]];
+            Vector3 second = worldVertices[mesh.Indices[index + 1]];
+            Vector3 third = worldVertices[mesh.Indices[index + 2]];
+            Vector3 normal = Vector3.Cross(second - first, third - first);
+
+            if (normal.LengthSquared() <= 0.000001f)
                 continue;
-            }
 
-            BoundingBox combinedBounds = source.Bounds;
-            bool absorbedAnotherTile;
+            normal.Normalize();
 
-            // Повторяем проход, чтобы собрать всю связанную область плиток,
-            // а не только непосредственных соседей первой плитки.
-            do
+            // Коллайдером ступени становится только почти горизонтальная грань.
+            // Вертикальные стенки лестничного меша не превращаются в один большой AABB.
+            if (MathF.Abs(normal.Y) < minimumUpNormal)
+                continue;
+
+            float surfaceY = (first.Y + second.Y + third.Y) / 3f;
+            StairSurface? surface = surfaces.FirstOrDefault(candidate =>
+                MathF.Abs(candidate.SurfaceY - surfaceY) <=
+                    surfaceHeightTolerance);
+
+            if (surface is null)
             {
-                absorbedAnotherTile = false;
-
-                for (int index = merged.Count - 1; index >= 0; index--)
-                {
-                    Level.Platform candidate = merged[index];
-
-                    if (!IsMergeableFloorNode(candidate.Name) ||
-                        MathF.Abs(candidate.SurfaceY - combinedBounds.Max.Y) >
-                            maximumFloorHeightDifference ||
-                        !AreHorizontallyConnected(
-                            candidate.Bounds,
-                            combinedBounds,
-                            maximumTileGap))
-                    {
-                        continue;
-                    }
-
-                    combinedBounds = BoundingBox.CreateMerged(
-                        combinedBounds,
-                        candidate.Bounds);
-                    merged.RemoveAt(index);
-                    absorbedAnotherTile = true;
-                }
+                surface = new StairSurface(surfaceY);
+                surfaces.Add(surface);
             }
-            while (absorbedAnotherTile);
 
-            merged.Add(new Level.Platform(0, source.Name, combinedBounds));
+            surface.Include(first);
+            surface.Include(second);
+            surface.Include(third);
         }
 
-        for (int index = 0; index < merged.Count; index++)
-            merged[index] = merged[index] with { Id = index };
-
-        return merged;
+        return surfaces
+            .Where(surface =>
+                surface.Maximum.X - surface.Minimum.X >= minimumSurfaceSize ||
+                surface.Maximum.Z - surface.Minimum.Z >= minimumSurfaceSize)
+            .OrderBy(surface => surface.SurfaceY)
+            .Select((surface, index) => new Level.Platform(
+                firstPlatformId + index,
+                $"{nodeName}.Step{index + 1}",
+                new BoundingBox(
+                    new Vector3(
+                        surface.Minimum.X,
+                        surface.SurfaceY - colliderThickness,
+                        surface.Minimum.Z),
+                    new Vector3(
+                        surface.Maximum.X,
+                        surface.SurfaceY,
+                        surface.Maximum.Z))))
+            .ToList();
     }
 
-    private static bool AreHorizontallyConnected(
-        BoundingBox first,
-        BoundingBox second,
-        float maximumGap)
-    {
-        float gapX = MathF.Max(
-            0f,
-            MathF.Max(first.Min.X - second.Max.X, second.Min.X - first.Max.X));
-        float gapZ = MathF.Max(
-            0f,
-            MathF.Max(first.Min.Z - second.Max.Z, second.Min.Z - first.Max.Z));
-
-        return gapX <= maximumGap && gapZ <= maximumGap;
-    }
-
-    private static bool IsMergeableFloorNode(string nodeName) =>
-        nodeName.StartsWith("Ground", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Floor", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Bridge", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Trail", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.Contains("Platform", StringComparison.OrdinalIgnoreCase);
+    private static bool IsStaircaseNode(string nodeName) =>
+        nodeName.Contains("Stair", StringComparison.OrdinalIgnoreCase) ||
+        nodeName.Contains("Step", StringComparison.OrdinalIgnoreCase);
 
     private void ValidatePoseLength(BonePose[] pose)
     {
@@ -712,6 +719,19 @@ internal sealed class CompiledModel : IDisposable
         Effect Effect,
         Matrix[] BoneTransforms,
         Texture2D Texture);
+
+    private sealed class StairSurface(float surfaceY)
+    {
+        public float SurfaceY { get; } = surfaceY;
+        public Vector3 Minimum { get; private set; } = new(float.MaxValue);
+        public Vector3 Maximum { get; private set; } = new(float.MinValue);
+
+        public void Include(Vector3 point)
+        {
+            Minimum = Vector3.Min(Minimum, point);
+            Maximum = Vector3.Max(Maximum, point);
+        }
+    }
 }
 
 internal readonly record struct BonePose(
