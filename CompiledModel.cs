@@ -263,6 +263,15 @@ internal sealed class CompiledModel : IDisposable
                 continue;
             }
 
+            if (IsDoorwaySideNode(nodeName))
+            {
+                platforms.AddRange(BuildDoorwaySidePlatforms(
+                    mesh,
+                    nodeName,
+                    platforms.Count));
+                continue;
+            }
+
             if (!IsCollidableLevelNode(nodeName) || mesh.Vertices.Length == 0)
                 continue;
 
@@ -362,9 +371,140 @@ internal sealed class CompiledModel : IDisposable
             .ToList();
     }
 
+    private List<Level.Platform> BuildDoorwaySidePlatforms(
+        MeshData mesh,
+        string nodeName,
+        int firstPlatformId)
+    {
+        const float lowerGeometryFraction = 0.5f;
+        const float minimumOpeningWidth = 0.5f;
+
+        Vector3[] vertices = GetWorldVertices(mesh);
+
+        if (vertices.Length == 0)
+            return [];
+
+        BoundingBox fullBounds = BoundingBox.CreateFromPoints(vertices);
+        float sampleMaximumY = MathHelper.Lerp(
+            fullBounds.Min.Y,
+            fullBounds.Max.Y,
+            lowerGeometryFraction);
+        Vector3[] lowerVertices = vertices
+            .Where(vertex => vertex.Y <= sampleMaximumY)
+            .ToArray();
+
+        (float xStart, float xEnd) = FindLargestCoordinateGap(
+            lowerVertices.Select(vertex => vertex.X));
+        (float zStart, float zEnd) = FindLargestCoordinateGap(
+            lowerVertices.Select(vertex => vertex.Z));
+        float xGap = xEnd - xStart;
+        float zGap = zEnd - zStart;
+
+        if (MathF.Max(xGap, zGap) < minimumOpeningWidth)
+        {
+            return
+            [
+                new Level.Platform(
+                    firstPlatformId,
+                    nodeName,
+                    fullBounds)
+            ];
+        }
+
+        var result = new List<Level.Platform>(2);
+
+        if (xGap > zGap)
+        {
+            result.Add(new Level.Platform(
+                firstPlatformId,
+                nodeName + ".Side1",
+                new BoundingBox(
+                    fullBounds.Min,
+                    new Vector3(
+                        xStart,
+                        fullBounds.Max.Y,
+                        fullBounds.Max.Z))));
+            result.Add(new Level.Platform(
+                firstPlatformId + 1,
+                nodeName + ".Side2",
+                new BoundingBox(
+                    new Vector3(
+                        xEnd,
+                        fullBounds.Min.Y,
+                        fullBounds.Min.Z),
+                    fullBounds.Max)));
+        }
+        else
+        {
+            result.Add(new Level.Platform(
+                firstPlatformId,
+                nodeName + ".Side1",
+                new BoundingBox(
+                    fullBounds.Min,
+                    new Vector3(
+                        fullBounds.Max.X,
+                        fullBounds.Max.Y,
+                        zStart))));
+            result.Add(new Level.Platform(
+                firstPlatformId + 1,
+                nodeName + ".Side2",
+                new BoundingBox(
+                    new Vector3(
+                        fullBounds.Min.X,
+                        fullBounds.Min.Y,
+                        zEnd),
+                    fullBounds.Max)));
+        }
+
+        return result;
+    }
+
+    private Vector3[] GetWorldVertices(MeshData mesh)
+    {
+        Matrix nodeTransform = bindPoseGlobalTransforms[mesh.Node];
+        return mesh.Vertices
+            .Select(vertex => Vector3.Transform(
+                ToXnaVector3(vertex.Position),
+                nodeTransform))
+            .ToArray();
+    }
+
+    private static (float Start, float End) FindLargestCoordinateGap(
+        IEnumerable<float> coordinates)
+    {
+        float[] ordered = coordinates
+            .OrderBy(coordinate => coordinate)
+            .ToArray();
+
+        if (ordered.Length < 2)
+            return (0f, 0f);
+
+        float gapStart = ordered[0];
+        float gapEnd = ordered[0];
+
+        for (int index = 1; index < ordered.Length; index++)
+        {
+            float previous = ordered[index - 1];
+            float current = ordered[index];
+
+            if (current - previous > gapEnd - gapStart)
+            {
+                gapStart = previous;
+                gapEnd = current;
+            }
+        }
+
+        return (gapStart, gapEnd);
+    }
+
     private static bool IsStaircaseNode(string nodeName) =>
         nodeName.Contains("Stair", StringComparison.OrdinalIgnoreCase) ||
         nodeName.Contains("Step", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDoorwaySideNode(string nodeName) =>
+        nodeName.Contains(
+            "Doorway_Sides",
+            StringComparison.OrdinalIgnoreCase);
 
     private void ValidatePoseLength(BonePose[] pose)
     {

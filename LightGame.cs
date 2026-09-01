@@ -78,6 +78,7 @@ public sealed class LightGame : Game
     private double realFps;
     private double workingSetMegabytes;
     private string activeLevelVersion = "base";
+    private bool showCollisionDebug;
 
     public LightGame()
     {
@@ -339,6 +340,9 @@ public sealed class LightGame : Game
         if (keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L))
             lighting.Enabled = !lighting.Enabled;
 
+        if (keyboard.IsKeyDown(Keys.O) && previousKeyboard.IsKeyUp(Keys.O))
+            showCollisionDebug = !showCollisionDebug;
+
         DebugConsole.Update(
             gameTime,
             player,
@@ -360,9 +364,20 @@ public sealed class LightGame : Game
         GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
 
-        level.Draw(camera.View, camera.Projection, lighting);
-        player.Draw(camera.View, camera.Projection, lighting);
-        skeleton.Draw(camera.View, camera.Projection, lighting);
+        if (showCollisionDebug)
+        {
+            level.DrawColliders(
+                camera.View,
+                camera.Projection,
+                CreateCharacterDebugBounds(player.Position),
+                CreateCharacterDebugBounds(skeleton.Position));
+        }
+        else
+        {
+            level.Draw(camera.View, camera.Projection, lighting);
+            player.Draw(camera.View, camera.Projection, lighting);
+            skeleton.Draw(camera.View, camera.Projection, lighting);
+        }
 
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
         string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
@@ -382,7 +397,8 @@ public sealed class LightGame : Game
         string performanceText =
             $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB | " +
             $"LEVEL: {activeLevelVersion} | " +
-            $"LIGHT: {(lighting.Enabled ? "ON" : "OFF")} (L)";
+            $"LIGHT: {(lighting.Enabled ? "ON" : "OFF")} (L) | " +
+            $"COLLIDERS: {(showCollisionDebug ? "ON" : "OFF")} (O)";
         gameUi.SetHudText(
             playerText,
             skelText,
@@ -392,6 +408,17 @@ public sealed class LightGame : Game
 
         base.Draw(gameTime);
     }
+
+    private static BoundingBox CreateCharacterDebugBounds(Vector3 position) =>
+        new(
+            new Vector3(
+                position.X - CharacterCollisionRadius,
+                position.Y,
+                position.Z - CharacterCollisionRadius),
+            new Vector3(
+                position.X + CharacterCollisionRadius,
+                position.Y + CharacterCollisionHeight,
+                position.Z + CharacterCollisionRadius));
 
     private void UpdatePerformanceMetrics()
     {

@@ -17,6 +17,7 @@ namespace _3DLight
         private CompiledModel? model;
         private readonly List<Platform> platforms = [];
         private readonly List<StairRamp> stairRamps = [];
+        private BasicEffect? collisionDebugEffect;
 
         public sealed record Platform(int Id, string Name, BoundingBox Bounds)
         {
@@ -38,6 +39,8 @@ namespace _3DLight
             GraphicsDevice graphicsDevice = graphicsService?.GraphicsDevice
                 ?? throw new InvalidOperationException("GraphicsDevice unavailable.");
 
+            EnsureCollisionDebugEffect(graphicsDevice);
+
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
             ReplaceModel(CompiledModel.Load(
@@ -57,6 +60,8 @@ namespace _3DLight
 
             GraphicsDevice graphicsDevice = graphicsService?.GraphicsDevice
                 ?? throw new InvalidOperationException("GraphicsDevice unavailable.");
+
+            EnsureCollisionDebugEffect(graphicsDevice);
 
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
@@ -543,6 +548,31 @@ namespace _3DLight
 
                 return entersAtBottom || entersAtTop;
             }
+
+            public void AppendDebugLines(
+                List<VertexPositionColor> destination,
+                Color color)
+            {
+                Vector3 bottomLeft = runsAlongX
+                    ? new Vector3(bottomCoordinate, minimumHeight, crossMinimum)
+                    : new Vector3(crossMinimum, minimumHeight, bottomCoordinate);
+                Vector3 bottomRight = runsAlongX
+                    ? new Vector3(bottomCoordinate, minimumHeight, crossMaximum)
+                    : new Vector3(crossMaximum, minimumHeight, bottomCoordinate);
+                Vector3 topLeft = runsAlongX
+                    ? new Vector3(topCoordinate, MaximumHeight, crossMinimum)
+                    : new Vector3(crossMinimum, MaximumHeight, topCoordinate);
+                Vector3 topRight = runsAlongX
+                    ? new Vector3(topCoordinate, MaximumHeight, crossMaximum)
+                    : new Vector3(crossMaximum, MaximumHeight, topCoordinate);
+
+                AppendLine(destination, bottomLeft, bottomRight, color);
+                AppendLine(destination, topLeft, topRight, color);
+                AppendLine(destination, bottomLeft, topLeft, color);
+                AppendLine(destination, bottomRight, topRight, color);
+                AppendLine(destination, bottomLeft, topRight, color);
+                AppendLine(destination, bottomRight, topLeft, color);
+            }
         }
 
 
@@ -603,6 +633,97 @@ namespace _3DLight
             SceneLighting lighting)
         {
             model?.Draw(Matrix.Identity, view, projection, lighting);
+        }
+
+        public void DrawColliders(
+            Matrix view,
+            Matrix projection,
+            BoundingBox playerBounds,
+            BoundingBox skeletonBounds)
+        {
+            if (collisionDebugEffect is null)
+                return;
+
+            var lines = new List<VertexPositionColor>(
+                platforms.Count * 24 + stairRamps.Count * 12 + 48);
+
+            foreach (Platform platform in platforms)
+            {
+                Color color = IsFloorPlatform(platform.Name)
+                    ? Color.LimeGreen
+                    : platform.Name.StartsWith(
+                        "Wall",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? Color.CornflowerBlue
+                        : Color.Magenta;
+
+                AppendBoundingBoxLines(lines, platform.Bounds, color);
+            }
+
+            foreach (StairRamp ramp in stairRamps)
+                ramp.AppendDebugLines(lines, Color.Yellow);
+
+            AppendBoundingBoxLines(lines, playerBounds, Color.Red);
+            AppendBoundingBoxLines(lines, skeletonBounds, Color.Orange);
+
+            if (lines.Count == 0)
+                return;
+
+            collisionDebugEffect.World = Matrix.Identity;
+            collisionDebugEffect.View = view;
+            collisionDebugEffect.Projection = projection;
+
+            VertexPositionColor[] vertices = lines.ToArray();
+
+            foreach (EffectPass pass in collisionDebugEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                collisionDebugEffect.GraphicsDevice.DrawUserPrimitives(
+                    PrimitiveType.LineList,
+                    vertices,
+                    0,
+                    vertices.Length / 2);
+            }
+        }
+
+        private void EnsureCollisionDebugEffect(GraphicsDevice graphicsDevice)
+        {
+            collisionDebugEffect ??= new BasicEffect(graphicsDevice)
+            {
+                VertexColorEnabled = true,
+                LightingEnabled = false
+            };
+        }
+
+        private static void AppendBoundingBoxLines(
+            List<VertexPositionColor> destination,
+            BoundingBox bounds,
+            Color color)
+        {
+            Vector3[] corners = bounds.GetCorners();
+
+            AppendLine(destination, corners[0], corners[1], color);
+            AppendLine(destination, corners[1], corners[2], color);
+            AppendLine(destination, corners[2], corners[3], color);
+            AppendLine(destination, corners[3], corners[0], color);
+            AppendLine(destination, corners[4], corners[5], color);
+            AppendLine(destination, corners[5], corners[6], color);
+            AppendLine(destination, corners[6], corners[7], color);
+            AppendLine(destination, corners[7], corners[4], color);
+            AppendLine(destination, corners[0], corners[4], color);
+            AppendLine(destination, corners[1], corners[5], color);
+            AppendLine(destination, corners[2], corners[6], color);
+            AppendLine(destination, corners[3], corners[7], color);
+        }
+
+        private static void AppendLine(
+            List<VertexPositionColor> destination,
+            Vector3 start,
+            Vector3 end,
+            Color color)
+        {
+            destination.Add(new VertexPositionColor(start, color));
+            destination.Add(new VertexPositionColor(end, color));
         }
 
     }
