@@ -29,6 +29,7 @@ internal abstract class AIComponent : global::IGameComponent
     public Vector3 Direction { get; private set; } = Vector3.Zero;
     public bool ShouldDealDamage { get; private set; }
     public bool IsEnabled { get; private set; } = true;
+    public float AttackElapsedSeconds => attackTime;
 
     protected AIComponent(
         float detectionRange,

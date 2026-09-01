@@ -8,6 +8,8 @@ using _3DLight;
 
 public class Skeleton
 {
+    private const string UpperBodyRootBone = "spine";
+
     private readonly CharacterFacade character;
     private readonly SkeletonAIComponent ai;
     private readonly CharacterAnimationComponent animation;
@@ -114,23 +116,36 @@ public class Skeleton
         bool isRunning = horizontalMovement != Vector3.Zero &&
                          (Position.X != oldPosition.X || Position.Z != oldPosition.Z);
 
-        switch (ai.State)
+        if (ai.State == AIComponent.AiState.Attacking)
         {
-            case AIComponent.AiState.Attacking:
-                animation.Play("Attack", loop: false);
-                break;
-            case AIComponent.AiState.Hurt:
-                animation.Play("Hurt", loop: false);
-                break;
-            case AIComponent.AiState.Dead:
-                animation.Play("Die", loop: false);
-                break;
-            case AIComponent.AiState.Chasing when isRunning:
-                animation.Play("Run", loop: true);
-                break;
-            default:
-                animation.Play("Idle", loop: true);
-                break;
+            character.SetUpperBodyOverlay(
+                "Attack",
+                UpperBodyRootBone,
+                ai.AttackElapsedSeconds);
+
+            animation.Play(
+                isRunning ? "Run" : "Idle",
+                loop: true);
+        }
+        else
+        {
+            character.ClearUpperBodyOverlay();
+
+            switch (ai.State)
+            {
+                case AIComponent.AiState.Hurt:
+                    animation.Play("Hurt", loop: false);
+                    break;
+                case AIComponent.AiState.Dead:
+                    animation.Play("Die", loop: false);
+                    break;
+                case AIComponent.AiState.Chasing when isRunning:
+                    animation.Play("Run", loop: true);
+                    break;
+                default:
+                    animation.Play("Idle", loop: true);
+                    break;
+            }
         }
 
         animation.Update(deltaTime);

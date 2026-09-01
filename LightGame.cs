@@ -30,6 +30,8 @@ public sealed class LightGame : Game
 
     private readonly GraphicsDeviceManager graphics;
     private readonly SceneLighting lighting = new();
+    private readonly PauseController pause = new();
+    private readonly GameUi gameUi = new();
 
     private readonly Level level = new();
     private readonly Player player = new(
@@ -66,9 +68,6 @@ public sealed class LightGame : Game
         damage: 10,
         range: 1.4f,
         hitTimeNormalized: 0.45f))));
-
-    private SpriteBatch spriteBatch = null!;
-    private SpriteFont debugFont = null!;
 
     private KeyboardState previousKeyboard;
     private MouseState previousMouse;
@@ -108,6 +107,7 @@ public sealed class LightGame : Game
             Math.Max(0, (display.Height - Window.ClientBounds.Height) / 2));
 
         base.Initialize();
+        gameUi.Initialize(this);
         DebugConsole.Open();
         wasActive = IsActive;
         CaptureMouse();
@@ -115,8 +115,6 @@ public sealed class LightGame : Game
 
     protected override void LoadContent()
     {
-        spriteBatch = new SpriteBatch(GraphicsDevice);
-        debugFont = Content.Load<SpriteFont>("DebugFont");
         string animsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
 
         level.LoadContent(
@@ -231,17 +229,18 @@ public sealed class LightGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        UpdateLevelHotReload();
-
         KeyboardState keyboard = Keyboard.GetState();
         MouseState mouse = Mouse.GetState();
         bool capturedThisFrame = false;
         bool justActivated = IsActive && !wasActive;
 
+        gameUi.Update(gameTime);
+
         // Потеря фокуса всегда освобождает курсор и приостанавливает управление.
         if (!IsActive)
         {
             ReleaseMouse();
+            pause.SynchronizeInput(keyboard);
             previousKeyboard = keyboard;
             previousMouse = mouse;
             wasActive = false;
@@ -249,9 +248,34 @@ public sealed class LightGame : Game
             return;
         }
 
-        // Escape только освобождает мышь. Повторное нажатие ничего не закрывает.
-        if (keyboard.IsKeyDown(Keys.Escape) && previousKeyboard.IsKeyUp(Keys.Escape))
-            ReleaseMouse();
+        PauseTransition pauseTransition = pause.Update(keyboard);
+
+        if (pauseTransition != PauseTransition.None)
+        {
+            gameUi.SetPaused(pause.IsPaused);
+
+            if (pauseTransition == PauseTransition.Paused)
+            {
+                ReleaseMouse();
+            }
+            else
+            {
+                CaptureMouse();
+                capturedThisFrame = true;
+            }
+        }
+
+        // Пока включена пауза, игровой мир и анимации не обновляются.
+        if (pause.IsPaused)
+        {
+            previousKeyboard = keyboard;
+            previousMouse = mouse;
+            wasActive = true;
+            base.Update(gameTime);
+            return;
+        }
+
+        UpdateLevelHotReload();
 
         // Захватываем только по новому клику, а не по кнопке, зажатой во время Alt+Tab.
         if (!mouseCaptured &&
@@ -340,7 +364,6 @@ public sealed class LightGame : Game
         player.Draw(camera.View, camera.Projection, lighting);
         skeleton.Draw(camera.View, camera.Projection, lighting);
 
-        spriteBatch.Begin();
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
         string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
         string playerText =
@@ -360,12 +383,12 @@ public sealed class LightGame : Game
             $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB | " +
             $"LEVEL: {activeLevelVersion} | " +
             $"LIGHT: {(lighting.Enabled ? "ON" : "OFF")} (L)";
-        Color skeletonDebugColor = skeleton.IsDead ? Color.Gray : Color.LawnGreen;
-
-        spriteBatch.DrawString(debugFont, playerText, new Vector2(15, 15), Color.Yellow);
-        spriteBatch.DrawString(debugFont, skelText, new Vector2(15, 35), skeletonDebugColor);
-        spriteBatch.DrawString(debugFont, performanceText, new Vector2(15, 55), Color.Cyan);
-        spriteBatch.End();
+        gameUi.SetHudText(
+            playerText,
+            skelText,
+            performanceText,
+            skeleton.IsDead);
+        gameUi.Draw();
 
         base.Draw(gameTime);
     }
@@ -411,6 +434,7 @@ public sealed class LightGame : Game
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
         levelHotReload?.Dispose();
+        gameUi.Dispose();
         DebugConsole.Close();
         base.OnExiting(sender, args);
     }
