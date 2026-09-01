@@ -5,7 +5,7 @@
       "source": "level.fbx", "output": "../Content/Models/level.3dmodel" },
     {
       "name": "level_one",
-      "source": "LevelOne.fbx", "output": "../Content/Models/level_one.3dmodel" },
+      "source": "LevelOneFinalTest.fbx", "output": "../Content/Models/level_one.3dmodel" },
     {
       "name": "player",
       "source": "../Content/Assets/Player/RogueTPose.fbx", 
