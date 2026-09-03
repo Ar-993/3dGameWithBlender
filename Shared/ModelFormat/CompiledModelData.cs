@@ -5,7 +5,7 @@ namespace _3DLight.Assets;
 internal static class CompiledModelFormat
 {
     public const uint Magic = 0x4D4C4433;
-    public const int Version = 1;
+    public const int Version = 2;
     public const int MaximumArrayLength = 100_000_000;
 }
 
@@ -39,6 +39,7 @@ internal sealed class MeshData
 {
     public string Name { get; init; } = "Mesh";
     public int Node { get; init; }
+    public string TextureName { get; init; } = string.Empty;
     public VertexData[] Vertices { get; init; } = [];
     public int[] Indices { get; init; } = [];
     public BoneData[] Bones { get; init; } = [];
@@ -154,6 +155,7 @@ internal static class ModelDataIo
         {
             writer.Write(mesh.Name);
             writer.Write(mesh.Node);
+            writer.Write(mesh.TextureName);
             WriteVertices(writer, mesh.Vertices);
             WriteIndices(writer, mesh.Indices);
             WriteBones(writer, mesh.Bones);
@@ -168,11 +170,13 @@ internal static class ModelDataIo
         {
             string name = reader.ReadString();
             int node = reader.ReadInt32();
+            string textureName = reader.ReadString();
 
             meshes.Add(new MeshData
             {
                 Name = name,
                 Node = node,
+                TextureName = textureName,
                 Vertices = ReadVertices(reader),
                 Indices = ReadIndices(reader),
                 Bones = ReadBones(reader)

@@ -17,6 +17,7 @@ internal sealed class CompiledModel : IDisposable
     private readonly ModelData modelData;
     private readonly RuntimeMesh[] runtimeMeshes;
     private readonly Dictionary<string, ClipData> clipsByName;
+    private readonly Texture2D[] ownedMaterialTextures;
 
     private readonly BonePose[] bindLocalPoses;
     private readonly BonePose[] sampledPose;
@@ -32,7 +33,8 @@ internal sealed class CompiledModel : IDisposable
         GraphicsDevice graphicsDevice,
         ModelData modelData,
         Texture2D texture,
-        Effect toonEffect)
+        Effect toonEffect,
+        string textureFolderName)
     {
         this.graphicsDevice = graphicsDevice;
         this.modelData = modelData;
@@ -62,8 +64,15 @@ internal sealed class CompiledModel : IDisposable
             ? Matrix.Identity
             : Matrix.Invert(bindPoseGlobalTransforms[0]);
 
+        Dictionary<string, Texture2D> materialTextures =
+            LoadMaterialTextures(graphicsDevice, textureFolderName);
+        ownedMaterialTextures = materialTextures.Values.ToArray();
+
         runtimeMeshes = modelData.Meshes
-            .Select(mesh => CreateRuntimeMesh(mesh, texture, toonEffect))
+            .Select(mesh => CreateRuntimeMesh(
+                mesh,
+                ResolveMeshTexture(mesh, materialTextures, texture),
+                toonEffect))
             .ToArray();
     }
 
@@ -86,12 +95,14 @@ internal sealed class CompiledModel : IDisposable
             graphicsDevice,
             modelData,
             texture,
-            toonEffect);
+            toonEffect,
+            modelName);
     }
 
     public static CompiledModel LoadFromBytes(
         GraphicsDevice graphicsDevice,
         byte[] modelBytes,
+        string modelName,
         Texture2D texture,
         Effect toonEffect)
     {
@@ -104,7 +115,57 @@ internal sealed class CompiledModel : IDisposable
             graphicsDevice,
             modelData,
             texture,
-            toonEffect);
+            toonEffect,
+            modelName);
+    }
+
+    private static Dictionary<string, Texture2D> LoadMaterialTextures(
+        GraphicsDevice graphicsDevice,
+        string textureFolderName)
+    {
+        var textures = new Dictionary<string, Texture2D>(
+            StringComparer.OrdinalIgnoreCase);
+        string directory = Path.Combine(
+            AppContext.BaseDirectory,
+            "Content",
+            "Assets",
+            textureFolderName);
+
+        if (!Directory.Exists(directory))
+            return textures;
+
+        foreach (string path in Directory.EnumerateFiles(directory, "*.png"))
+        {
+            using FileStream stream = File.OpenRead(path);
+            textures[Path.GetFileName(path)] = Texture2D.FromStream(
+                graphicsDevice,
+                stream);
+        }
+
+        Console.WriteLine(
+            $"Loaded {textures.Count} material textures from '{directory}'.");
+        return textures;
+    }
+
+    private static Texture2D ResolveMeshTexture(
+        MeshData mesh,
+        IReadOnlyDictionary<string, Texture2D> materialTextures,
+        Texture2D fallbackTexture)
+    {
+        if (!string.IsNullOrWhiteSpace(mesh.TextureName) &&
+            materialTextures.TryGetValue(mesh.TextureName, out Texture2D? texture))
+        {
+            return texture;
+        }
+
+        if (!string.IsNullOrWhiteSpace(mesh.TextureName))
+        {
+            Console.WriteLine(
+                $"Texture '{mesh.TextureName}' required by mesh '{mesh.Name}' " +
+                "was not found; using the fallback texture.");
+        }
+
+        return fallbackTexture;
     }
 
     public float GetClipDuration(string clipName)
@@ -835,6 +896,9 @@ internal sealed class CompiledModel : IDisposable
             runtimeMesh.IndexBuffer.Dispose();
             runtimeMesh.Effect.Dispose();
         }
+
+        foreach (Texture2D texture in ownedMaterialTextures)
+            texture.Dispose();
     }
 
     private static Matrix ToXnaMatrix(NumericsMatrix matrix) => new(

@@ -31,6 +31,7 @@
     <Compile Remove="Shared\**\*.cs" />
     <Compile Remove="Tools\**\*.cs" />
     <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\level_one\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Player\RogueFalling.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

@@ -192,7 +192,11 @@ public sealed class LightGame : Game
         string version,
         bool respawnCharacters)
     {
-        level.ReloadContent(Content, modelBytes, ActiveLevelTexture);
+        level.ReloadContent(
+            Content,
+            modelBytes,
+            ActiveLevelModel,
+            ActiveLevelTexture);
 
         if (respawnCharacters)
             SpawnCharacters();

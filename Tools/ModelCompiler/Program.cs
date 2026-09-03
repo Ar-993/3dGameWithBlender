@@ -197,21 +197,40 @@ static void AddMeshes(
 {
     for (int meshIndex = 0; meshIndex < scene.MeshCount; meshIndex++)
     {
+        Assimp.Mesh sourceMesh = scene.Meshes[meshIndex];
         MeshData mesh = ConvertMesh(
-            scene.Meshes[meshIndex],
+            sourceMesh,
             meshOwnerNodes[meshIndex],
             nodeIndices,
-            transposeMatrices);
+            transposeMatrices,
+            GetDiffuseTextureName(scene, sourceMesh));
 
         model.Meshes.Add(mesh);
     }
+}
+
+static string GetDiffuseTextureName(Scene scene, Assimp.Mesh mesh)
+{
+    if (mesh.MaterialIndex < 0 || mesh.MaterialIndex >= scene.MaterialCount)
+        return string.Empty;
+
+    Material material = scene.Materials[mesh.MaterialIndex];
+
+    if (!material.HasTextureDiffuse)
+        return string.Empty;
+
+    string texturePath = material.TextureDiffuse.FilePath;
+    return string.IsNullOrWhiteSpace(texturePath)
+        ? string.Empty
+        : Path.GetFileName(texturePath.Replace('\\', Path.DirectorySeparatorChar));
 }
 
 static MeshData ConvertMesh(
     Assimp.Mesh sourceMesh,
     int ownerNodeIndex,
     Dictionary<string, int> nodeIndices,
-    bool transposeMatrices)
+    bool transposeMatrices,
+    string textureName)
 {
     const int maximumBoneCount = 72;
 
@@ -237,6 +256,7 @@ static MeshData ConvertMesh(
     {
         Name = sourceMesh.Name,
         Node = ownerNodeIndex,
+        TextureName = textureName,
         Vertices = vertices,
         Indices = sourceMesh.GetIndices().ToArray(),
         Bones = bones

@@ -53,6 +53,7 @@ namespace _3DLight
         public void ReloadContent(
             ContentManager content,
             byte[] modelBytes,
+            string modelPath,
             string texturePath = "Assets/level.fbm/palette_0")
         {
             var graphicsService = (IGraphicsDeviceService?)
@@ -69,6 +70,7 @@ namespace _3DLight
             ReplaceModel(CompiledModel.LoadFromBytes(
                 graphicsDevice,
                 modelBytes,
+                modelPath,
                 texture,
                 toonEffect));
         }
