@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="Shared\ModelFormat\ModelFormat.csproj" />
+    <InternalsVisibleTo Include="CollisionTests" />
   </ItemGroup>
 
 	<ItemGroup>

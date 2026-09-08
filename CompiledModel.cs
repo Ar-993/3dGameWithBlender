@@ -311,214 +311,71 @@ internal sealed class CompiledModel : IDisposable
     {
         var platforms = new List<Level.Platform>();
 
-        foreach (MeshData mesh in modelData.Meshes)
+        for (int meshIndex = 0; meshIndex < modelData.Meshes.Count; meshIndex++)
         {
-            string nodeName = modelData.Nodes[mesh.Node].Name;
-
-            if (IsStaircaseNode(nodeName))
-            {
-                platforms.AddRange(BuildStairPlatforms(
-                    mesh,
-                    nodeName,
-                    platforms.Count));
-                continue;
-            }
-
-            if (IsDoorwaySideNode(nodeName))
-            {
-                platforms.AddRange(BuildDoorwaySidePlatforms(
-                    mesh,
-                    nodeName,
-                    platforms.Count));
-                continue;
-            }
-
-            if (!IsCollidableLevelNode(nodeName) || mesh.Vertices.Length == 0)
+            MeshData mesh = modelData.Meshes[meshIndex];
+            if (mesh.Vertices.Length == 0 || mesh.Indices.Length < 3)
                 continue;
 
-            BoundingBox meshBounds = CalculateMeshBounds(mesh);
-            float width = meshBounds.Max.X - meshBounds.Min.X;
-            float depth = meshBounds.Max.Z - meshBounds.Min.Z;
-
-            // Пол должен быть достаточно большим хотя бы по одной горизонтальной
-            // оси: тонкие стены тоже участвуют в столкновениях.
-            if (width < 0.5f && depth < 0.5f)
-                continue;
-
+            // Имена узлов — только подписи. Любой меш уровня участвует
+            // в коллизиях; Empty/маркеры без геометрии сюда не попадают.
             platforms.Add(new Level.Platform(
-                platforms.Count,
-                nodeName,
-                meshBounds));
+                meshIndex,
+                modelData.Nodes[mesh.Node].Name,
+                CalculateMeshBounds(mesh)));
         }
 
         if (platforms.Count == 0)
             throw new InvalidOperationException(
-                "В скомпилированной модели уровня нет платформ.");
+                "В скомпилированной модели уровня нет геометрии для коллизий.");
 
-        // Не объединяем соседние плиты через общий BoundingBox: для Г-образных
-        // этажей такой прямоугольник заполняет лестничные проёмы невидимым полом.
         return platforms;
     }
 
-    private List<Level.Platform> BuildStairPlatforms(
-        MeshData mesh,
-        string nodeName,
-        int firstPlatformId)
+    public List<Level.TriangleCollider> BuildTriangleColliders()
     {
-        const float minimumUpNormal = 0.98f;
-        const float surfaceHeightTolerance = 0.02f;
-        const float colliderThickness = 0.05f;
-        const float minimumSurfaceSize = 0.1f;
+        const float minimumTriangleAreaSquared = 0.00000001f;
+        var colliders = new List<Level.TriangleCollider>();
 
-        Matrix nodeTransform = bindPoseGlobalTransforms[mesh.Node];
-        Vector3[] worldVertices = mesh.Vertices
-            .Select(vertex => Vector3.Transform(
-                ToXnaVector3(vertex.Position),
-                nodeTransform))
-            .ToArray();
-
-        var surfaces = new List<StairSurface>();
-
-        for (int index = 0; index < mesh.Indices.Length; index += 3)
+        for (int meshIndex = 0; meshIndex < modelData.Meshes.Count; meshIndex++)
         {
-            Vector3 first = worldVertices[mesh.Indices[index]];
-            Vector3 second = worldVertices[mesh.Indices[index + 1]];
-            Vector3 third = worldVertices[mesh.Indices[index + 2]];
-            Vector3 normal = Vector3.Cross(second - first, third - first);
-
-            if (normal.LengthSquared() <= 0.000001f)
+            MeshData mesh = modelData.Meshes[meshIndex];
+            string nodeName = modelData.Nodes[mesh.Node].Name;
+            if (mesh.Vertices.Length == 0 || mesh.Indices.Length < 3)
                 continue;
 
-            normal.Normalize();
-
-            // Коллайдером ступени становится только почти горизонтальная грань.
-            // Вертикальные стенки лестничного меша не превращаются в один большой AABB.
-            if (MathF.Abs(normal.Y) < minimumUpNormal)
-                continue;
-
-            float surfaceY = (first.Y + second.Y + third.Y) / 3f;
-            StairSurface? surface = surfaces.FirstOrDefault(candidate =>
-                MathF.Abs(candidate.SurfaceY - surfaceY) <=
-                    surfaceHeightTolerance);
-
-            if (surface is null)
+            Vector3[] vertices = GetWorldVertices(mesh);
+            // Одна опора на весь меш сохраняет идентичность платформы для ИИ.
+            // Высота контакта вычисляется по грани, а не по этим общим границам.
+            var support = new Level.Platform(
+                meshIndex, nodeName, BoundingBox.CreateFromPoints(vertices));
+            for (int index = 0; index + 2 < mesh.Indices.Length; index += 3)
             {
-                surface = new StairSurface(surfaceY);
-                surfaces.Add(surface);
-            }
+                Vector3 a = vertices[mesh.Indices[index]];
+                Vector3 b = vertices[mesh.Indices[index + 1]];
+                Vector3 c = vertices[mesh.Indices[index + 2]];
+                Vector3 normal = Vector3.Cross(b - a, c - a);
 
-            surface.Include(first);
-            surface.Include(second);
-            surface.Include(third);
-        }
+                if (normal.LengthSquared() <= minimumTriangleAreaSquared)
+                    continue;
 
-        return surfaces
-            .Where(surface =>
-                surface.Maximum.X - surface.Minimum.X >= minimumSurfaceSize ||
-                surface.Maximum.Z - surface.Minimum.Z >= minimumSurfaceSize)
-            .OrderBy(surface => surface.SurfaceY)
-            .Select((surface, index) => new Level.Platform(
-                firstPlatformId + index,
-                $"{nodeName}.Step{index + 1}",
-                new BoundingBox(
-                    new Vector3(
-                        surface.Minimum.X,
-                        surface.SurfaceY - colliderThickness,
-                        surface.Minimum.Z),
-                    new Vector3(
-                        surface.Maximum.X,
-                        surface.SurfaceY,
-                        surface.Maximum.Z))))
-            .ToList();
-    }
-
-    private List<Level.Platform> BuildDoorwaySidePlatforms(
-        MeshData mesh,
-        string nodeName,
-        int firstPlatformId)
-    {
-        const float lowerGeometryFraction = 0.5f;
-        const float minimumOpeningWidth = 0.5f;
-
-        Vector3[] vertices = GetWorldVertices(mesh);
-
-        if (vertices.Length == 0)
-            return [];
-
-        BoundingBox fullBounds = BoundingBox.CreateFromPoints(vertices);
-        float sampleMaximumY = MathHelper.Lerp(
-            fullBounds.Min.Y,
-            fullBounds.Max.Y,
-            lowerGeometryFraction);
-        Vector3[] lowerVertices = vertices
-            .Where(vertex => vertex.Y <= sampleMaximumY)
-            .ToArray();
-
-        (float xStart, float xEnd) = FindLargestCoordinateGap(
-            lowerVertices.Select(vertex => vertex.X));
-        (float zStart, float zEnd) = FindLargestCoordinateGap(
-            lowerVertices.Select(vertex => vertex.Z));
-        float xGap = xEnd - xStart;
-        float zGap = zEnd - zStart;
-
-        if (MathF.Max(xGap, zGap) < minimumOpeningWidth)
-        {
-            return
-            [
-                new Level.Platform(
-                    firstPlatformId,
+                normal.Normalize();
+                colliders.Add(new Level.TriangleCollider(
                     nodeName,
-                    fullBounds)
-            ];
+                    a,
+                    b,
+                    c,
+                    normal,
+                    BoundingBox.CreateFromPoints(new[] { a, b, c }))
+                {
+                    SupportPlatform = support
+                });
+            }
         }
 
-        var result = new List<Level.Platform>(2);
-
-        if (xGap > zGap)
-        {
-            result.Add(new Level.Platform(
-                firstPlatformId,
-                nodeName + ".Side1",
-                new BoundingBox(
-                    fullBounds.Min,
-                    new Vector3(
-                        xStart,
-                        fullBounds.Max.Y,
-                        fullBounds.Max.Z))));
-            result.Add(new Level.Platform(
-                firstPlatformId + 1,
-                nodeName + ".Side2",
-                new BoundingBox(
-                    new Vector3(
-                        xEnd,
-                        fullBounds.Min.Y,
-                        fullBounds.Min.Z),
-                    fullBounds.Max)));
-        }
-        else
-        {
-            result.Add(new Level.Platform(
-                firstPlatformId,
-                nodeName + ".Side1",
-                new BoundingBox(
-                    fullBounds.Min,
-                    new Vector3(
-                        fullBounds.Max.X,
-                        fullBounds.Max.Y,
-                        zStart))));
-            result.Add(new Level.Platform(
-                firstPlatformId + 1,
-                nodeName + ".Side2",
-                new BoundingBox(
-                    new Vector3(
-                        fullBounds.Min.X,
-                        fullBounds.Min.Y,
-                        zEnd),
-                    fullBounds.Max)));
-        }
-
-        return result;
+        return colliders;
     }
+
 
     private Vector3[] GetWorldVertices(MeshData mesh)
     {
@@ -530,42 +387,6 @@ internal sealed class CompiledModel : IDisposable
             .ToArray();
     }
 
-    private static (float Start, float End) FindLargestCoordinateGap(
-        IEnumerable<float> coordinates)
-    {
-        float[] ordered = coordinates
-            .OrderBy(coordinate => coordinate)
-            .ToArray();
-
-        if (ordered.Length < 2)
-            return (0f, 0f);
-
-        float gapStart = ordered[0];
-        float gapEnd = ordered[0];
-
-        for (int index = 1; index < ordered.Length; index++)
-        {
-            float previous = ordered[index - 1];
-            float current = ordered[index];
-
-            if (current - previous > gapEnd - gapStart)
-            {
-                gapStart = previous;
-                gapEnd = current;
-            }
-        }
-
-        return (gapStart, gapEnd);
-    }
-
-    private static bool IsStaircaseNode(string nodeName) =>
-        nodeName.Contains("Stair", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.Contains("Step", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsDoorwaySideNode(string nodeName) =>
-        nodeName.Contains(
-            "Doorway_Sides",
-            StringComparison.OrdinalIgnoreCase);
 
     private void ValidatePoseLength(BonePose[] pose)
     {
@@ -608,14 +429,6 @@ internal sealed class CompiledModel : IDisposable
         return new BoundingBox(minimum, maximum);
     }
 
-    private static bool IsCollidableLevelNode(string nodeName) =>
-        nodeName.StartsWith("Ground", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Floor", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Wall", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Bridge", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Trail", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.StartsWith("Cylinder", StringComparison.OrdinalIgnoreCase) ||
-        nodeName.Contains("Platform", StringComparison.OrdinalIgnoreCase);
 
     private RuntimeMesh CreateRuntimeMesh(
         MeshData sourceMesh,
@@ -924,18 +737,6 @@ internal sealed class CompiledModel : IDisposable
         Matrix[] BoneTransforms,
         Texture2D Texture);
 
-    private sealed class StairSurface(float surfaceY)
-    {
-        public float SurfaceY { get; } = surfaceY;
-        public Vector3 Minimum { get; private set; } = new(float.MaxValue);
-        public Vector3 Maximum { get; private set; } = new(float.MinValue);
-
-        public void Include(Vector3 point)
-        {
-            Minimum = Vector3.Min(Minimum, point);
-            Maximum = Vector3.Max(Maximum, point);
-        }
-    }
 }
 
 internal readonly record struct BonePose(
