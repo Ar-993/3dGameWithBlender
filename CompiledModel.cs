@@ -1,4 +1,5 @@
 using _3DLight.Assets;
+using _3DLight.Collision;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Graphics.PackedVector;
@@ -307,87 +308,6 @@ internal sealed class CompiledModel : IDisposable
         DrawMeshes(world, view, projection, lighting);
     }
 
-    public List<Level.Platform> BuildPlatforms()
-    {
-        var platforms = new List<Level.Platform>();
-
-        for (int meshIndex = 0; meshIndex < modelData.Meshes.Count; meshIndex++)
-        {
-            MeshData mesh = modelData.Meshes[meshIndex];
-            if (mesh.Vertices.Length == 0 || mesh.Indices.Length < 3)
-                continue;
-
-            // Имена узлов — только подписи. Любой меш уровня участвует
-            // в коллизиях; Empty/маркеры без геометрии сюда не попадают.
-            platforms.Add(new Level.Platform(
-                meshIndex,
-                modelData.Nodes[mesh.Node].Name,
-                CalculateMeshBounds(mesh)));
-        }
-
-        if (platforms.Count == 0)
-            throw new InvalidOperationException(
-                "В скомпилированной модели уровня нет геометрии для коллизий.");
-
-        return platforms;
-    }
-
-    public List<Level.TriangleCollider> BuildTriangleColliders()
-    {
-        const float minimumTriangleAreaSquared = 0.00000001f;
-        var colliders = new List<Level.TriangleCollider>();
-
-        for (int meshIndex = 0; meshIndex < modelData.Meshes.Count; meshIndex++)
-        {
-            MeshData mesh = modelData.Meshes[meshIndex];
-            string nodeName = modelData.Nodes[mesh.Node].Name;
-            if (mesh.Vertices.Length == 0 || mesh.Indices.Length < 3)
-                continue;
-
-            Vector3[] vertices = GetWorldVertices(mesh);
-            // Одна опора на весь меш сохраняет идентичность платформы для ИИ.
-            // Высота контакта вычисляется по грани, а не по этим общим границам.
-            var support = new Level.Platform(
-                meshIndex, nodeName, BoundingBox.CreateFromPoints(vertices));
-            for (int index = 0; index + 2 < mesh.Indices.Length; index += 3)
-            {
-                Vector3 a = vertices[mesh.Indices[index]];
-                Vector3 b = vertices[mesh.Indices[index + 1]];
-                Vector3 c = vertices[mesh.Indices[index + 2]];
-                Vector3 normal = Vector3.Cross(b - a, c - a);
-
-                if (normal.LengthSquared() <= minimumTriangleAreaSquared)
-                    continue;
-
-                normal.Normalize();
-                colliders.Add(new Level.TriangleCollider(
-                    nodeName,
-                    a,
-                    b,
-                    c,
-                    normal,
-                    BoundingBox.CreateFromPoints(new[] { a, b, c }))
-                {
-                    SupportPlatform = support
-                });
-            }
-        }
-
-        return colliders;
-    }
-
-
-    private Vector3[] GetWorldVertices(MeshData mesh)
-    {
-        Matrix nodeTransform = bindPoseGlobalTransforms[mesh.Node];
-        return mesh.Vertices
-            .Select(vertex => Vector3.Transform(
-                ToXnaVector3(vertex.Position),
-                nodeTransform))
-            .ToArray();
-    }
-
-
     private void ValidatePoseLength(BonePose[] pose)
     {
         if (pose.Length != NodeCount)
@@ -410,25 +330,6 @@ internal sealed class CompiledModel : IDisposable
 
         return Math.Min(animationTick, clip.Duration);
     }
-
-    private BoundingBox CalculateMeshBounds(MeshData mesh)
-    {
-        var minimum = new Vector3(float.MaxValue);
-        var maximum = new Vector3(float.MinValue);
-        Matrix nodeTransform = bindPoseGlobalTransforms[mesh.Node];
-
-        foreach (VertexData vertex in mesh.Vertices)
-        {
-            Vector3 localPosition = ToXnaVector3(vertex.Position);
-            Vector3 worldPosition = Vector3.Transform(localPosition, nodeTransform);
-
-            minimum = Vector3.Min(minimum, worldPosition);
-            maximum = Vector3.Max(maximum, worldPosition);
-        }
-
-        return new BoundingBox(minimum, maximum);
-    }
-
 
     private RuntimeMesh CreateRuntimeMesh(
         MeshData sourceMesh,
@@ -601,6 +502,21 @@ internal sealed class CompiledModel : IDisposable
         lighting.Apply(parameters);
     }
 
+    public List<Level.Platform> BuildPlatforms()
+    {
+        return LevelGeometryBuilder.BuildPlatforms(
+            modelData,
+            bindPoseGlobalTransforms);
+    }
+
+    public List<Level.TriangleCollider> BuildTriangleColliders()
+    {
+        return LevelGeometryBuilder.BuildTriangleColliders(
+            modelData,
+            bindPoseGlobalTransforms);
+    }
+
+
     private void CalculateGlobalTransforms(
         Matrix[] sourceLocalTransforms,
         Matrix[] destinationGlobalTransforms)
@@ -615,6 +531,8 @@ internal sealed class CompiledModel : IDisposable
                 : localTransform * destinationGlobalTransforms[parentIndex];
         }
     }
+    private static Vector3 ToXnaVector3(System.Numerics.Vector3 vector) =>
+        new(vector.X, vector.Y, vector.Z);
 
     private static Vector3 InterpolateVectorKeys(
         VectorKey[] keys,
@@ -719,9 +637,6 @@ internal sealed class CompiledModel : IDisposable
         matrix.M21, matrix.M22, matrix.M23, matrix.M24,
         matrix.M31, matrix.M32, matrix.M33, matrix.M34,
         matrix.M41, matrix.M42, matrix.M43, matrix.M44);
-
-    private static Vector3 ToXnaVector3(NumericsVector3 vector) =>
-        new(vector.X, vector.Y, vector.Z);
 
     private static Vector4 ToXnaVector4(NumericsVector4 vector) =>
         new(vector.X, vector.Y, vector.Z, vector.W);
