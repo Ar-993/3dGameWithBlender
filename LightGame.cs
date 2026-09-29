@@ -34,40 +34,13 @@ public sealed class LightGame : Game
     private readonly GameUi gameUi = new();
 
     private readonly Level level = new();
-    private readonly Player player = new(
-    new CharacterFacade(
-        CharacterFactory.Create(
-            new CharacterPhysicsComponent(
-                PlayerSpawnCoordinates,
-                CharacterCollisionRadius,
-                CharacterCollisionHeight,
-                Gravity),
-            new CharacterAnimationComponent(modelScale: 1f),
-            new StatsComponent(maxHealth: 100),
-            new AttackComponent(
-                damage: 25,
-                range: 1.6f,
-                hitTimeNormalized: 0.45f))));
+    private readonly Player player = CreatePlayer();
+
+            
     private readonly ThirdPersonCamera camera = new();
     private LevelHotReload? levelHotReload;
 
-    private readonly Skeleton skeleton = new(new CharacterFacade(
-        CharacterFactory.Create(
-            new CharacterPhysicsComponent(
-                SkeletonSpawnCoordinates,
-                CharacterCollisionRadius,
-                CharacterCollisionHeight,
-                Gravity),
-
-            new CharacterAnimationComponent(modelScale: 1f),
-
-            new StatsComponent(maxHealth: 100),
-
-            new SkeletonAIComponent(),
-            new AttackComponent(
-        damage: 10,
-        range: 1.4f,
-        hitTimeNormalized: 0.45f))));
+    private readonly Skeleton skeleton = CreateSkeleton();
 
     private KeyboardState previousKeyboard;
     private MouseState previousMouse;
@@ -79,6 +52,9 @@ public sealed class LightGame : Game
     private double workingSetMegabytes;
     private string activeLevelVersion = "base";
     private bool showCollisionDebug;
+
+    private ShootingCube shootingCube = null!;
+    private readonly List<Bullet> activeBullets = new();
 
     public LightGame()
     {
@@ -131,6 +107,12 @@ public sealed class LightGame : Game
     animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
 
+        shootingCube = new ShootingCube(
+        GraphicsDevice,
+        position: new Vector3(70f, 2f, 5f),
+        size: Vector3.One,
+        fireRateSeconds: 1.5f);
+
     }
 
     private void SpawnCharacters()
@@ -145,6 +127,56 @@ public sealed class LightGame : Game
             SkeletonSpawnObjectName,
             SkeletonSpawnCoordinates,
             "Skeleton"));
+    }
+
+    private static Player CreatePlayer()
+    {
+        var physics = new CharacterPhysicsComponent(
+                PlayerSpawnCoordinates,
+                CharacterCollisionRadius,
+                CharacterCollisionHeight,
+                Gravity);
+
+        var animation = new CharacterAnimationComponent(modelScale: 1f);
+
+        var stats = new StatsComponent(maxHealth: 100);
+
+        var attack = new AttackComponent(
+                damage: 25,
+                range: 1.6f,
+                hitTimeNormalized: 0.45f);
+
+        GameEntity entity = CharacterFactory.Create(physics, animation, stats, attack);
+
+        var character = new CharacterFacade(entity);
+
+        return new Player(character);
+    }
+
+    private static Skeleton CreateSkeleton()
+    {
+        var physics = new CharacterPhysicsComponent(
+                SkeletonSpawnCoordinates,
+                CharacterCollisionRadius,
+                CharacterCollisionHeight,
+                Gravity);
+
+        var animation = new CharacterAnimationComponent(modelScale: 1f);
+
+        var stats = new StatsComponent(maxHealth: 100);
+
+        var ai = new SkeletonAIComponent();
+
+        var attack = new AttackComponent(
+        damage: 10,
+        range: 1.4f,
+        hitTimeNormalized: 0.45f);
+
+        GameEntity entity = CharacterFactory.Create(physics, animation, stats, ai, attack);
+
+        var skeleton = new CharacterFacade(entity);
+
+        return new Skeleton(skeleton);
     }
 
     private void TryLoadLatestLevelVersion()
@@ -324,13 +356,7 @@ public sealed class LightGame : Game
             attackPressed,
             flyKickPressed);
 
-        if (player.AttackShouldDealDamage && !skeleton.IsDead)
-        {
-            Vector3 difference = skeleton.Position - player.Position;
-
-            if (difference.Length() <= player.AttackRange)
-                skeleton.TakeDamage(player.AttackDamage);
-        }
+        ApplyPlayerAttack();
 
         camera.UpdateMatrices(
             player.Position,
@@ -338,14 +364,45 @@ public sealed class LightGame : Game
             level);
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
         skeleton.Update(player, level, deltaTime);
         lighting.FollowPlayer(player.Position);
 
-        if (keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L))
-            lighting.Enabled = !lighting.Enabled;
+        shootingCube.Update(deltaTime, player.Position);
 
-        if (keyboard.IsKeyDown(Keys.O) && previousKeyboard.IsKeyUp(Keys.O))
-            showCollisionDebug = !showCollisionDebug;
+        if (shootingCube.ShouldSpawnBullet)
+        {
+            Vector3 spawnPos = shootingCube.Position + shootingCube.AimDirection * 1.0f;
+            activeBullets.Add(new Bullet(
+                GraphicsDevice,
+                spawnPos,
+                shootingCube.AimDirection,
+                damage: 15,
+                speed: 12f));
+        }
+
+        for (int i = activeBullets.Count - 1; i >= 0; i--)
+        {
+            var bullet = activeBullets[i];
+            bullet.Update(deltaTime);
+
+            float distanceToPlayer = Vector3.Distance(bullet.Position, player.Position);
+            if (distanceToPlayer <= (bullet.Bounds.Radius + CharacterCollisionRadius))
+            {
+                player.TakeDamage(bullet.Damage);
+                bullet.Dispose();
+                activeBullets.RemoveAt(i);
+                continue;
+            }
+
+            if (bullet.IsDead)
+            {
+                bullet.Dispose();
+                activeBullets.RemoveAt(i);
+            }
+        }
+
+        keyboard = UpdateDebugKeys(keyboard);
 
         DebugConsole.Update(
             gameTime,
@@ -358,6 +415,27 @@ public sealed class LightGame : Game
         previousMouse = mouse;
         wasActive = true;
         base.Update(gameTime);
+    }
+
+    private KeyboardState UpdateDebugKeys(KeyboardState keyboard)
+    {
+        if (keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L))
+            lighting.Enabled = !lighting.Enabled;
+
+        if (keyboard.IsKeyDown(Keys.O) && previousKeyboard.IsKeyUp(Keys.O))
+            showCollisionDebug = !showCollisionDebug;
+        return keyboard;
+    }
+
+    private void ApplyPlayerAttack()
+    {
+        if (player.AttackShouldDealDamage && !skeleton.IsDead)
+        {
+            Vector3 difference = skeleton.Position - player.Position;
+
+            if (difference.Length() <= player.AttackRange)
+                skeleton.TakeDamage(player.AttackDamage);
+        }
     }
 
     protected override void Draw(GameTime gameTime)
@@ -381,6 +459,12 @@ public sealed class LightGame : Game
             level.Draw(camera.View, camera.Projection, lighting);
             player.Draw(camera.View, camera.Projection, lighting);
             skeleton.Draw(camera.View, camera.Projection, lighting);
+
+            shootingCube.Draw(camera.View, camera.Projection);
+            foreach (var bullet in activeBullets)
+            {
+                bullet.Draw(camera.View, camera.Projection);
+            }
         }
 
         string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
@@ -465,6 +549,9 @@ public sealed class LightGame : Game
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
         levelHotReload?.Dispose();
+        shootingCube?.Dispose();
+        foreach (var bullet in activeBullets)
+            bullet.Dispose();
         gameUi.Dispose();
         DebugConsole.Close();
         base.OnExiting(sender, args);
