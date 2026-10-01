@@ -56,6 +56,9 @@ public sealed class LightGame : Game
     private ShootingCube shootingCube = null!;
     private readonly List<Bullet> activeBullets = new();
 
+    private CompiledModel gunModel = null!;
+    private CompiledModel bulletModel = null!;
+
     public LightGame()
     {
         graphics = new GraphicsDeviceManager(this)
@@ -107,11 +110,20 @@ public sealed class LightGame : Game
     animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
 
+        Texture2D fallbackTexture = Content.Load<Texture2D>(ActiveLevelTexture);
+
+        Effect toonEffect = Content.Load<Effect>("ToonShader");
+
+        gunModel = CompiledModel.Load(GraphicsDevice, "Pistols_Colt_01_A.fbx", fallbackTexture, toonEffect);
+        bulletModel = CompiledModel.Load(GraphicsDevice, "Pistols_Colt_Bullet_01_A.fbx", fallbackTexture, toonEffect);
+
         shootingCube = new ShootingCube(
-        GraphicsDevice,
-        position: new Vector3(70f, 2f, 5f),
-        size: Vector3.One,
-        fireRateSeconds: 1.5f);
+            GraphicsDevice,
+            position: new Vector3(70f, 2f, 5f),
+            size: new Vector3(1f, 1f, 1f),
+            gunModel: gunModel,
+            lighting: lighting,
+            fireRateSeconds: 1.5f);
 
     }
 
@@ -372,11 +384,14 @@ public sealed class LightGame : Game
 
         if (shootingCube.ShouldSpawnBullet)
         {
-            Vector3 spawnPos = shootingCube.Position + shootingCube.AimDirection * 1.0f;
+            Vector3 spawnPos = shootingCube.Position + shootingCube.AimDirection * 1.2f;
+
             activeBullets.Add(new Bullet(
                 GraphicsDevice,
                 spawnPos,
                 shootingCube.AimDirection,
+                bulletModel: bulletModel,
+                lighting: lighting,
                 damage: 15,
                 speed: 12f));
         }
@@ -550,6 +565,8 @@ public sealed class LightGame : Game
     {
         levelHotReload?.Dispose();
         shootingCube?.Dispose();
+        gunModel?.Dispose();
+        bulletModel?.Dispose();
         foreach (var bullet in activeBullets)
             bullet.Dispose();
         gameUi.Dispose();
