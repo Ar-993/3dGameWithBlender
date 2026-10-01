@@ -77,15 +77,31 @@ internal static class ModelDataIo
         string outputDirectory = Path.GetDirectoryName(absolutePath)!;
         Directory.CreateDirectory(outputDirectory);
 
-        using FileStream outputStream = File.Create(absolutePath);
-        using var writer = new BinaryWriter(outputStream);
+        using var outputStream = new MemoryStream();
+        using (var writer = new BinaryWriter(outputStream, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(CompiledModelFormat.Magic);
+            writer.Write(CompiledModelFormat.Version);
+            WriteNodes(writer, model.Nodes);
+            WriteMeshes(writer, model.Meshes);
+            WriteClips(writer, model.Clips);
+        }
 
-        writer.Write(CompiledModelFormat.Magic);
-        writer.Write(CompiledModelFormat.Version);
+        byte[] bytes = outputStream.ToArray();
+        // Editors can memory-map these files. Do not truncate unchanged assets.
+        if (File.Exists(absolutePath) && bytes.AsSpan().SequenceEqual(File.ReadAllBytes(absolutePath)))
+            return;
 
-        WriteNodes(writer, model.Nodes);
-        WriteMeshes(writer, model.Meshes);
-        WriteClips(writer, model.Clips);
+        string temporaryPath = absolutePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllBytes(temporaryPath, bytes);
+            File.Move(temporaryPath, absolutePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
     }
 
     public static ModelData Read(Stream stream)

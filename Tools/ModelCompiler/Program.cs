@@ -5,6 +5,20 @@ using _3DLight.Assets;
 using AssetQuaternionKey = _3DLight.Assets.QuaternionKey;
 using AssetVectorKey = _3DLight.Assets.VectorKey;
 
+if (args is ["--list", string inspectSource])
+{
+    using var importer = new AssimpContext();
+    Scene scene = importer.ImportFile(Path.GetFullPath(inspectSource), GetImportFlags());
+    void ListNodes(Assimp.Node node)
+    {
+        if (node.HasMeshes)
+            Console.WriteLine($"{node.Name}: {string.Join(", ", node.MeshIndices.Select(i => scene.Meshes[i].Name))}");
+        foreach (Assimp.Node child in node.Children) ListNodes(child);
+    }
+    ListNodes(scene.RootNode);
+    return 0;
+}
+
 if (args is ["--single", string singleSource, string singleOutput])
 {
     CompileSingleModel(singleSource, singleOutput);
@@ -72,8 +86,59 @@ static void CompileManifestEntry(
         modelEntry.Clips,
         manifestDirectory);
 
+    if (!string.IsNullOrWhiteSpace(modelEntry.Node))
+        model = ExtractStaticProp(model, modelEntry.Node, modelEntry.Size);
+
     ModelDataIo.Write(outputPath, model);
     Console.WriteLine($"  -> {outputPath}");
+}
+
+static ModelData ExtractStaticProp(ModelData source, string nodeName, float size)
+{
+    int root = source.Nodes.FindIndex(node => node.Name.Equals(nodeName, StringComparison.Ordinal));
+    if (root < 0) throw new InvalidDataException($"Prop node '{nodeName}' does not exist.");
+    var selected = new bool[source.Nodes.Count];
+    var transforms = new Matrix4x4[source.Nodes.Count];
+    for (int i = 0; i < source.Nodes.Count; i++)
+    {
+        NodeData node = source.Nodes[i];
+        transforms[i] = node.Parent < 0 ? node.Bind : node.Bind * transforms[node.Parent];
+        selected[i] = i == root || (node.Parent >= 0 && selected[node.Parent]);
+    }
+    MeshData[] meshes = source.Meshes.Where(mesh => selected[mesh.Node]).ToArray();
+    if (meshes.Length == 0 || meshes.Any(mesh => mesh.Bones.Length > 0))
+        throw new InvalidDataException($"Prop '{nodeName}' must contain static meshes.");
+    Vector3 min = new(float.MaxValue), max = new(float.MinValue);
+    foreach (MeshData mesh in meshes)
+        foreach (VertexData vertex in mesh.Vertices)
+        {
+            Vector3 p = Vector3.Transform(vertex.Position, transforms[mesh.Node]);
+            min = Vector3.Min(min, p);
+            max = Vector3.Max(max, p);
+        }
+    Vector3 extent = max - min;
+    float longest = MathF.Max(extent.X, MathF.Max(extent.Y, extent.Z));
+    if (longest <= 0 || size <= 0) throw new InvalidDataException("Invalid prop size.");
+    Vector3 center = (min + max) / 2;
+    var result = new ModelData();
+    result.Nodes.Add(new NodeData(nodeName, -1, Matrix4x4.Identity));
+    foreach (MeshData mesh in meshes)
+    {
+        Matrix4x4.Invert(transforms[mesh.Node], out Matrix4x4 inverse);
+        Matrix4x4 normalTransform = Matrix4x4.Transpose(inverse);
+        result.Meshes.Add(new MeshData
+        {
+            Name = mesh.Name, Node = 0, TextureName = mesh.TextureName,
+            Indices = mesh.Indices, Bones = [],
+            Vertices = mesh.Vertices.Select(vertex => vertex with
+            {
+                Position = (Vector3.Transform(vertex.Position, transforms[mesh.Node]) - center) * (size / longest),
+                Normal = Vector3.Normalize(Vector3.TransformNormal(vertex.Normal, normalTransform))
+            }).ToArray()
+        });
+    }
+    Console.WriteLine($"  Extracted {nodeName}, size {size}, textures: {string.Join(", ", meshes.Select(mesh => mesh.TextureName).Distinct())}");
+    return result;
 }
 
 static ModelData CompileModel(
@@ -539,4 +604,6 @@ internal sealed class ModelEntry
     public string Source { get; set; } = "";
     public string Output { get; set; } = "";
     public Dictionary<string, string>? Clips { get; set; }
+    public string? Node { get; set; }
+    public float Size { get; set; } = 1f;
 }

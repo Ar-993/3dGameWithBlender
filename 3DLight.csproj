@@ -28,6 +28,8 @@
 
   <ItemGroup>
     <Compile Remove="AnimatedMixamoModel.cs" />
+    <None Update="Assets\halloween\Textures\Pumpkin.png" CopyToOutputDirectory="PreserveNewest" TargetPath="Content\Assets\halloween_pumpkin\Pumpkin.png" />
+    <None Update="Assets\halloween\Textures\Sweets_01.png" CopyToOutputDirectory="PreserveNewest" TargetPath="Content\Assets\halloween_candy\Sweets_01.png" />
     <Compile Remove="LevelColliderLoader.cs" />
     <Compile Remove="Shared\**\*.cs" />
     <Compile Remove="Tools\**\*.cs" />

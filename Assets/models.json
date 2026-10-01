@@ -1,6 +1,20 @@
 {
   "models": [
     {
+      "name": "halloween_pumpkin",
+      "source": "halloween/Models/halloween.fbx",
+      "output": "../Content/Models/halloween_pumpkin.3dmodel",
+      "node": "Pumpkin",
+      "size": 1.0
+    },
+    {
+      "name": "halloween_candy",
+      "source": "halloween/Models/halloween.fbx",
+      "output": "../Content/Models/halloween_candy.3dmodel",
+      "node": "Sweets",
+      "size": 0.35
+    },
+    {
       "name": "level", 
       "source": "level.fbx", "output": "../Content/Models/level.3dmodel" },
     {

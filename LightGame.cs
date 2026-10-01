@@ -53,7 +53,8 @@ public sealed class LightGame : Game
     private string activeLevelVersion = "base";
     private bool showCollisionDebug;
 
-    private ShootingCube shootingCube = null!;
+    private ShootingPumpkin shootingPumpkin = null!;
+    private CompiledModel candyModel = null!;
     private readonly List<Bullet> activeBullets = new();
 
     public LightGame()
@@ -107,10 +108,12 @@ public sealed class LightGame : Game
     animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
 
-        shootingCube = new ShootingCube(
-        GraphicsDevice,
+        Effect propEffect = Content.Load<Effect>("ToonShader");
+        Texture2D propTexture = Content.Load<Texture2D>(ActiveLevelTexture);
+        candyModel = CompiledModel.Load(GraphicsDevice, "halloween_candy", propTexture, propEffect);
+        shootingPumpkin = new ShootingPumpkin(
+        CompiledModel.Load(GraphicsDevice, "halloween_pumpkin", propTexture, propEffect),
         position: new Vector3(70f, 2f, 5f),
-        size: Vector3.One,
         fireRateSeconds: 1.5f);
 
     }
@@ -368,15 +371,15 @@ public sealed class LightGame : Game
         skeleton.Update(player, level, deltaTime);
         lighting.FollowPlayer(player.Position);
 
-        shootingCube.Update(deltaTime, player.Position);
+        shootingPumpkin.Update(deltaTime, player.Position);
 
-        if (shootingCube.ShouldSpawnBullet)
+        if (shootingPumpkin.ShouldSpawnBullet)
         {
-            Vector3 spawnPos = shootingCube.Position + shootingCube.AimDirection * 1.0f;
+            Vector3 spawnPos = shootingPumpkin.Position + shootingPumpkin.AimDirection * 1.0f;
             activeBullets.Add(new Bullet(
-                GraphicsDevice,
+                candyModel,
                 spawnPos,
-                shootingCube.AimDirection,
+                shootingPumpkin.AimDirection,
                 damage: 15,
                 speed: 12f));
         }
@@ -460,10 +463,10 @@ public sealed class LightGame : Game
             player.Draw(camera.View, camera.Projection, lighting);
             skeleton.Draw(camera.View, camera.Projection, lighting);
 
-            shootingCube.Draw(camera.View, camera.Projection);
+            shootingPumpkin.Draw(camera.View, camera.Projection, lighting);
             foreach (var bullet in activeBullets)
             {
-                bullet.Draw(camera.View, camera.Projection);
+                bullet.Draw(camera.View, camera.Projection, lighting);
             }
         }
 
@@ -549,7 +552,8 @@ public sealed class LightGame : Game
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
         levelHotReload?.Dispose();
-        shootingCube?.Dispose();
+        shootingPumpkin?.Dispose();
+        candyModel?.Dispose();
         foreach (var bullet in activeBullets)
             bullet.Dispose();
         gameUi.Dispose();
