@@ -7,6 +7,7 @@ using NumericsMatrix = System.Numerics.Matrix4x4;
 using NumericsQuaternion = System.Numerics.Quaternion;
 using NumericsVector3 = System.Numerics.Vector3;
 using NumericsVector4 = System.Numerics.Vector4;
+using _3DLight.Models;
 
 namespace _3DLight;
 
@@ -654,93 +655,4 @@ internal sealed class CompiledModel : IDisposable
         Matrix[] BoneTransforms,
         Texture2D Texture);
 
-}
-
-internal readonly record struct BonePose(
-    Vector3 Position,
-    Quaternion Rotation,
-    Vector3 Scale)
-{
-    public static BonePose FromMatrix(Matrix matrix, string nodeName)
-    {
-        if (!matrix.Decompose(
-                out Vector3 scale,
-                out Quaternion rotation,
-                out Vector3 position))
-        {
-            throw new InvalidDataException(
-                $"Локальную трансформацию узла '{nodeName}' нельзя разложить на TRS.");
-        }
-
-        return new BonePose(
-            position,
-            Quaternion.Normalize(rotation),
-            scale);
-    }
-
-    public static BonePose Blend(BonePose source, BonePose target, float amount) =>
-        new(
-            Vector3.Lerp(source.Position, target.Position, amount),
-            Quaternion.Normalize(Quaternion.Slerp(
-                source.Rotation,
-                target.Rotation,
-                amount)),
-            Vector3.Lerp(source.Scale, target.Scale, amount));
-
-    public Matrix ToMatrix() =>
-        Matrix.CreateScale(Scale) *
-        Matrix.CreateFromQuaternion(Rotation) *
-        Matrix.CreateTranslation(Position);
-}
-
-internal readonly struct RuntimeVertex : IVertexType
-{
-    public static readonly VertexDeclaration Declaration = new(
-        new VertexElement(
-            offset: 0,
-            VertexElementFormat.Vector3,
-            VertexElementUsage.Position,
-            usageIndex: 0),
-        new VertexElement(
-            offset: 12,
-            VertexElementFormat.Vector3,
-            VertexElementUsage.Normal,
-            usageIndex: 0),
-        new VertexElement(
-            offset: 24,
-            VertexElementFormat.Vector2,
-            VertexElementUsage.TextureCoordinate,
-            usageIndex: 0),
-        new VertexElement(
-            offset: 32,
-            VertexElementFormat.Byte4,
-            VertexElementUsage.BlendIndices,
-            usageIndex: 0),
-        new VertexElement(
-            offset: 36,
-            VertexElementFormat.Vector4,
-            VertexElementUsage.BlendWeight,
-            usageIndex: 0));
-
-    private readonly Vector3 position;
-    private readonly Vector3 normal;
-    private readonly Vector2 textureCoordinate;
-    private readonly Byte4 boneIndices;
-    private readonly Vector4 boneWeights;
-
-    public RuntimeVertex(
-        Vector3 position,
-        Vector3 normal,
-        Vector2 textureCoordinate,
-        Byte4 boneIndices,
-        Vector4 boneWeights)
-    {
-        this.position = position;
-        this.normal = normal;
-        this.textureCoordinate = textureCoordinate;
-        this.boneIndices = boneIndices;
-        this.boneWeights = boneWeights;
-    }
-
-    VertexDeclaration IVertexType.VertexDeclaration => Declaration;
 }
