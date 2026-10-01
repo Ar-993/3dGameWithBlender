@@ -5,6 +5,10 @@ namespace _3DLight;
 
 internal sealed class Bullet : System.IDisposable
 {
+    // The asset's tip points up; align it with local forward before aiming.
+    private static readonly Matrix ModelOrientation =
+        Matrix.CreateRotationX(-MathHelper.PiOver2);
+
     private readonly GraphicsDevice _graphicsDevice;
     private readonly CompiledModel _bulletModel;
     private readonly SceneLighting _lighting;
@@ -40,7 +44,7 @@ internal sealed class Bullet : System.IDisposable
         Matrix rotation = Matrix.CreateLookAt(Vector3.Zero, Direction, Vector3.Up);
         rotation = Matrix.Invert(rotation);
 
-        Matrix world = rotation * Matrix.CreateTranslation(Position);
+        Matrix world = ModelOrientation * rotation * Matrix.CreateTranslation(Position);
 
         _bulletModel.Draw(world, view, projection, _lighting);
     }

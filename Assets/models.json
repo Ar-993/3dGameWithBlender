@@ -1,6 +1,16 @@
 {
   "models": [
     {
+      "name": "gun",
+      "source": "../Content/Assets/Gun/Pistols_Colt_01_A.fbx",
+      "output": "../Content/Models/gun.3dmodel"
+    },
+    {
+      "name": "bullet",
+      "source": "../Content/Assets/Gun/Pistols_Colt_Bullet_01_A.fbx",
+      "output": "../Content/Models/bullet.3dmodel"
+    },
+    {
       "name": "level", 
       "source": "level.fbx", "output": "../Content/Models/level.3dmodel" },
     {

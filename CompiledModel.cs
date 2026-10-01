@@ -81,7 +81,8 @@ internal sealed class CompiledModel : IDisposable
         GraphicsDevice graphicsDevice,
         string modelName,
         Texture2D texture,
-        Effect toonEffect)
+        Effect toonEffect,
+        string? textureFolderName = null)
     {
         string modelPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -97,7 +98,7 @@ internal sealed class CompiledModel : IDisposable
             modelData,
             texture,
             toonEffect,
-            modelName);
+            textureFolderName ?? modelName);
     }
 
     public static CompiledModel LoadFromBytes(
@@ -105,7 +106,8 @@ internal sealed class CompiledModel : IDisposable
         byte[] modelBytes,
         string modelName,
         Texture2D texture,
-        Effect toonEffect)
+        Effect toonEffect,
+        string? textureFolderName = null)
     {
         using var modelStream = new MemoryStream(
             modelBytes,
@@ -117,7 +119,7 @@ internal sealed class CompiledModel : IDisposable
             modelData,
             texture,
             toonEffect,
-            modelName);
+            textureFolderName ?? modelName);
     }
 
     private static Dictionary<string, Texture2D> LoadMaterialTextures(

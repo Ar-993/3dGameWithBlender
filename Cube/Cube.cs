@@ -6,6 +6,9 @@ namespace _3DLight;
 
 internal sealed class ShootingCube : IDisposable
 {
+    private static readonly Matrix ModelOrientation =
+        Matrix.CreateRotationY(-MathHelper.PiOver2);
+
     private readonly GraphicsDevice graphicsDevice;
     private readonly CompiledModel gunModel;
     private readonly SceneLighting lighting;
@@ -62,7 +65,7 @@ internal sealed class ShootingCube : IDisposable
         Matrix rotation = Matrix.CreateLookAt(Vector3.Zero, AimDirection, Vector3.Up);
         rotation = Matrix.Invert(rotation);
 
-        Matrix world = Matrix.CreateScale(Size) * rotation * Matrix.CreateTranslation(Position);
+        Matrix world = Matrix.CreateScale(Size) * ModelOrientation * rotation * Matrix.CreateTranslation(Position);
 
         gunModel.Draw(world, view, projection, lighting);
     }

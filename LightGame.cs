@@ -110,12 +110,12 @@ public sealed class LightGame : Game
     animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
 
-        Texture2D fallbackTexture = Content.Load<Texture2D>(ActiveLevelTexture);
+        Texture2D fallbackTexture = Content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
 
         Effect toonEffect = Content.Load<Effect>("ToonShader");
 
-        gunModel = CompiledModel.Load(GraphicsDevice, "Pistols_Colt_01_A.fbx", fallbackTexture, toonEffect);
-        bulletModel = CompiledModel.Load(GraphicsDevice, "Pistols_Colt_Bullet_01_A.fbx", fallbackTexture, toonEffect);
+        gunModel = CompiledModel.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
+        bulletModel = CompiledModel.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
 
         shootingCube = new ShootingCube(
             GraphicsDevice,

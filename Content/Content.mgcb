@@ -80,3 +80,14 @@
 /processorParam:Version=3.8.5.0
 /build:ToonShader.fx
 
+#begin Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor.png
+
