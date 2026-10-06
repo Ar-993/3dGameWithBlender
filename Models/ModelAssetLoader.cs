@@ -97,7 +97,9 @@ internal static class ModelAssetLoader
 
         try
         {
-            foreach (string path in Directory.EnumerateFiles(directory, "*.png")
+            foreach (string path in Directory.EnumerateFiles(directory)
+                         .Where(path => Path.GetExtension(path).ToLowerInvariant()
+                         is ".png" or ".jpg" or ".jpeg")
                          .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
                 using FileStream stream = File.OpenRead(path);

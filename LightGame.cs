@@ -15,8 +15,8 @@ public sealed class LightGame : Game
         BlenderEmpty
     }
 
-    private const string ActiveLevelModel = "level_one";
-    private const string ActiveLevelTexture = "Assets/level_one.fbm/palette_0";
+    private const string ActiveLevelModel = "gas_station";
+    //private const string ActiveLevelTexture = "Assets/level_one.fbm/palette_0";
     private static readonly SpawnMode ActivePlayerSpawnMode =
         SpawnMode.BlenderEmpty;
     private const string PlayerSpawnObjectName = "PlayerSpawn";
@@ -100,10 +100,9 @@ public sealed class LightGame : Game
 
         level.LoadContent(
             Content,
-            ActiveLevelModel,
-            ActiveLevelTexture);
-        levelHotReload = LevelHotReload.TryCreate();
-        TryLoadLatestLevelVersion();
+            ActiveLevelModel);
+        levelHotReload = null;
+        //TryLoadLatestLevelVersion();
         SpawnCharacters();
         player.LoadContent(
     GraphicsDevice,
@@ -240,8 +239,7 @@ public sealed class LightGame : Game
         level.ReloadContent(
             Content,
             modelBytes,
-            ActiveLevelModel,
-            ActiveLevelTexture);
+            ActiveLevelModel);
 
         if (respawnCharacters)
             SpawnCharacters();

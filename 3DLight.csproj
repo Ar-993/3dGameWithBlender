@@ -34,6 +34,9 @@
     <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\level_one\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
+	  <None Update="Assets\GasStation\Textures\*.png;Assets\GasStation\Textures\*.jpg;Assets\GasStation\Textures\*.jpeg"
+      TargetPath="Content\Assets\gas_station\%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\Pistols_Colt_01_A.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
