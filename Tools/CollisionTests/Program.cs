@@ -1,11 +1,64 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using _3DLight;
+using _3DLight.Assets;
+using _3DLight.Collision;
 using Microsoft.Xna.Framework;
+using NumericsMatrix = System.Numerics.Matrix4x4;
 
 const float radius = 0.35f;
 const float height = 1.8f;
 int failures = 0;
+
+AnimationChecks.Run(Run);
+if (args.Contains("--graphics"))
+    ModelLoaderGraphicsChecks.Run(Run);
+
+Run("hierarchy composes a child's local transform before its parent", () =>
+{
+    var hierarchy = new ModelHierarchy(HierarchyFixture());
+    var global = new Matrix[hierarchy.NodeCount];
+    hierarchy.CalculateGlobalTransforms(hierarchy.LocalTransforms, global);
+
+    Near(global[1].Translation.X, 5f);
+    Near(global[1].Translation.Y, 4f);
+    Near(global[2].Translation.X, 2f);
+    Near(global[2].Translation.Y, 4f);
+    Require(global.SequenceEqual(hierarchy.BindPoseGlobalTransforms),
+        "Bind transforms differ from hierarchy evaluation");
+});
+Run("hierarchy finds markers and subtree masks without case sensitivity", () =>
+{
+    var hierarchy = new ModelHierarchy(HierarchyFixture());
+    Require(hierarchy.TryGetNodePosition("hAnD", out Vector3 position), "Marker lookup failed");
+    Near(position.X, 2f);
+    Near(position.Y, 4f);
+    Require(!hierarchy.TryGetNodePosition("Missing", out position) && position == default,
+        "Missing marker must return false and a default position");
+    Require(hierarchy.CreateNodeHierarchyMask("sPiNe").SequenceEqual(new[] { false, true, true, false }),
+        "Subtree mask includes a sibling or omits a descendant");
+
+    bool missingRootRejected = false;
+    try { hierarchy.CreateNodeHierarchyMask("Missing"); }
+    catch (InvalidOperationException) { missingRootRejected = true; }
+    Require(missingRootRejected, "Missing subtree root must be rejected");
+});
+Run("evaluating a working pose preserves bind transforms and marker positions", () =>
+{
+    var hierarchy = new ModelHierarchy(HierarchyFixture());
+    Matrix[] originalBind = hierarchy.BindPoseGlobalTransforms.ToArray();
+    Matrix[] local = hierarchy.LocalTransforms.ToArray();
+    local[1] = Matrix.CreateTranslation(8f, 0f, 0f);
+    var global = new Matrix[hierarchy.NodeCount];
+    hierarchy.CalculateGlobalTransforms(local, global);
+
+    Near(global[2].Translation.X, 2f);
+    Near(global[2].Translation.Y, 10f);
+    Require(hierarchy.BindPoseGlobalTransforms.SequenceEqual(originalBind),
+        "Pose evaluation modified cached bind transforms");
+    Require(hierarchy.TryGetNodePosition("Hand", out Vector3 position), "Marker lookup failed");
+    Near(position.X, 2f);
+    Near(position.Y, 4f);
+});
 
 Run("fast fall onto a zero-thickness floor", () =>
 {
@@ -311,18 +364,17 @@ Run("horizontal input does not climb a steep slope", () =>
     Require(position.X < 0f && position.Y < 0.01f, $"Climbed steep geometry: {position}");
 });
 
-foreach (string modelPath in args)
+foreach (string modelPath in args.Where(path => path != "--graphics"))
 {
-    Level level = ReadLevel(modelPath);
+    var loaded = ReadLevel(modelPath);
+    Level level = loaded.Level;
     Console.WriteLine($"MODEL {modelPath}: {Platforms(level).Count} platforms, {Triangles(level).Count} triangles");
     Run("every imported mesh participates in collisions", () =>
     {
-        object model = typeof(Level).GetField("model", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(level)!;
-        object data = model.GetType().GetField("modelData", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(model)!;
-        var meshes = ((System.Collections.IEnumerable)data.GetType().GetProperty("Meshes")!.GetValue(data)!).Cast<object>().ToArray();
-        int[] expectedIds = Enumerable.Range(0, meshes.Length).Where(index =>
-            ((Array)meshes[index].GetType().GetProperty("Vertices")!.GetValue(meshes[index])!).Length > 0 &&
-            ((int[])meshes[index].GetType().GetProperty("Indices")!.GetValue(meshes[index])!).Length >= 3).ToArray();
+        List<MeshData> meshes = loaded.Data.Meshes;
+        int[] expectedIds = Enumerable.Range(0, meshes.Count).Where(index =>
+            meshes[index].Vertices.Length > 0 &&
+            meshes[index].Indices.Length >= 3).ToArray();
         var actualIds = Triangles(level).Select(triangle => triangle.SupportPlatform!.Id).ToHashSet();
         Require(actualIds.SetEquals(expectedIds), $"Missing mesh IDs: {string.Join(", ", expectedIds.Except(actualIds))}");
         Require(Platforms(level).Select(platform => platform.Id).ToHashSet().SetEquals(expectedIds),
@@ -338,7 +390,7 @@ foreach (string modelPath in args)
         ];
         foreach (var rename in renamings)
         {
-            Level renamed = ReadLevel(modelPath, rename);
+            Level renamed = ReadLevel(modelPath, rename).Level;
             Require(Platforms(renamed).Count == Platforms(level).Count, "Renaming changed platform count");
             Require(Triangles(renamed).Count == Triangles(level).Count, "Renaming changed triangle count");
             for (int i = 0; i < Triangles(level).Count; i++)
@@ -353,14 +405,14 @@ foreach (string modelPath in args)
     });
     if (!Path.GetFileNameWithoutExtension(modelPath).Equals("level_one", StringComparison.OrdinalIgnoreCase))
         continue;
-    Run("imported Plane.003 is a collidable floor", () =>
+    Run("imported Platform.003 is a collidable floor", () =>
     {
-        var planes = Triangles(level).Where(t => t.Name == "Plane.003" && MathF.Abs(t.Normal.Y) >= 0.7f).ToArray();
-        Require(planes.Length > 0, "Plane.003 was omitted by the importer");
+        var floorTriangles = Triangles(level).Where(t => t.Name == "Platform.003" && MathF.Abs(t.Normal.Y) >= 0.7f).ToArray();
+        Require(floorTriangles.Length > 0, "Platform.003 was omitted by the importer");
         // Isolate the imported floor from walls/roof geometry to test its actual facets.
         Level floorOnly = new();
-        Triangles(floorOnly).AddRange(planes);
-        foreach (var triangle in planes)
+        Triangles(floorOnly).AddRange(floorTriangles);
+        foreach (var triangle in floorTriangles)
         {
             Vector3 center = (triangle.A + triangle.B + triangle.C) / 3f;
             Land(floorOnly, center + Vector3.Up * 5f, Vector3.Down * 10f, center.Y);
@@ -370,7 +422,7 @@ foreach (string modelPath in args)
     {
         Run($"{marker} settles on the imported level floor", () =>
         {
-            Require(level.TryGetMarkerPosition(marker, out Vector3 position), $"Missing marker {marker}");
+            Require(loaded.Hierarchy.TryGetNodePosition(marker, out Vector3 position), $"Missing marker {marker}");
             Level.Platform? ground = null;
             float velocity = 0f;
             for (int frame = 0; frame < 600; frame++)
@@ -408,6 +460,17 @@ static List<Level.Platform> Platforms(Level level) =>
 static List<Level.TriangleCollider> Triangles(Level level) =>
     (List<Level.TriangleCollider>)typeof(Level).GetField("meshColliders", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(level)!;
 
+static ModelData HierarchyFixture()
+{
+    var data = new ModelData();
+    data.Nodes.Add(new NodeData("Root", -1,
+        NumericsMatrix.CreateRotationZ(MathF.PI / 2f) * NumericsMatrix.CreateTranslation(5f, 2f, 0f)));
+    data.Nodes.Add(new NodeData("Spine", 0, NumericsMatrix.CreateTranslation(2f, 0f, 0f)));
+    data.Nodes.Add(new NodeData("Hand", 1, NumericsMatrix.CreateTranslation(0f, 3f, 0f)));
+    data.Nodes.Add(new NodeData("Leg", 0, NumericsMatrix.CreateTranslation(0f, -1f, 0f)));
+    return data;
+}
+
 static Level Floor(float y)
 {
     Level level = new();
@@ -440,35 +503,22 @@ static void Land(Level level, Vector3 position, Vector3 movement, float expected
 }
 
 // Exercise the real importer without creating a graphics device or opening the game.
-static Level ReadLevel(string path, Func<int, string>? rename = null)
+static (Level Level, ModelData Data, ModelHierarchy Hierarchy)
+    ReadLevel(string path, Func<int, string>? rename = null)
 {
-    Assembly assembly = typeof(Level).Assembly;
-    Type modelType = assembly.GetType("_3DLight.CompiledModel", true)!;
-    Type ioType = Assembly.Load("ModelFormat").GetType("_3DLight.Assets.ModelDataIo", true)!;
     using FileStream stream = File.OpenRead(path);
-    object data = ioType.GetMethod("Read")!.Invoke(null, [stream])!;
-    object model = RuntimeHelpers.GetUninitializedObject(modelType);
-    const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
-    modelType.GetField("modelData", instance)!.SetValue(model, data);
-    var nodes = (System.Collections.IList)data.GetType().GetProperty("Nodes")!.GetValue(data)!;
+    ModelData data = ModelDataIo.Read(stream);
     if (rename is not null)
     {
-        for (int index = 0; index < nodes.Count; index++)
-        {
-            object node = nodes[index]!;
-            nodes[index] = Activator.CreateInstance(node.GetType(), rename(index),
-                node.GetType().GetProperty("Parent")!.GetValue(node), node.GetType().GetProperty("Bind")!.GetValue(node));
-        }
+        for (int index = 0; index < data.Nodes.Count; index++)
+            data.Nodes[index] = data.Nodes[index] with { Name = rename(index) };
     }
-    MethodInfo convert = modelType.GetMethod("ToXnaMatrix", BindingFlags.Static | BindingFlags.NonPublic)!;
-    Matrix[] local = nodes.Cast<object>().Select(node =>
-        (Matrix)convert.Invoke(null, [node.GetType().GetProperty("Bind")!.GetValue(node)])!).ToArray();
-    Matrix[] global = new Matrix[local.Length];
-    modelType.GetMethod("CalculateGlobalTransforms", instance)!.Invoke(model, [local, global]);
-    modelType.GetField("bindPoseGlobalTransforms", instance)!.SetValue(model, global);
+
+    var hierarchy = new ModelHierarchy(data);
     Level level = new();
-    typeof(Level).GetField("model", instance)!.SetValue(level, model);
-    Platforms(level).AddRange((List<Level.Platform>)modelType.GetMethod("BuildPlatforms")!.Invoke(model, null)!);
-    Triangles(level).AddRange((List<Level.TriangleCollider>)modelType.GetMethod("BuildTriangleColliders")!.Invoke(model, null)!);
-    return level;
+    Platforms(level).AddRange(LevelGeometryBuilder.BuildPlatforms(
+        data, hierarchy.BindPoseGlobalTransforms));
+    Triangles(level).AddRange(LevelGeometryBuilder.BuildTriangleColliders(
+        data, hierarchy.BindPoseGlobalTransforms));
+    return (level, data, hierarchy);
 }

@@ -1,4 +1,5 @@
 using _3DLight;
+using _3DLight.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -114,8 +115,8 @@ public sealed class LightGame : Game
 
         Effect toonEffect = Content.Load<Effect>("ToonShader");
 
-        gunModel = CompiledModel.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
-        bulletModel = CompiledModel.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
+        gunModel = ModelAssetLoader.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
+        bulletModel = ModelAssetLoader.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
 
         shootingCube = new ShootingCube(
             GraphicsDevice,

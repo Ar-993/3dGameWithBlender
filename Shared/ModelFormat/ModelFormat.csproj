@@ -8,5 +8,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="3DLight" />
     <InternalsVisibleTo Include="ModelCompiler" />
+    <InternalsVisibleTo Include="CollisionTests" />
   </ItemGroup>
 </Project>

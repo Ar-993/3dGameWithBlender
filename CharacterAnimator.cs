@@ -1,20 +1,17 @@
 using _3DLight;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System.Collections.Generic;
-using System.IO;
 using _3DLight.Models;
 
-public sealed class CharacterAnimator
+internal sealed class CharacterAnimator
 {
     private const float DefaultBlendDuration = 0.15f;
     private const float UpperBodyBlendDuration = 0.08f;
 
-    private CompiledModel model = null!;
-    private BonePose[] currentPose = [];
-    private BonePose[] transitionSourcePose = [];
-    private BonePose[] blendedPose = [];
-    private BonePose[] upperBodyPose = [];
+    private readonly AnimationSampler sampler;
+    private readonly ModelHierarchy hierarchy;
+    private readonly BonePose[] currentPose;
+    private readonly BonePose[] transitionSourcePose;
+    private readonly BonePose[] upperBodyPose;
     private bool[] upperBodyMask = [];
 
     private float currentTime;
@@ -42,25 +39,20 @@ public sealed class CharacterAnimator
     public string CurrentClip { get; private set; } = "";
     public float CurrentClipDuration => string.IsNullOrEmpty(CurrentClip)
         ? 0f
-        : model.GetClipDuration(CurrentClip);
+        : sampler.GetClipDuration(CurrentClip);
 
-    public void LoadContent(GraphicsDevice graphicsDevice, string directoryPath,
-        Dictionary<string, string> animations, Texture2D texture, Effect toonEffect)
+    public CharacterAnimator(
+        AnimationSampler sampler,
+        ModelHierarchy hierarchy,
+        string initialClip)
     {
-        string assetName = new DirectoryInfo(directoryPath).Name.Equals("Skeleton", StringComparison.OrdinalIgnoreCase)
-            ? "skeleton"
-            : "player";
-        model = CompiledModel.Load(graphicsDevice, assetName, texture, toonEffect);
+        this.sampler = sampler;
+        this.hierarchy = hierarchy;
+        sampler.GetClipDuration(initialClip);
 
-        currentPose = new BonePose[model.NodeCount];
-        transitionSourcePose = new BonePose[model.NodeCount];
-        blendedPose = new BonePose[model.NodeCount];
-        upperBodyPose = new BonePose[model.NodeCount];
-
-        string initialClip = animations.Keys.FirstOrDefault(
-            clipName => clipName.Equals("Idle", StringComparison.OrdinalIgnoreCase))
-            ?? animations.Keys.FirstOrDefault()
-            ?? throw new InvalidOperationException("Для модели не заданы анимации.");
+        currentPose = new BonePose[sampler.NodeCount];
+        transitionSourcePose = new BonePose[sampler.NodeCount];
+        upperBodyPose = new BonePose[sampler.NodeCount];
 
         Play(initialClip, blendDuration: 0f);
     }
@@ -175,7 +167,7 @@ public sealed class CharacterAnimator
                 rootNodeName,
                 StringComparison.OrdinalIgnoreCase))
         {
-            upperBodyMask = model.CreateNodeHierarchyMask(rootNodeName);
+            upperBodyMask = hierarchy.CreateNodeHierarchyMask(rootNodeName);
             upperBodyRoot = rootNodeName;
         }
 
@@ -216,16 +208,16 @@ public sealed class CharacterAnimator
             StopBlending();
     }
 
-    public float GetClipDuration(string clipName) => model.GetClipDuration(clipName);
-
-    public void Draw(
-        Matrix world,
-        Matrix view,
-        Matrix projection,
-        SceneLighting lighting)
+    public void CopyPoseTo(BonePose[] destination)
     {
-        EvaluateCurrentPose(blendedPose);
-        model.DrawPose(blendedPose, world, view, projection, lighting);
+        if (destination.Length != sampler.NodeCount)
+        {
+            throw new ArgumentException(
+                $"Поза содержит {destination.Length} узлов вместо {sampler.NodeCount}.",
+                nameof(destination));
+        }
+
+        EvaluateCurrentPose(destination);
     }
 
     private void EvaluateCurrentPose(BonePose[] destination)
@@ -310,7 +302,7 @@ public sealed class CharacterAnimator
         float rangeEndNormalized,
         BonePose[] destination)
     {
-        float clipDuration = model.GetClipDuration(clipName);
+        float clipDuration = sampler.GetClipDuration(clipName);
         float rangeStart = clipDuration * rangeStartNormalized;
         float rangeDuration = clipDuration *
             (rangeEndNormalized - rangeStartNormalized);
@@ -319,7 +311,7 @@ public sealed class CharacterAnimator
             ? elapsedSeconds % rangeDuration
             : Math.Min(elapsedSeconds, rangeDuration);
 
-        model.SamplePose(
+        sampler.SamplePose(
             clipName,
             rangeStart + rangeTime,
             loop: false,

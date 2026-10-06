@@ -1,11 +1,8 @@
 using _3DLight.Assets;
-using _3DLight.Collision;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Graphics.PackedVector;
 using NumericsMatrix = System.Numerics.Matrix4x4;
-using NumericsQuaternion = System.Numerics.Quaternion;
-using NumericsVector3 = System.Numerics.Vector3;
 using NumericsVector4 = System.Numerics.Vector4;
 using _3DLight.Models;
 
@@ -16,216 +13,53 @@ internal sealed class CompiledModel : IDisposable
     private const int MaximumBoneCount = 72;
 
     private readonly GraphicsDevice graphicsDevice;
-    private readonly ModelData modelData;
     private readonly RuntimeMesh[] runtimeMeshes;
-    private readonly Dictionary<string, ClipData> clipsByName;
     private readonly Texture2D[] ownedMaterialTextures;
 
-    private readonly BonePose[] bindLocalPoses;
-    private readonly BonePose[] sampledPose;
     private readonly Matrix[] localTransforms;
     private readonly Matrix[] globalTransforms;
-    private readonly Matrix[] bindPoseGlobalTransforms;
-    private readonly Matrix inverseRootTransform;
 
-    public IEnumerable<string> ClipNames => clipsByName.Keys;
-    public int NodeCount => modelData.Nodes.Count;
+    public ModelData Data { get; }
+    public ModelHierarchy Hierarchy { get; }
+    public int NodeCount => Hierarchy.NodeCount;
 
-    private CompiledModel(
+    // Loaded texture ownership transfers only when construction succeeds.
+    internal CompiledModel(
         GraphicsDevice graphicsDevice,
         ModelData modelData,
-        Texture2D texture,
-        Effect toonEffect,
-        string textureFolderName)
+        Texture2D[] meshTextures,
+        Texture2D[] ownedMaterialTextures,
+        Effect toonEffect)
     {
+        if (meshTextures.Length != modelData.Meshes.Count)
+            throw new ArgumentException("Для каждого меша должна быть задана текстура.", nameof(meshTextures));
+
         this.graphicsDevice = graphicsDevice;
-        this.modelData = modelData;
+        this.ownedMaterialTextures = ownedMaterialTextures;
+        Data = modelData;
+        Hierarchy = new ModelHierarchy(modelData);
+        localTransforms = (Matrix[])Hierarchy.LocalTransforms.Clone();
+        globalTransforms = new Matrix[Hierarchy.NodeCount];
 
-        clipsByName = modelData.Clips.ToDictionary(
-            clip => clip.Name,
-            StringComparer.OrdinalIgnoreCase);
-
-        bindLocalPoses = clipsByName.Count == 0
-            ? []
-            : modelData.Nodes
-                .Select(node => BonePose.FromMatrix(
-                    ToXnaMatrix(node.Bind),
-                    node.Name))
-                .ToArray();
-
-        sampledPose = new BonePose[bindLocalPoses.Length];
-        localTransforms = modelData.Nodes
-            .Select(node => ToXnaMatrix(node.Bind))
-            .ToArray();
-
-        globalTransforms = new Matrix[localTransforms.Length];
-        bindPoseGlobalTransforms = new Matrix[localTransforms.Length];
-        CalculateGlobalTransforms(localTransforms, bindPoseGlobalTransforms);
-
-        inverseRootTransform = localTransforms.Length == 0
-            ? Matrix.Identity
-            : Matrix.Invert(bindPoseGlobalTransforms[0]);
-
-        Dictionary<string, Texture2D> materialTextures =
-            LoadMaterialTextures(graphicsDevice, textureFolderName);
-        ownedMaterialTextures = materialTextures.Values.ToArray();
-
-        runtimeMeshes = modelData.Meshes
-            .Select(mesh => CreateRuntimeMesh(
-                mesh,
-                ResolveMeshTexture(mesh, materialTextures, texture),
-                toonEffect))
-            .ToArray();
-    }
-
-    public static CompiledModel Load(
-        GraphicsDevice graphicsDevice,
-        string modelName,
-        Texture2D texture,
-        Effect toonEffect,
-        string? textureFolderName = null)
-    {
-        string modelPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "Content",
-            "Models",
-            modelName + ".3dmodel");
-
-        using FileStream modelStream = File.OpenRead(modelPath);
-        ModelData modelData = ModelDataIo.Read(modelStream);
-
-        return new CompiledModel(
-            graphicsDevice,
-            modelData,
-            texture,
-            toonEffect,
-            textureFolderName ?? modelName);
-    }
-
-    public static CompiledModel LoadFromBytes(
-        GraphicsDevice graphicsDevice,
-        byte[] modelBytes,
-        string modelName,
-        Texture2D texture,
-        Effect toonEffect,
-        string? textureFolderName = null)
-    {
-        using var modelStream = new MemoryStream(
-            modelBytes,
-            writable: false);
-        ModelData modelData = ModelDataIo.Read(modelStream);
-
-        return new CompiledModel(
-            graphicsDevice,
-            modelData,
-            texture,
-            toonEffect,
-            textureFolderName ?? modelName);
-    }
-
-    private static Dictionary<string, Texture2D> LoadMaterialTextures(
-        GraphicsDevice graphicsDevice,
-        string textureFolderName)
-    {
-        var textures = new Dictionary<string, Texture2D>(
-            StringComparer.OrdinalIgnoreCase);
-        string directory = Path.Combine(
-            AppContext.BaseDirectory,
-            "Content",
-            "Assets",
-            textureFolderName);
-
-        if (!Directory.Exists(directory))
-            return textures;
-
-        foreach (string path in Directory.EnumerateFiles(directory, "*.png"))
+        var createdMeshes = new List<RuntimeMesh>(modelData.Meshes.Count);
+        try
         {
-            using FileStream stream = File.OpenRead(path);
-            textures[Path.GetFileName(path)] = Texture2D.FromStream(
-                graphicsDevice,
-                stream);
-        }
-
-        Console.WriteLine(
-            $"Loaded {textures.Count} material textures from '{directory}'.");
-        return textures;
-    }
-
-    private static Texture2D ResolveMeshTexture(
-        MeshData mesh,
-        IReadOnlyDictionary<string, Texture2D> materialTextures,
-        Texture2D fallbackTexture)
-    {
-        if (!string.IsNullOrWhiteSpace(mesh.TextureName) &&
-            materialTextures.TryGetValue(mesh.TextureName, out Texture2D? texture))
-        {
-            return texture;
-        }
-
-        if (!string.IsNullOrWhiteSpace(mesh.TextureName))
-        {
-            Console.WriteLine(
-                $"Texture '{mesh.TextureName}' required by mesh '{mesh.Name}' " +
-                "was not found; using the fallback texture.");
-        }
-
-        return fallbackTexture;
-    }
-
-    public float GetClipDuration(string clipName)
-    {
-        if (!clipsByName.TryGetValue(clipName, out ClipData? clip))
-            throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
-
-        return (float)(clip.Duration / clip.TicksPerSecond);
-    }
-
-    public bool TryGetNodePosition(string nodeName, out Vector3 position)
-    {
-        for (int nodeIndex = 0; nodeIndex < modelData.Nodes.Count; nodeIndex++)
-        {
-            if (!string.Equals(
-                    modelData.Nodes[nodeIndex].Name,
-                    nodeName,
-                    StringComparison.OrdinalIgnoreCase))
+            for (int meshIndex = 0; meshIndex < modelData.Meshes.Count; meshIndex++)
             {
-                continue;
+                createdMeshes.Add(CreateRuntimeMesh(
+                    modelData.Meshes[meshIndex],
+                    meshTextures[meshIndex],
+                    toonEffect));
             }
 
-            position = bindPoseGlobalTransforms[nodeIndex].Translation;
-            return true;
+            runtimeMeshes = createdMeshes.ToArray();
         }
-
-        position = default;
-        return false;
-    }
-
-    public bool[] CreateNodeHierarchyMask(string rootNodeName)
-    {
-        int rootNodeIndex = modelData.Nodes.FindIndex(node =>
-            string.Equals(
-                node.Name,
-                rootNodeName,
-                StringComparison.OrdinalIgnoreCase));
-
-        if (rootNodeIndex < 0)
+        catch
         {
-            throw new InvalidOperationException(
-                $"Кость '{rootNodeName}' отсутствует в модели.");
+            foreach (RuntimeMesh mesh in createdMeshes)
+                mesh.Dispose();
+            throw;
         }
-
-        var mask = new bool[modelData.Nodes.Count];
-        mask[rootNodeIndex] = true;
-
-        for (int nodeIndex = rootNodeIndex + 1;
-             nodeIndex < modelData.Nodes.Count;
-             nodeIndex++)
-        {
-            int parentIndex = modelData.Nodes[nodeIndex].Parent;
-            mask[nodeIndex] = parentIndex >= 0 && mask[parentIndex];
-        }
-
-        return mask;
     }
 
     public void Draw(
@@ -235,64 +69,11 @@ internal sealed class CompiledModel : IDisposable
         SceneLighting lighting)
     {
         Array.Copy(
-            bindPoseGlobalTransforms,
+            Hierarchy.BindPoseGlobalTransforms,
             globalTransforms,
-            bindPoseGlobalTransforms.Length);
+            globalTransforms.Length);
 
         DrawMeshes(world, view, projection, lighting);
-    }
-
-    public void Draw(
-        string clipName,
-        float elapsedSeconds,
-        bool loop,
-        Matrix world,
-        Matrix view,
-        Matrix projection,
-        SceneLighting lighting)
-    {
-        SamplePose(clipName, elapsedSeconds, loop, sampledPose);
-        DrawPose(sampledPose, world, view, projection, lighting);
-    }
-
-    public void SamplePose(
-        string clipName,
-        float elapsedSeconds,
-        bool loop,
-        BonePose[] destination)
-    {
-        if (!clipsByName.TryGetValue(clipName, out ClipData? clip))
-            throw new InvalidOperationException($"Анимация '{clipName}' отсутствует.");
-
-        ValidatePoseLength(destination);
-        Array.Copy(bindLocalPoses, destination, bindLocalPoses.Length);
-
-        double animationTick = CalculateAnimationTick(
-            clip,
-            elapsedSeconds,
-            loop);
-
-        foreach (ChannelData channel in clip.Channels)
-        {
-            BonePose bindPose = bindLocalPoses[channel.Node];
-
-            Vector3 position = InterpolateVectorKeys(
-                channel.Positions,
-                animationTick,
-                bindPose.Position);
-
-            Quaternion rotation = InterpolateQuaternionKeys(
-                channel.Rotations,
-                animationTick,
-                bindPose.Rotation);
-
-            Vector3 scale = InterpolateVectorKeys(
-                channel.Scales,
-                animationTick,
-                bindPose.Scale);
-
-            destination[channel.Node] = new BonePose(position, rotation, scale);
-        }
     }
 
     public void DrawPose(
@@ -307,7 +88,7 @@ internal sealed class CompiledModel : IDisposable
         for (int nodeIndex = 0; nodeIndex < pose.Length; nodeIndex++)
             localTransforms[nodeIndex] = pose[nodeIndex].ToMatrix();
 
-        CalculateGlobalTransforms(localTransforms, globalTransforms);
+        Hierarchy.CalculateGlobalTransforms(localTransforms, globalTransforms);
         DrawMeshes(world, view, projection, lighting);
     }
 
@@ -321,50 +102,48 @@ internal sealed class CompiledModel : IDisposable
         }
     }
 
-    private static double CalculateAnimationTick(
-        ClipData clip,
-        float elapsedSeconds,
-        bool loop)
-    {
-        double animationTick = elapsedSeconds * clip.TicksPerSecond;
-
-        if (loop && clip.Duration > 0)
-            return animationTick % clip.Duration;
-
-        return Math.Min(animationTick, clip.Duration);
-    }
-
     private RuntimeMesh CreateRuntimeMesh(
         MeshData sourceMesh,
         Texture2D texture,
         Effect toonEffect)
     {
         RuntimeVertex[] vertices = ConvertVertices(sourceMesh.Vertices);
+        VertexBuffer? vertexBuffer = null;
+        IndexBuffer? indexBuffer = null;
+        Effect? meshEffect = null;
 
-        var vertexBuffer = new VertexBuffer(
-            graphicsDevice,
-            RuntimeVertex.Declaration,
-            vertices.Length,
-            BufferUsage.WriteOnly);
-        vertexBuffer.SetData(vertices);
+        try
+        {
+            vertexBuffer = new VertexBuffer(
+                graphicsDevice,
+                RuntimeVertex.Declaration,
+                vertices.Length,
+                BufferUsage.WriteOnly);
+            vertexBuffer.SetData(vertices);
 
-        var indexBuffer = new IndexBuffer(
-            graphicsDevice,
-            IndexElementSize.ThirtyTwoBits,
-            sourceMesh.Indices.Length,
-            BufferUsage.WriteOnly);
-        indexBuffer.SetData(sourceMesh.Indices);
+            indexBuffer = new IndexBuffer(
+                graphicsDevice,
+                IndexElementSize.ThirtyTwoBits,
+                sourceMesh.Indices.Length,
+                BufferUsage.WriteOnly);
+            indexBuffer.SetData(sourceMesh.Indices);
 
-        Effect meshEffect = toonEffect.Clone();
-        Matrix[] boneTransforms = CreateIdentityBoneTransforms();
-
-        return new RuntimeMesh(
-            sourceMesh,
-            vertexBuffer,
-            indexBuffer,
-            meshEffect,
-            boneTransforms,
-            texture);
+            meshEffect = toonEffect.Clone();
+            return new RuntimeMesh(
+                sourceMesh,
+                vertexBuffer,
+                indexBuffer,
+                meshEffect,
+                CreateIdentityBoneTransforms(),
+                texture);
+        }
+        catch
+        {
+            meshEffect?.Dispose();
+            indexBuffer?.Dispose();
+            vertexBuffer?.Dispose();
+            throw;
+        }
     }
 
     private static RuntimeVertex[] ConvertVertices(VertexData[] sourceVertices)
@@ -480,7 +259,7 @@ internal sealed class CompiledModel : IDisposable
             runtimeMesh.BoneTransforms[boneIndex] =
                 ToXnaMatrix(bone.Offset) *
                 globalTransforms[bone.Node] *
-                inverseRootTransform;
+                Hierarchy.InverseRootTransform;
         }
 
         return modelWorld;
@@ -505,131 +284,13 @@ internal sealed class CompiledModel : IDisposable
         lighting.Apply(parameters);
     }
 
-    public List<Level.Platform> BuildPlatforms()
-    {
-        return LevelGeometryBuilder.BuildPlatforms(
-            modelData,
-            bindPoseGlobalTransforms);
-    }
-
-    public List<Level.TriangleCollider> BuildTriangleColliders()
-    {
-        return LevelGeometryBuilder.BuildTriangleColliders(
-            modelData,
-            bindPoseGlobalTransforms);
-    }
-
-
-    private void CalculateGlobalTransforms(
-        Matrix[] sourceLocalTransforms,
-        Matrix[] destinationGlobalTransforms)
-    {
-        for (int nodeIndex = 0; nodeIndex < sourceLocalTransforms.Length; nodeIndex++)
-        {
-            int parentIndex = modelData.Nodes[nodeIndex].Parent;
-            Matrix localTransform = sourceLocalTransforms[nodeIndex];
-
-            destinationGlobalTransforms[nodeIndex] = parentIndex < 0
-                ? localTransform
-                : localTransform * destinationGlobalTransforms[parentIndex];
-        }
-    }
     private static Vector3 ToXnaVector3(System.Numerics.Vector3 vector) =>
         new(vector.X, vector.Y, vector.Z);
-
-    private static Vector3 InterpolateVectorKeys(
-        VectorKey[] keys,
-        double animationTick,
-        Vector3 fallbackValue)
-    {
-        if (keys.Length == 0)
-            return fallbackValue;
-
-        int firstKeyIndex = FindKeyIndex(keys, animationTick, key => key.Time);
-
-        if (firstKeyIndex == keys.Length - 1)
-            return ToXnaVector3(keys[firstKeyIndex].Value);
-
-        VectorKey firstKey = keys[firstKeyIndex];
-        VectorKey secondKey = keys[firstKeyIndex + 1];
-        float interpolationAmount = CalculateInterpolationAmount(
-            animationTick,
-            firstKey.Time,
-            secondKey.Time);
-
-        return Vector3.Lerp(
-            ToXnaVector3(firstKey.Value),
-            ToXnaVector3(secondKey.Value),
-            interpolationAmount);
-    }
-
-    private static Quaternion InterpolateQuaternionKeys(
-        QuaternionKey[] keys,
-        double animationTick,
-        Quaternion fallbackValue)
-    {
-        if (keys.Length == 0)
-            return fallbackValue;
-
-        int firstKeyIndex = FindKeyIndex(keys, animationTick, key => key.Time);
-
-        if (firstKeyIndex == keys.Length - 1)
-            return ToXnaQuaternion(keys[firstKeyIndex].Value);
-
-        QuaternionKey firstKey = keys[firstKeyIndex];
-        QuaternionKey secondKey = keys[firstKeyIndex + 1];
-        float interpolationAmount = CalculateInterpolationAmount(
-            animationTick,
-            firstKey.Time,
-            secondKey.Time);
-
-        Quaternion interpolatedRotation = Quaternion.Slerp(
-            ToXnaQuaternion(firstKey.Value),
-            ToXnaQuaternion(secondKey.Value),
-            interpolationAmount);
-
-        return Quaternion.Normalize(interpolatedRotation);
-    }
-
-    private static float CalculateInterpolationAmount(
-        double currentTime,
-        double firstKeyTime,
-        double secondKeyTime)
-    {
-        double interval = Math.Max(secondKeyTime - firstKeyTime, double.Epsilon);
-        double amount = (currentTime - firstKeyTime) / interval;
-        return MathHelper.Clamp((float)amount, 0f, 1f);
-    }
-
-    private static int FindKeyIndex<T>(
-        T[] keys,
-        double animationTick,
-        Func<T, double> getKeyTime)
-    {
-        int lowerIndex = 0;
-        int upperIndex = keys.Length - 1;
-
-        while (lowerIndex < upperIndex)
-        {
-            int middleIndex = (lowerIndex + upperIndex + 1) / 2;
-
-            if (getKeyTime(keys[middleIndex]) <= animationTick)
-                lowerIndex = middleIndex;
-            else
-                upperIndex = middleIndex - 1;
-        }
-
-        return lowerIndex;
-    }
 
     public void Dispose()
     {
         foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
-        {
-            runtimeMesh.VertexBuffer.Dispose();
-            runtimeMesh.IndexBuffer.Dispose();
-            runtimeMesh.Effect.Dispose();
-        }
+            runtimeMesh.Dispose();
 
         foreach (Texture2D texture in ownedMaterialTextures)
             texture.Dispose();
@@ -644,15 +305,20 @@ internal sealed class CompiledModel : IDisposable
     private static Vector4 ToXnaVector4(NumericsVector4 vector) =>
         new(vector.X, vector.Y, vector.Z, vector.W);
 
-    private static Quaternion ToXnaQuaternion(NumericsQuaternion quaternion) =>
-        new(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W);
-
     private sealed record RuntimeMesh(
         MeshData Source,
         VertexBuffer VertexBuffer,
         IndexBuffer IndexBuffer,
         Effect Effect,
         Matrix[] BoneTransforms,
-        Texture2D Texture);
+        Texture2D Texture) : IDisposable
+    {
+        public void Dispose()
+        {
+            VertexBuffer.Dispose();
+            IndexBuffer.Dispose();
+            Effect.Dispose();
+        }
+    }
 
 }

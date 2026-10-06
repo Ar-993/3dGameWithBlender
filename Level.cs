@@ -1,5 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
+using _3DLight.Models;
 using Microsoft.Xna.Framework.Content;
+using _3DLight.Collision;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -55,7 +57,7 @@ namespace _3DLight
 
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
-            ReplaceModel(CompiledModel.Load(
+            ReplaceModel(ModelAssetLoader.Load(
                 graphicsDevice,
                 modelPath,
                 texture,
@@ -79,7 +81,7 @@ namespace _3DLight
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
 
-            ReplaceModel(CompiledModel.LoadFromBytes(
+            ReplaceModel(ModelAssetLoader.LoadFromBytes(
                 graphicsDevice,
                 modelBytes,
                 modelPath,
@@ -94,8 +96,12 @@ namespace _3DLight
 
             try
             {
-                replacementPlatforms = replacement.BuildPlatforms();
-                replacementMeshColliders = replacement.BuildTriangleColliders();
+                replacementPlatforms = LevelGeometryBuilder.BuildPlatforms(
+                    replacement.Data,
+                    replacement.Hierarchy.BindPoseGlobalTransforms);
+                replacementMeshColliders = LevelGeometryBuilder.BuildTriangleColliders(
+                    replacement.Data,
+                    replacement.Hierarchy.BindPoseGlobalTransforms);
             }
             catch
             {
@@ -116,7 +122,7 @@ namespace _3DLight
         public bool TryGetMarkerPosition(string markerName, out Vector3 position)
         {
             if (model is not null)
-                return model.TryGetNodePosition(markerName, out position);
+                return model.Hierarchy.TryGetNodePosition(markerName, out position);
 
             position = default;
             return false;
