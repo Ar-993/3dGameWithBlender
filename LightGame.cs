@@ -72,6 +72,11 @@ public sealed class LightGame : Game
         IsFixedTimeStep = true;
         TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0);
 
+        lighting.Fog.Enabled = ActiveLevelModel == "gas_station";
+        lighting.Fog.Color = new Color(148, 155, 151);
+        lighting.Fog.StartDistance = 7f;
+        lighting.Fog.EndDistance = 28f;
+
         Window.Title = "3D Game — 60 FPS Animations";
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
@@ -456,7 +461,9 @@ public sealed class LightGame : Game
     {
         UpdatePerformanceMetrics();
 
-        GraphicsDevice.Clear(new Color(25, 30, 40));
+        GraphicsDevice.Clear(lighting.Fog.Enabled
+            ? lighting.Fog.Color
+            : new Color(25, 30, 40));
         GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
 

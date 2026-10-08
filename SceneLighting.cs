@@ -13,6 +13,8 @@ public sealed class SceneLighting
 
     public bool Enabled { get; set; } = true;
 
+    public SceneFog Fog { get; } = new();
+
     public Vector3 AmbientColor { get; set; } = new(0.28f, 0.32f, 0.42f);
 
     public Vector3 SunDirection
@@ -50,5 +52,6 @@ public sealed class SceneLighting
         parameters["PointLightColor"]?.SetValue(PointColor);
         parameters["PointLightIntensity"]?.SetValue(MathF.Max(0f, PointIntensity));
         parameters["PointLightRange"]?.SetValue(MathF.Max(0.001f, PointRange));
+        Fog.Apply(parameters);
     }
 }

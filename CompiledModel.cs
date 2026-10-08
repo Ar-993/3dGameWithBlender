@@ -129,6 +129,8 @@ internal sealed class CompiledModel : IDisposable
             indexBuffer.SetData(sourceMesh.Indices);
 
             meshEffect = toonEffect.Clone();
+            if (sourceMesh.Bones.Length == 0)
+                meshEffect.CurrentTechnique = meshEffect.Techniques["StaticTechnique"];
             return new RuntimeMesh(
                 sourceMesh,
                 vertexBuffer,
