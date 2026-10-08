@@ -63,6 +63,7 @@ namespace _3DLight
 
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
+            Effect fogEffect = content.Load<Effect>("FogShader");
             ReplaceModel(ModelAssetLoader.Load(
                 graphicsDevice,
                 modelPath,
