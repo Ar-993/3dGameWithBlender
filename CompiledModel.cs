@@ -180,32 +180,55 @@ internal sealed class CompiledModel : IDisposable
     }
 
     private void DrawMeshes(
-        Matrix world,
-        Matrix view,
-        Matrix projection,
-        SceneLighting lighting)
+    Matrix world,
+    Matrix view,
+    Matrix projection,
+    SceneLighting lighting)
     {
         RasterizerState previousRasterizerState = graphicsDevice.RasterizerState;
-        graphicsDevice.RasterizerState = RasterizerState.CullNone;
+        graphicsDevice.RasterizerState = RasterizerState.CullNone; 
+
+        BlendState previousBlendState = graphicsDevice.BlendState;
+        DepthStencilState previousDepthState = graphicsDevice.DepthStencilState;
 
         try
         {
             Vector3 cameraPosition = Matrix.Invert(view).Translation;
 
+            graphicsDevice.BlendState = BlendState.Opaque;
+            graphicsDevice.DepthStencilState = DepthStencilState.Default;
+
             foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
             {
-                DrawMesh(
-                    runtimeMesh,
-                    world,
-                    view,
-                    projection,
-                    cameraPosition,
-                    lighting);
+                if (!runtimeMesh.Source.Name.Contains("glass", StringComparison.OrdinalIgnoreCase))
+                {
+                    runtimeMesh.Effect.Parameters["Alpha"]?.SetValue(1.0f);
+                    runtimeMesh.Effect.Parameters["UseTexture"]?.SetValue(1.0f);
+
+                    DrawMesh(runtimeMesh, world, view, projection, cameraPosition, lighting);
+                }
+            }
+
+            graphicsDevice.BlendState = BlendState.AlphaBlend;
+            graphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
+
+            foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
+            {
+                if (runtimeMesh.Source.Name.Contains("glass", StringComparison.OrdinalIgnoreCase))
+                {
+                    runtimeMesh.Effect.Parameters["Alpha"]?.SetValue(0.8f);
+                    runtimeMesh.Effect.Parameters["UseTexture"]?.SetValue(0.0f);
+                    runtimeMesh.Effect.Parameters["GlassColor"]?.SetValue(new Vector3(0.95f, 0.96f, 0.96f));
+
+                    DrawMesh(runtimeMesh, world, view, projection, cameraPosition, lighting);
+                }
             }
         }
         finally
         {
             graphicsDevice.RasterizerState = previousRasterizerState;
+            graphicsDevice.BlendState = previousBlendState;
+            graphicsDevice.DepthStencilState = previousDepthState;
         }
     }
 

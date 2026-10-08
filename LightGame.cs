@@ -100,7 +100,7 @@ public sealed class LightGame : Game
 
         level.LoadContent(
             Content,
-            ActiveLevelModel);
+            ActiveLevelModel); 
         levelHotReload = null;
         //TryLoadLatestLevelVersion();
         SpawnCharacters();

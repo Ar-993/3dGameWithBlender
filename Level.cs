@@ -20,6 +20,12 @@ namespace _3DLight
         private CompiledModel? model;
         private readonly List<Platform> platforms = [];
         private readonly List<TriangleCollider> meshColliders = [];
+
+        private TriangleSpatialIndex? collisionIndex;
+
+        private readonly List<int> collisionCandidateIndices = [];
+        private readonly List<TriangleCollider> collisionCandidates = [];
+
         private BasicEffect? collisionDebugEffect;
 
         public sealed record Platform(int Id, string Name, BoundingBox Bounds)
@@ -115,6 +121,7 @@ namespace _3DLight
             platforms.AddRange(replacementPlatforms);
             meshColliders.Clear();
             meshColliders.AddRange(replacementMeshColliders);
+            collisionIndex = null;
             previousModel?.Dispose();
         }
 

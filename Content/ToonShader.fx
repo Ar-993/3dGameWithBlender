@@ -23,6 +23,10 @@ float3 PointLightColor;
 float PointLightIntensity;
 float PointLightRange;
 
+float Alpha = 1.0; // По умолчанию 1.0 (полностью непрозрачный)
+float UseTexture = 1.0; // 1.0 = брать цвет из текстуры, 0.0 = использовать GlassColor
+float3 GlassColor = float3(1.0, 1.0, 1.0);
+
 #define MAX_BONES 72
 matrix Bones[MAX_BONES];
 
@@ -72,7 +76,10 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
     float3 N = normalize(input.Normal);
-    float4 texColor = tex2D(TextureSampler, input.TextureCoordinate);
+    
+    float4 rawTex = tex2D(TextureSampler, input.TextureCoordinate);
+    float3 baseColor = lerp(GlassColor, rawTex.rgb, UseTexture);
+    float4 texColor = float4(baseColor, rawTex.a);
 
     // Направленный свет: одинаково освещает всю сцену, как солнце.
     float3 sunToSurface = normalize(-SunDirection);
@@ -92,7 +99,9 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float3 totalLight = saturate(AmbientColor + sunLight + pointLight);
     float3 litColor = texColor.rgb * totalLight;
     float3 finalColor = lerp(texColor.rgb, litColor, LightingEnabled);
-    return float4(finalColor, texColor.a);
+    float finalAlpha = Alpha;
+    
+    return float4(finalColor, finalAlpha);
 }
 
 technique ToonTechnique
