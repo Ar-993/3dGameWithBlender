@@ -38,9 +38,7 @@
     <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Christmas\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Items\*.json" CopyToOutputDirectory="PreserveNewest" />
-	  <None Update="Assets\GasStation\Textures\*.png;Assets\GasStation\Textures\*.jpg;Assets\GasStation\Textures\*.jpeg"
-      TargetPath="Content\Assets\gas_station\%(Filename)%(Extension)"
-      CopyToOutputDirectory="PreserveNewest" />
+	  <None Update="Assets\GasStation\Textures\*.png;Assets\GasStation\Textures\*.jpg;Assets\GasStation\Textures\*.jpeg" TargetPath="Content\Assets\gas_station\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\Pistols_Colt_01_A.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -62,6 +60,10 @@
     <None Update="Content\Assets\Skeleton\skeleton_texture.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Content\Player\" />
   </ItemGroup>
   <Target Name="CompileModels" BeforeTargets="Build">
     <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\Tools\ModelCompiler\ModelCompiler.csproj&quot; -- &quot;$(MSBuildProjectDirectory)\Assets\models.json&quot;" />

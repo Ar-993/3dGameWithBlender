@@ -11,6 +11,9 @@ public sealed class Player
     private readonly AttackComponent attack;
     private readonly AttackComponent flyKick = new(30, 1.6f, 0.45f);
 
+    public float pickupDistance;
+    public float throwSpeed;
+    public PlayerDefinition Definition { get; }
     public Vector3 Position => physics.Position;
     public float RotationY => controller.Yaw;
     public float Speed { get; set; } = 6f;
@@ -23,8 +26,11 @@ public sealed class Player
     public int AttackDamage => flyKick.ShouldDealDamage ? flyKick.Damage : attack.Damage;
     public float AttackRange => flyKick.ShouldDealDamage ? flyKick.Range : attack.Range;
 
-    internal Player(CharacterPhysicsComponent physics, StatsComponent stats, AttackComponent attack)
+    internal Player(CharacterPhysicsComponent physics, StatsComponent stats, AttackComponent attack,
+    PlayerDefinition definition)
     {
+        ArgumentNullException.ThrowIfNull(definition);
+        Definition = definition;
         this.physics = physics;
         this.stats = stats;
         this.attack = attack;
@@ -32,6 +38,7 @@ public sealed class Player
         attack.SetDuration(2f);
         flyKick.SetDuration(1f);
     }
+
 
     public void TakeDamage(int damage)
     {
