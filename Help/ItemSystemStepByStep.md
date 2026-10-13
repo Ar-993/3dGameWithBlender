@@ -15,6 +15,7 @@ Libraries/Ars3D.Items/       самостоятельная библиотека
 Items/                     адаптер уровня, каталог и отрисовка предметов в игре
 Models/                    загрузка и нормализация модели для MonoGame
 Content/                   готовые модели, текстуры и каталог предметов
+Content/Player/player.json  дистанция подбора и скорость броска игрока
 LightGame.cs               связывает библиотеку с игровым циклом
 GameUi.cs                  показывает короткую подсказку
 Ui/PsxPixelFont.cs          рисует буквы подсказки пикселями
@@ -29,7 +30,8 @@ Help/ItemSystemStepByStep.md эта инструкция
 | [ItemInstance](../Libraries/Ars3D.Items/ItemInstance.cs) | Один экземпляр: своё положение, вращение, скорость и ID | Чтобы разобраться в состоянии конкретной вещи |
 | [SingleSlotInventory](../Libraries/Ars3D.Items/SingleSlotInventory.cs) | Хранит единственный подобранный экземпляр | Для поведения одного невидимого слота |
 | [ItemInteractionController](../Libraries/Ars3D.Items/ItemInteractionController.cs) | Обновляет вещи, выбирает ближайшую, реагирует на новое нажатие | Для общей логики подбора и броска |
-| [ItemInteractionSettings](../Libraries/Ars3D.Items/ItemInteractionSettings.cs) | Дистанция подбора, сила броска, положение в руке | Для настройки управления предметами |
+| [ItemInteractionSettings](../Libraries/Ars3D.Items/ItemInteractionSettings.cs) | Дистанция подбора и скорость броска игрока | Для настройки возможностей игрока |
+| [ItemCarrySettings](../Libraries/Ars3D.Items/ItemCarrySettings.cs) | Положение в руке, подъём и вращение при броске | Для настройки конкретного типа предмета |
 | [RigidBody](../Libraries/Ars3D.Items/Physics/RigidBody.cs) | Публичная точка входа в физику одного твёрдого тела | Чтобы читать или менять положение тела через API |
 | [RigidBodySettings](../Libraries/Ars3D.Items/Physics/RigidBodySettings.cs) | Гравитация, трение, отскок и параметры покоя | Для общей настройки физики |
 | [LevelItemWorld](../Items/LevelItemWorld.cs) | Переводит запросы библиотеки в столкновения с текущим уровнем | При переносе в другой движок или другой уровень |
@@ -182,13 +184,6 @@ else
 
 ```json
 {
-  "interaction": {
-    "pickupDistance": 2.0,
-    "heldOffset": [0.38, -0.55, -0.9],
-    "throwSpeed": 7.5,
-    "throwLift": 1.7,
-    "throwSpin": [7.0, 2.0, 0.75]
-  },
   "definitions": [
     {
       "id": "santa",
@@ -199,6 +194,11 @@ else
       "radius": 0.12,
       "spawnSpin": [0.9, 0.35, 0.55],
       "heldYawDegrees": 0,
+      "interaction": {
+        "heldOffset": [0.38, -0.55, -0.9],
+        "throwLift": 1.7,
+        "throwSpin": [7.0, 2.0, 0.75]
+      },
       "physics": { "gravity": 18.0, "friction": 0.65 }
     },
     {
@@ -209,7 +209,12 @@ else
       "height": 0.22,
       "radius": 0.035,
       "spawnSpin": [0.2, 0.3, 0.1],
-      "heldYawDegrees": 0
+      "heldYawDegrees": 0,
+      "interaction": {
+        "heldOffset": [0.38, -0.55, -0.9],
+        "throwLift": 1.7,
+        "throwSpin": [7.0, 2.0, 0.75]
+      }
     }
   ],
   "spawns": [
@@ -235,6 +240,7 @@ else
 
 ```xml
 <None Update="Content\Items\*.json" CopyToOutputDirectory="PreserveNewest" />
+<None Update="Content\Player\*.json" CopyToOutputDirectory="PreserveNewest" />
 ```
 
 **Результат / проверка.** Каталог знает типы `santa` и `colt`; появится только `santa`, потому что только он записан в `spawns`. После сборки проверь `bin/Debug/net8.0/Content/Items/items.json`. Изменяй исходный JSON в `Content/Items`, а не скопированную версию в `bin`.
@@ -264,11 +270,19 @@ Effect toonEffect = Content.Load<Effect>("ToonShader");
 gunModel = ModelAssetLoader.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, "Gun");
 bulletModel = ModelAssetLoader.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, "Gun");
 itemCatalog = ItemCatalog.Load(GraphicsDevice, fallbackTexture, toonEffect);
-itemInteraction = new ItemInteraction(itemCatalog.InteractionSettings);
+itemInteraction = new ItemInteraction(player.Definition.Interaction);
 ItemSpawner.SpawnConfigured(level, itemCatalog, itemInteraction, player.Position);
 ```
 
-Первая строка даёт резервную текстуру; вторая — исходный шейдер. `ItemCatalog.Load` читает JSON. `ItemInteraction` создаёт контроллер с его настройками. `SpawnConfigured` проходит по `spawns`, находит маркеры и регистрирует экземпляры для физики и подбора.
+Первая строка даёт резервную текстуру; вторая — исходный шейдер. `ItemCatalog.Load` читает каталог предметов. `ItemInteraction` получает настройки игрока из `player.Definition.Interaction`. `SpawnConfigured` проходит по `spawns`, находит маркеры и регистрирует экземпляры для физики и подбора.
+
+**Определение игрока → место → код.** [PlayerDefinition](../PlayerDefinition.cs) сам читает `Content/Player/player.json` в `Load()`. В `Player.cs` добавляется `public PlayerDefinition Definition { get; }`; конструктор получает `PlayerDefinition definition` четвёртым аргументом и сохраняет его через `Definition = definition`. В конце `LightGame.CreatePlayer()` замени создание игрока на:
+
+```csharp
+return new Player(physics, stats, attack, PlayerDefinition.Load());
+```
+
+Отдельный загрузчик не требуется: готовое определение передаётся в игрока один раз, затем его `Interaction` передаётся контроллеру предметов.
 
 **Результат / проверка.** Для каждой записи `spawns` создаётся своё состояние. Модель загружается при первом запросе нужного типа и используется повторно. Даже сто экземпляров одного типа не требуют ста загрузок одного FBX или ста новых классов.
 
@@ -365,7 +379,18 @@ itemInteraction.Add(extraSanta);
 
 **Действие → место.** Основные правки делаются в `Content/Items/items.json`. `height` меняет размер модели целиком. `spawnSpin` меняет начальное кувыркание. `heldYawDegrees: 0` показывает лицо Санты к игроку; `180` развернёт спиной. Глобального `WorldItem.HeldYaw` в этой версии нет.
 
-`heldOffset` задан в координатах камеры: `X` — вправо, `Y` — вверх, отрицательное `Z` — вперёд. Стандартное `[0.38, -0.55, -0.9]` располагает вещь справа и ниже взгляда. `throwSpin` содержит скорости вокруг направлений камеры: вправо, вверх и вперёд. `pickupDistance` и `throwSpeed` меняются в общем объекте `interaction`.
+**Настройки игрока → место → код.** Файл [Content/Player/player.json](../Content/Player/player.json) содержит:
+
+```json
+{
+  "interaction": {
+    "pickupDistance": 2.0,
+    "throwSpeed": 7.5
+  }
+}
+```
+
+`heldOffset`, `throwLift` и `throwSpin` находятся в блоке `interaction` внутри каждого объекта `definitions` файла `items.json` (см. полный пример в шаге 5). `heldOffset` задан в координатах камеры: `X` — вправо, `Y` — вверх, отрицательное `Z` — вперёд. Стандартное `[0.38, -0.55, -0.9]` располагает вещь справа и ниже взгляда. `throwLift` добавляет скорость вверх. `throwSpin` задаёт скорости вращения вокруг направлений камеры: вправо, вверх и вперёд. Эти параметры хранятся в `ItemDefinition.Interaction`; при броске они объединяются со скоростью игрока. `pickupDistance` и `throwSpeed` меняются в `player.json`.
 
 **Код.** Для более слабого отскока замени только значение `physics` у нужной дефиниции следующим полным объектом:
 

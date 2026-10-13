@@ -135,11 +135,12 @@ Run("per-definition held yaw preserves a pitched held pose when released", () =>
 Run("interaction settings and body settings remain isolated between controllers and definitions", () =>
 {
     var world = new AnalyticWorld();
-    var slowSettings = new ItemInteractionSettings(heldOffset: new(0.1f, -0.2f, -0.5f),
-        throwSpeed: 3f, throwLift: 0f, throwSpin: Vector3.Zero);
+    var slowSettings = new ItemInteractionSettings(throwSpeed: 3f);
     var slow = new ItemInteractionController(slowSettings);
     var standard = new ItemInteractionController();
-    var itemA = new ItemInstance(new ItemDefinition("slow", "Slow"), new(0.1f, 0f, 0f));
+    var carry = new ItemCarrySettings(heldOffset: new(0.1f, -0.2f, -0.5f),
+        throwLift: 0f, throwSpin: Vector3.Zero);
+    var itemA = new ItemInstance(new ItemDefinition("slow", "Slow", interaction: carry), new(0.1f, 0f, 0f));
     var itemB = new ItemInstance(new ItemDefinition("standard", "Standard"), new(0.1f, 0f, 0f));
     slow.Add(itemA);
     standard.Add(itemB);
@@ -156,6 +157,13 @@ Run("interaction settings and body settings remain isolated between controllers 
     Near(itemA.AngularVelocity, Vector3.Zero);
     Near(itemB.Velocity, new(0f, 1.7f, -7.5f));
     Require(itemB.AngularVelocity.Length() > 1f, "One controller's spin setting changed another controller");
+
+    Require(standard.Inventory.TryPickUp(itemA), "The second player could not pick up the released item");
+    Near(standard.GetHeldPose(eye, -Vector3.UnitZ).Position, eye + carry.HeldOffset);
+    standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false);
+    standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, true);
+    Near(itemA.Velocity, new(0f, 0f, -7.5f));
+    Near(itemA.AngularVelocity, Vector3.Zero);
 
     var noGravity = new ItemInstance(new ItemDefinition("floating", "Floating",
         bodySettings: new RigidBodySettings { Gravity = 0f }), new(0f, 3f, 0f));
@@ -205,8 +213,8 @@ Run("invalid definitions, identities and interaction settings are rejected", () 
     Throws<ArgumentException>(() => new ItemInstance(new ItemDefinition("id", "Item"), Vector3.Zero, instanceId: Guid.Empty));
     Throws<ArgumentOutOfRangeException>(() => new ItemInteractionSettings(pickupDistance: 0f));
     Throws<ArgumentOutOfRangeException>(() => new ItemInteractionSettings(throwSpeed: -1f));
-    Throws<ArgumentOutOfRangeException>(() => new ItemInteractionSettings(heldOffset: new(float.NaN, 0f, 0f)));
-    Throws<ArgumentOutOfRangeException>(() => new ItemInteractionSettings(throwSpin: new(0f, float.PositiveInfinity, 0f)));
+    Throws<ArgumentOutOfRangeException>(() => new ItemCarrySettings(heldOffset: new(float.NaN, 0f, 0f)));
+    Throws<ArgumentOutOfRangeException>(() => new ItemCarrySettings(throwSpin: new(0f, float.PositiveInfinity, 0f)));
     Throws<ArgumentOutOfRangeException>(() => new ItemInteractionSettings(releaseClearance: -1f));
 });
 

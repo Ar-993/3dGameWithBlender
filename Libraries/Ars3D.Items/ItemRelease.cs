@@ -16,7 +16,8 @@ internal static class ItemRelease
         if (item is null)
             return;
         HeldItemPlacement.Frame frame = HeldItemPlacement.CreateFrame(forward);
-        ItemPose heldPose = HeldItemPlacement.CreatePose(item, eyePosition, frame, settings);
+        ItemPose heldPose = HeldItemPlacement.CreatePose(item, eyePosition, frame);
+        ItemCarrySettings carry = item.Definition.Interaction;
         Vector3 centerOffset = Vector3.Transform(item.LocalCenter, heldPose.Orientation);
         Vector3 sourceCenter = eyePosition - item.LocalCenter;
         Vector3 desiredCenter = heldPose.Position + centerOffset;
@@ -24,10 +25,10 @@ internal static class ItemRelease
         Vector3 releaseCenter = world.ResolveSpherePlacement(sourceCenter, desiredCenter, radius);
         var releasePose = heldPose with { Position = releaseCenter - centerOffset };
         Vector3 velocity = throwItem
-            ? frame.Forward * settings.ThrowSpeed + Vector3.UnitY * settings.ThrowLift
+            ? frame.Forward * settings.ThrowSpeed + Vector3.UnitY * carry.ThrowLift
             : Vector3.Zero;
         Vector3 spin = throwItem
-            ? frame.Right * settings.ThrowSpin.X + frame.Up * settings.ThrowSpin.Y + frame.Forward * settings.ThrowSpin.Z
+            ? frame.Right * carry.ThrowSpin.X + frame.Up * carry.ThrowSpin.Y + frame.Forward * carry.ThrowSpin.Z
             : Vector3.Zero;
         inventory.Release(releasePose, velocity, spin);
     }

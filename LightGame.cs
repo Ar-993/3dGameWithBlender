@@ -121,7 +121,7 @@ public sealed class LightGame : Game
         gunModel = ModelAssetLoader.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
         bulletModel = ModelAssetLoader.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
         itemCatalog = ItemCatalog.Load(GraphicsDevice, fallbackTexture, toonEffect);
-        itemInteraction = new ItemInteraction(itemCatalog.InteractionSettings);
+        itemInteraction = new ItemInteraction(player.Definition.Interaction);
         ItemSpawner.SpawnConfigured(level, itemCatalog, itemInteraction, player.Position);
         camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
 
@@ -164,7 +164,7 @@ public sealed class LightGame : Game
                 range: 1.6f,
                 hitTimeNormalized: 0.45f);
 
-        return new Player(physics, stats, attack);
+        return new Player(physics, stats, attack, PlayerDefinition.Load());
     }
 
     private static Skeleton CreateSkeleton()

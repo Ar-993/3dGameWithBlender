@@ -99,7 +99,7 @@ internal static class ItemChecks
             interaction.Update(level, 0f, Vector3.Zero, eye, forward, true);
 
             Vector3 cameraUp = Vector3.Cross(Vector3.Right, forward);
-            Vector3 heldOffset = ItemMath.ToGame(interaction.Settings.HeldOffset);
+            Vector3 heldOffset = ItemMath.ToGame(item.State.Definition.Interaction.HeldOffset);
             Vector3 expected = eye + Vector3.Right * heldOffset.X +
                 cameraUp * heldOffset.Y - forward * heldOffset.Z;
             Require(Vector3.Distance(item.Position, expected) < 0.0001f,

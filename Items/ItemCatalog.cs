@@ -18,7 +18,6 @@ internal sealed class ItemCatalog : IDisposable
     private readonly Dictionary<(string Model, string Folder), CompiledModel> models = [];
     private bool disposed;
 
-    public ItemInteractionSettings InteractionSettings { get; }
     public IReadOnlyList<ItemSpawnEntry> Spawns { get; }
     public IReadOnlyCollection<string> ItemIds => entries.Keys;
     internal int LoadedModelCount => models.Count;
@@ -37,7 +36,6 @@ internal sealed class ItemCatalog : IDisposable
             if (!entries.TryAdd(entry.Id, entry))
                 throw new InvalidDataException($"Duplicate item definition '{entry.Id}'.");
         }
-        InteractionSettings = data.Interaction?.ToSettings() ?? new ItemInteractionSettings();
         var spawns = new List<ItemSpawnEntry>();
         foreach (ItemSpawnData spawn in data.Spawns)
         {
@@ -92,7 +90,7 @@ internal sealed class ItemCatalog : IDisposable
             Vector3.Transform(bounds.Min, normalization)) * 0.5f;
         var definition = new ItemDefinition(entry.Id, entry.DisplayName, entry.Radius, entry.Height,
             ItemMath.ToLibrary(halfExtents), ItemCatalogVectors.Read(entry.SpawnSpin, "spawnSpin"),
-            MathHelper.ToRadians(entry.HeldYawDegrees), entry.Physics);
+            MathHelper.ToRadians(entry.HeldYawDegrees), entry.Physics, entry.Interaction?.ToSettings());
         result = new(definition, model, normalization);
         loaded.Add(itemId, result);
         return result;

@@ -21,10 +21,9 @@ internal static class HeldItemPlacement
     public static ItemPose CreatePose(
         ItemInstance item,
         Vector3 eyePosition,
-        Frame frame,
-        ItemInteractionSettings settings)
+        Frame frame)
     {
-        Vector3 offset = settings.HeldOffset;
+        Vector3 offset = item.Definition.Interaction.HeldOffset;
         Vector3 position = eyePosition + frame.Right * offset.X + frame.Up * offset.Y - frame.Forward * offset.Z;
         Matrix4x4 cameraRotation = new(
             frame.Right.X, frame.Right.Y, frame.Right.Z, 0f,

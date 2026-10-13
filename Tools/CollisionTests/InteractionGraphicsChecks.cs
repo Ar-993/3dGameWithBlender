@@ -59,7 +59,12 @@ internal static class InteractionGraphicsChecks
                 ui.SetHudText("", "", "", skeletonIsDead: false);
                 ui.SetPaused(false);
 
-                ItemInteraction interaction = new(catalog.InteractionSettings);
+                Player testPlayer = new(
+                    new CharacterPhysicsComponent(Vector3.Zero, 0.35f, 1.8f, -28f),
+                    new StatsComponent(maxHealth: 100),
+                    new AttackComponent(25, 1.6f, 0.45f),
+                    PlayerDefinition.Load());
+                ItemInteraction interaction = new(testPlayer.Definition.Interaction);
                 SceneLighting lighting = new();
                 lighting.Fog.Enabled = true;
                 lighting.Fog.Color = new Color(148, 155, 151);

@@ -1,11 +1,4 @@
 {
-  "interaction": {
-    "pickupDistance": 2.0,
-    "heldOffset": [0.38, -0.55, -0.9],
-    "throwSpeed": 7.5,
-    "throwLift": 1.7,
-    "throwSpin": [7.0, 2.0, 0.75]
-  },
   "definitions": [
     {
       "id": "santa",
@@ -16,6 +9,11 @@
       "radius": 0.12,
       "spawnSpin": [0.9, 0.35, 0.55],
       "heldYawDegrees": 0,
+      "interaction": {
+        "heldOffset": [0.38, -0.55, -0.9],
+        "throwLift": 1.7,
+        "throwSpin": [7.0, 2.0, 0.75]
+      },
       "physics": { "gravity": 18.0, "friction": 0.65 }
     },
     {
@@ -26,7 +24,12 @@
       "height": 0.22,
       "radius": 0.035,
       "spawnSpin": [0.2, 0.3, 0.1],
-      "heldYawDegrees": 0
+      "heldYawDegrees": 0,
+      "interaction": {
+        "heldOffset": [0.38, -0.55, -0.9],
+        "throwLift": 1.7,
+        "throwSpin": [7.0, 2.0, 0.75]
+      }
     }
   ],
   "spawns": [

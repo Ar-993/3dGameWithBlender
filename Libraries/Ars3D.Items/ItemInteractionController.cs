@@ -84,6 +84,6 @@ public sealed class ItemInteractionController
     public ItemPose GetHeldPose(Vector3 eyePosition, Vector3 forward)
     {
         ItemInstance item = HeldItem ?? throw new InvalidOperationException("The inventory is empty.");
-        return HeldItemPlacement.CreatePose(item, eyePosition, HeldItemPlacement.CreateFrame(forward), Settings);
+        return HeldItemPlacement.CreatePose(item, eyePosition, HeldItemPlacement.CreateFrame(forward));
     }
 }

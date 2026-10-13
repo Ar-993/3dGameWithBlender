@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <MonoGamePlatform>DesktopGL</MonoGamePlatform>
+    <AssemblyName>3DLight</AssemblyName>
+    <!-- Не даём Windows масштабировать окно 1280x720 до размера монитора. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="Gum.MonoGame" Version="2026.8.3.1" />
+    <!-- Компилирует FBX, материалы и текстуры в понятный MonoGame формат XNB. -->
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Shared\ModelFormat\ModelFormat.csproj" />
+    <ProjectReference Include="Libraries\Ars3D.Items\Ars3D.Items.csproj" />
+    <InternalsVisibleTo Include="CollisionTests" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<MonoGameContentReference Include="Content/Content.mgcb" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="AnimatedMixamoModel.cs" />
+    <Compile Remove="LevelColliderLoader.cs" />
+    <Compile Remove="Shared\**\*.cs" />
+    <Compile Remove="Tools\**\*.cs" />
+    <Compile Remove="Libraries\**\*.cs" />
+    <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\level_one\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\Christmas\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Items\*.json" CopyToOutputDirectory="PreserveNewest" />
+	  <None Update="Assets\GasStation\Textures\*.png;Assets\GasStation\Textures\*.jpg;Assets\GasStation\Textures\*.jpeg" TargetPath="Content\Assets\gas_station\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\Gun\Pistols_Colt_01_A.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Gun\Pistols_Colt_Bullet_01_A.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Player\RogueFalling.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Player\RogueFallingBad.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Player\RogueFallingToLanding.fbx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Player\rogue_texture.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+    <None Update="Content\Assets\Skeleton\skeleton_texture.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Content\Player\" />
+  </ItemGroup>
+  <Target Name="CompileModels" BeforeTargets="Build">
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\Tools\ModelCompiler\ModelCompiler.csproj&quot; -- &quot;$(MSBuildProjectDirectory)\Assets\models.json&quot;" />
+    <MakeDir Directories="$(TargetDir)Content\Models" />
+    <ItemGroup><CompiledModelFile Include="$(MSBuildProjectDirectory)\Content\Models\*.3dmodel" /></ItemGroup>
+    <Copy SourceFiles="@(CompiledModelFile)" DestinationFolder="$(TargetDir)Content\Models" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

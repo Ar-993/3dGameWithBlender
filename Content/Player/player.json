@@ -1,0 +1,6 @@
+{
+  "interaction": {
+    "pickupDistance": 2.0,
+    "throwSpeed": 7.5
+  }
+}

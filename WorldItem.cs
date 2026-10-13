@@ -41,7 +41,8 @@ internal sealed class WorldItem
             throw new InvalidOperationException("Configure the item before registering it for interaction.");
         ItemDefinition previous = State.Definition;
         var definition = new ItemDefinition(previous.Id, previous.DisplayName, Radius, Height,
-            ItemMath.ToLibrary(halfExtents), ItemMath.ToLibrary(initialSpin), previous.HeldYaw, previous.BodySettings);
+            ItemMath.ToLibrary(halfExtents), ItemMath.ToLibrary(initialSpin), previous.HeldYaw,
+            previous.BodySettings, previous.Interaction);
         State = new ItemInstance(definition, State.Position, State.Orientation, State.Velocity,
             ItemMath.ToLibrary(initialSpin), State.InstanceId);
     }
