@@ -1,5 +1,6 @@
 using _3DLight;
 using _3DLight.Models;
+using _3DLight.Items;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -38,7 +39,9 @@ public sealed class LightGame : Game
     private readonly Player player = CreatePlayer();
 
             
-    private readonly ThirdPersonCamera camera = new();
+    private readonly FirstPersonCamera camera = new();
+    private ItemInteraction itemInteraction = null!;
+    private ItemCatalog? itemCatalog;
     private LevelHotReload? levelHotReload;
 
     private readonly Skeleton skeleton = CreateSkeleton();
@@ -77,7 +80,7 @@ public sealed class LightGame : Game
         lighting.Fog.StartDistance = 7f;
         lighting.Fog.EndDistance = 28f;
 
-        Window.Title = "3D Game — 60 FPS Animations";
+        Window.Title = "Ars3D — First Person";
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
     }
@@ -109,10 +112,6 @@ public sealed class LightGame : Game
         levelHotReload = null;
         //TryLoadLatestLevelVersion();
         SpawnCharacters();
-        player.LoadContent(
-    GraphicsDevice,
-    Content,
-    animsFolder);
         skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
 
         Texture2D fallbackTexture = Content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
@@ -121,6 +120,10 @@ public sealed class LightGame : Game
 
         gunModel = ModelAssetLoader.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
         bulletModel = ModelAssetLoader.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
+        itemCatalog = ItemCatalog.Load(GraphicsDevice, fallbackTexture, toonEffect);
+        itemInteraction = new ItemInteraction(itemCatalog.InteractionSettings);
+        ItemSpawner.SpawnConfigured(level, itemCatalog, itemInteraction, player.Position);
+        camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
 
         shootingCube = new ShootingCube(
             GraphicsDevice,
@@ -154,8 +157,6 @@ public sealed class LightGame : Game
                 CharacterCollisionHeight,
                 Gravity);
 
-        var animation = new CharacterAnimationComponent(modelScale: 1f);
-
         var stats = new StatsComponent(maxHealth: 100);
 
         var attack = new AttackComponent(
@@ -163,11 +164,7 @@ public sealed class LightGame : Game
                 range: 1.6f,
                 hitTimeNormalized: 0.45f);
 
-        GameEntity entity = CharacterFactory.Create(physics, animation, stats, attack);
-
-        var character = new CharacterFacade(entity);
-
-        return new Player(character);
+        return new Player(physics, stats, attack);
     }
 
     private static Skeleton CreateSkeleton()
@@ -294,6 +291,8 @@ public sealed class LightGame : Game
         {
             ReleaseMouse();
             pause.SynchronizeInput(keyboard);
+            player.SynchronizeInput(keyboard);
+            itemInteraction.SuppressInput(keyboard.IsKeyDown(Keys.E));
             previousKeyboard = keyboard;
             previousMouse = mouse;
             wasActive = false;
@@ -321,6 +320,8 @@ public sealed class LightGame : Game
         // Пока включена пауза, игровой мир и анимации не обновляются.
         if (pause.IsPaused)
         {
+            player.SynchronizeInput(keyboard);
+            itemInteraction.SuppressInput(keyboard.IsKeyDown(Keys.E));
             previousKeyboard = keyboard;
             previousMouse = mouse;
             wasActive = true;
@@ -376,8 +377,7 @@ public sealed class LightGame : Game
 
         camera.UpdateMatrices(
             player.Position,
-            GraphicsDevice.Viewport.AspectRatio,
-            level);
+            GraphicsDevice.Viewport.AspectRatio);
 
         float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -420,6 +420,12 @@ public sealed class LightGame : Game
                 activeBullets.RemoveAt(i);
             }
         }
+
+        if (!mouseCaptured || capturedThisFrame || justActivated)
+            itemInteraction.SuppressInput(keyboard.IsKeyDown(Keys.E));
+        itemInteraction.Update(level, deltaTime, player.Position,
+            camera.Position, camera.Forward, keyboard.IsKeyDown(Keys.E),
+            canInteract: !player.IsDead);
 
         keyboard = UpdateDebugKeys(keyboard);
 
@@ -478,8 +484,8 @@ public sealed class LightGame : Game
         else
         {
             level.Draw(camera.View, camera.Projection, lighting);
-            player.Draw(camera.View, camera.Projection, lighting);
             skeleton.Draw(camera.View, camera.Projection, lighting);
+            itemInteraction.Draw(camera.View, camera.Projection, lighting);
 
             shootingCube.Draw(camera.View, camera.Projection);
             foreach (var bullet in activeBullets)
@@ -513,6 +519,10 @@ public sealed class LightGame : Game
             skelText,
             performanceText,
             skeleton.IsDead);
+        WorldItem? interactionItem = itemInteraction.HeldItem ?? itemInteraction.NearbyItem;
+        gameUi.SetInteractionText(interactionItem?.Name,
+            itemInteraction.HeldItem is not null,
+            IsActive && mouseCaptured && !pause.IsPaused && !player.IsDead);
         gameUi.Draw();
 
         base.Draw(gameTime);
@@ -573,6 +583,7 @@ public sealed class LightGame : Game
         shootingCube?.Dispose();
         gunModel?.Dispose();
         bulletModel?.Dispose();
+        itemCatalog?.Dispose();
         foreach (var bullet in activeBullets)
             bullet.Dispose();
         gameUi.Dispose();

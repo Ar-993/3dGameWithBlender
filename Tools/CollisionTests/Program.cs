@@ -10,8 +10,16 @@ const float height = 1.8f;
 int failures = 0;
 
 AnimationChecks.Run(Run);
+ItemChecks.Run(Run);
+RigidItemChecks.Run(Run);
+RigidInteractionChecks.Run(Run);
+ItemModelTransformChecks.Run(Run);
+FirstPersonChecks.Run(Run);
 if (args.Contains("--graphics"))
+{
     ModelLoaderGraphicsChecks.Run(Run);
+    InteractionGraphicsChecks.Run(Run);
+}
 
 Run("hierarchy composes a child's local transform before its parent", () =>
 {
@@ -403,6 +411,20 @@ foreach (string modelPath in args.Where(path => path != "--graphics"))
             }
         }
     });
+    if (Path.GetFileNameWithoutExtension(modelPath).Equals("gas_station", StringComparison.OrdinalIgnoreCase))
+    {
+        Run("Santa spawns at ItemSpawn and falls onto the gas station geometry", () =>
+        {
+            Require(loaded.Hierarchy.TryGetNodePosition("ItemSpawn", out Vector3 spawn), "Missing ItemSpawn marker");
+            WorldItem item = new("Дед Мороз", spawn, 0.12f, 0.5f);
+            item.EnableRigidBody(new Vector3(0.09f, 0.25f, 0.055f), new Vector3(0.9f, 0.35f, 0.55f));
+            for (int frame = 0; frame < 600; frame++)
+                item.UpdatePhysics(level, 1f / 60f);
+            Require(item.Center.Y < spawn.Y - 0.1f, $"Item did not fall from its marker: {item.Center}");
+            Require(item.IsResting && item.Bounds.Min.Y > -0.01f, $"Item fell through the level or never settled: {item.Center}");
+            Console.WriteLine($"  ItemSpawn: {spawn}, Santa COM at {item.Center}, orientation={item.Orientation}");
+        });
+    }
     if (!Path.GetFileNameWithoutExtension(modelPath).Equals("level_one", StringComparison.OrdinalIgnoreCase))
         continue;
     Run("imported Platform.003 is a collidable floor", () =>

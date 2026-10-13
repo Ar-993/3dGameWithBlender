@@ -1,0 +1,35 @@
+{
+  "interaction": {
+    "pickupDistance": 2.0,
+    "heldOffset": [0.38, -0.55, -0.9],
+    "throwSpeed": 7.5,
+    "throwLift": 1.7,
+    "throwSpin": [7.0, 2.0, 0.75]
+  },
+  "definitions": [
+    {
+      "id": "santa",
+      "displayName": "Дед Мороз",
+      "model": "christmas_santa",
+      "textureFolder": "Christmas",
+      "height": 0.5,
+      "radius": 0.12,
+      "spawnSpin": [0.9, 0.35, 0.55],
+      "heldYawDegrees": 0,
+      "physics": { "gravity": 18.0, "friction": 0.65 }
+    },
+    {
+      "id": "colt",
+      "displayName": "Пистолет",
+      "model": "gun",
+      "textureFolder": "Gun",
+      "height": 0.22,
+      "radius": 0.035,
+      "spawnSpin": [0.2, 0.3, 0.1],
+      "heldYawDegrees": 0
+    }
+  ],
+  "spawns": [
+    { "itemId": "santa", "marker": "ItemSpawn", "fallback": [8.0, 5.0, 15.0] }
+  ]
+}

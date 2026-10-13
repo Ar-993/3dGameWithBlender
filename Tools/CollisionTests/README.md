@@ -4,13 +4,25 @@ Run from the repository root:
 
 ```powershell
 dotnet build Tools/CollisionTests/CollisionTests.csproj
-dotnet Tools/CollisionTests/bin/Debug/net8.0/CollisionTests.dll Content/Models/level_one.3dmodel Content/Models/level.3dmodel
+dotnet Tools/CollisionTests/bin/Debug/net8.0/CollisionTests.dll Content/Models/level_one.3dmodel Content/Models/level.3dmodel Content/Models/gas_station.3dmodel
 ```
+
+The standalone item library has its own tests. They reference only
+`Ars3D.Items`, use an analytic collision world, and run without MonoGame,
+assets, a graphics device, or external test packages:
+
+```powershell
+dotnet run --project Libraries/Ars3D.Items.Tests/Ars3D.Items.Tests.csproj
+```
+
+These checks cover independent assembly dependencies, 100 instances sharing
+one definition with unique IDs, falling and sleeping rigid bodies, pickup,
+the hidden slot, held poses, release, button edges, and input suppression.
 
 To also check the model loader with a real DesktopGL graphics device:
 
 ```powershell
-dotnet Tools/CollisionTests/bin/Debug/net8.0/CollisionTests.dll --graphics Content/Models/level_one.3dmodel Content/Models/level.3dmodel
+dotnet Tools/CollisionTests/bin/Debug/net8.0/CollisionTests.dll --graphics Content/Models/level_one.3dmodel Content/Models/level.3dmodel Content/Models/gas_station.3dmodel
 ```
 
 The optional graphics checks use a small window outside the display and exit
@@ -46,3 +58,26 @@ used to populate the private collider lists of `Level` fixtures and, in the
 optional graphics checks, inspect the device resource registry. Spawn checks
 look up markers through `ModelHierarchy`. Check `Level.TryGetMarkerPosition`
 integration by launching the game.
+
+First-person checks cover the eye inside the invisible player capsule, mouse
+look, pitch limits, horizontal WASD movement, diagonal speed, and Space press
+handling across jumps and pauses. Item checks cover gravity, settling, fast
+throws, slopes, nearby pickup, wall occlusion, the single hidden slot, E press
+handling, and release along a pitched camera view. Model fitting checks cover
+static and skinned bind transforms. The gas station fixture verifies that Santa
+falls from `ItemSpawn` and rests on the imported ground.
+
+Rigid item checks cover rotation around the center of mass, tumbling drops,
+thin walls/floors, contact torque/friction, resting poses, and removal of floor
+support. Rigid interaction checks cover pickup from rotated bounds, held-state
+freezing, the visible carried pose at release, and wall-safe spinning throws.
+
+The graphics checks also render the real Santa asset and Russian interaction
+HUD during the rotating fall, on its side, and in pickup, held, and thrown states.
+They load the JSON item catalog, verify 100 Santa instances share one model
+and definition, and confirm another item type loads its model only on demand.
+Preview PNGs are written to
+`artifacts/first-person/` relative to the repository working directory.
+
+The detailed Russian integration and configuration guide is
+[ItemSystemStepByStep.md](../../Help/ItemSystemStepByStep.md).

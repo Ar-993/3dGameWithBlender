@@ -25,6 +25,11 @@
       "output": "../Content/Models/gas_station.3dmodel"
     },
     {
+      "name": "christmas_santa",
+      "source": "Christmas/Models/SantaClaus.fbx",
+      "output": "../Content/Models/christmas_santa.3dmodel"
+    },
+    {
       "name": "player",
       "source": "../Content/Assets/Player/RogueTPose.fbx", 
       "output": "../Content/Models/player.3dmodel",

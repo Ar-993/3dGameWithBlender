@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="Shared\ModelFormat\ModelFormat.csproj" />
+    <ProjectReference Include="Libraries\Ars3D.Items\Ars3D.Items.csproj" />
     <InternalsVisibleTo Include="CollisionTests" />
   </ItemGroup>
 
@@ -31,9 +32,12 @@
     <Compile Remove="LevelColliderLoader.cs" />
     <Compile Remove="Shared\**\*.cs" />
     <Compile Remove="Tools\**\*.cs" />
+    <Compile Remove="Libraries\**\*.cs" />
     <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\level_one\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\Christmas\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Items\*.json" CopyToOutputDirectory="PreserveNewest" />
 	  <None Update="Assets\GasStation\Textures\*.png;Assets\GasStation\Textures\*.jpg;Assets\GasStation\Textures\*.jpeg"
       TargetPath="Content\Assets\gas_station\%(Filename)%(Extension)"
       CopyToOutputDirectory="PreserveNewest" />
