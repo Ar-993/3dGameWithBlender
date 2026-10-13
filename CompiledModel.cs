@@ -130,7 +130,8 @@ internal sealed class CompiledModel : IDisposable
 
             meshEffect = toonEffect.Clone();
             if (sourceMesh.Bones.Length == 0)
-                meshEffect.CurrentTechnique = meshEffect.Techniques["StaticTechnique"];
+                meshEffect.CurrentTechnique = meshEffect.Techniques["StaticTechnique"]
+                    ?? meshEffect.Techniques["ToonTechnique"];
             return new RuntimeMesh(
                 sourceMesh,
                 vertexBuffer,
@@ -202,7 +203,7 @@ internal sealed class CompiledModel : IDisposable
 
             foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
             {
-                if (!runtimeMesh.Source.Name.Contains("glass", StringComparison.OrdinalIgnoreCase))
+                if (!IsTransparent(runtimeMesh.Source))
                 {
                     runtimeMesh.Effect.Parameters["Alpha"]?.SetValue(1.0f);
                     runtimeMesh.Effect.Parameters["UseTexture"]?.SetValue(1.0f);
@@ -211,16 +212,15 @@ internal sealed class CompiledModel : IDisposable
                 }
             }
 
-            graphicsDevice.BlendState = BlendState.AlphaBlend;
+            graphicsDevice.BlendState = BlendState.NonPremultiplied;
             graphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
 
             foreach (RuntimeMesh runtimeMesh in runtimeMeshes)
             {
-                if (runtimeMesh.Source.Name.Contains("glass", StringComparison.OrdinalIgnoreCase))
+                if (IsTransparent(runtimeMesh.Source))
                 {
-                    runtimeMesh.Effect.Parameters["Alpha"]?.SetValue(0.8f);
-                    runtimeMesh.Effect.Parameters["UseTexture"]?.SetValue(0.0f);
-                    runtimeMesh.Effect.Parameters["GlassColor"]?.SetValue(new Vector3(0.95f, 0.96f, 0.96f));
+                    runtimeMesh.Effect.Parameters["Alpha"]?.SetValue(runtimeMesh.Source.MaterialOpacity);
+                    runtimeMesh.Effect.Parameters["UseTexture"]?.SetValue(1.0f);
 
                     DrawMesh(runtimeMesh, world, view, projection, cameraPosition, lighting);
                 }
@@ -233,6 +233,14 @@ internal sealed class CompiledModel : IDisposable
             graphicsDevice.DepthStencilState = previousDepthState;
         }
     }
+
+    // Classify by the material, not the object's name: a window can also own an opaque frame.
+    private static bool IsTransparent(MeshData mesh) =>
+        mesh.MaterialOpacity < 1f ||
+        mesh.MaterialName.Contains("glass", StringComparison.OrdinalIgnoreCase) ||
+        (string.IsNullOrWhiteSpace(mesh.MaterialName) &&
+         mesh.Name.Contains("glass", StringComparison.OrdinalIgnoreCase) &&
+         string.IsNullOrWhiteSpace(mesh.TextureName));
 
     private void DrawMesh(
         RuntimeMesh runtimeMesh,

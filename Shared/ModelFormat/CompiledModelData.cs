@@ -5,7 +5,7 @@ namespace _3DLight.Assets;
 internal static class CompiledModelFormat
 {
     public const uint Magic = 0x4D4C4433;
-    public const int Version = 2;
+    public const int Version = 3;
     public const int MaximumArrayLength = 100_000_000;
 }
 
@@ -40,6 +40,8 @@ internal sealed class MeshData
     public string Name { get; init; } = "Mesh";
     public int Node { get; init; }
     public string TextureName { get; init; } = string.Empty;
+    public string MaterialName { get; init; } = string.Empty;
+    public float MaterialOpacity { get; init; } = 1f;
     public VertexData[] Vertices { get; init; } = [];
     public int[] Indices { get; init; } = [];
     public BoneData[] Bones { get; init; } = [];
@@ -95,17 +97,17 @@ internal static class ModelDataIo
             System.Text.Encoding.UTF8,
             leaveOpen: true);
 
-        ValidateHeader(reader);
+        int version = ValidateHeader(reader);
 
         var model = new ModelData();
         ReadNodes(reader, model.Nodes);
-        ReadMeshes(reader, model.Meshes);
+        ReadMeshes(reader, model.Meshes, version);
         ReadClips(reader, model.Clips);
 
         return model;
     }
 
-    private static void ValidateHeader(BinaryReader reader)
+    private static int ValidateHeader(BinaryReader reader)
     {
         uint magic = reader.ReadUInt32();
 
@@ -114,11 +116,12 @@ internal static class ModelDataIo
 
         int version = reader.ReadInt32();
 
-        if (version != CompiledModelFormat.Version)
+        if (version != 2 && version != CompiledModelFormat.Version)
         {
             throw new InvalidDataException(
                 $"Версия модели {version} не поддерживается.");
         }
+        return version;
     }
 
     private static void WriteNodes(BinaryWriter writer, List<NodeData> nodes)
@@ -156,13 +159,15 @@ internal static class ModelDataIo
             writer.Write(mesh.Name);
             writer.Write(mesh.Node);
             writer.Write(mesh.TextureName);
+            writer.Write(mesh.MaterialName);
+            writer.Write(mesh.MaterialOpacity);
             WriteVertices(writer, mesh.Vertices);
             WriteIndices(writer, mesh.Indices);
             WriteBones(writer, mesh.Bones);
         }
     }
 
-    private static void ReadMeshes(BinaryReader reader, List<MeshData> meshes)
+    private static void ReadMeshes(BinaryReader reader, List<MeshData> meshes, int version)
     {
         int meshCount = ReadArrayLength(reader, "мешей");
 
@@ -171,12 +176,20 @@ internal static class ModelDataIo
             string name = reader.ReadString();
             int node = reader.ReadInt32();
             string textureName = reader.ReadString();
+            string materialName = version >= 3 ? reader.ReadString() : string.Empty;
+            float materialOpacity = version >= 3 ? reader.ReadSingle() :
+                name.Contains("glass", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(textureName) ? 0.8f : 1f;
+            if (!float.IsFinite(materialOpacity) || materialOpacity < 0f || materialOpacity > 1f)
+                throw new InvalidDataException($"Invalid opacity for mesh '{name}'.");
 
             meshes.Add(new MeshData
             {
                 Name = name,
                 Node = node,
                 TextureName = textureName,
+                MaterialName = materialName,
+                MaterialOpacity = materialOpacity,
                 Vertices = ReadVertices(reader),
                 Indices = ReadIndices(reader),
                 Bones = ReadBones(reader)
