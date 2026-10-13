@@ -7,7 +7,7 @@
       "textureFolder": "Christmas",
       "height": 0.5,
       "radius": 0.12,
-      "spawnSpin": [0.9, 0.35, 0.55],
+      "spawnSpin": [ 0.9, 0.35, 0.55 ],
       "heldYawDegrees": 0,
       "interaction": {
         "heldOffset": [0.38, -0.55, -0.9],
@@ -33,6 +33,10 @@
     }
   ],
   "spawns": [
-    { "itemId": "santa", "marker": "ItemSpawn", "fallback": [8.0, 5.0, 15.0] }
+    {
+      "itemId": "santa",
+      "marker": "ItemSpawn",
+      "fallback": [ 8.0, 5.0, 15.0 ]
+    }
   ]
 }
