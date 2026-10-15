@@ -28,10 +28,8 @@ Help/ItemSystemStepByStep.md эта инструкция
 |---|---|---|
 | [ItemDefinition](../Libraries/Ars3D.Items/ItemDefinition.cs) | Общие характеристики типа: ID, название, размер, физика, начальное вращение | Чтобы понять, что описывает запись каталога |
 | [ItemInstance](../Libraries/Ars3D.Items/ItemInstance.cs) | Один экземпляр: своё положение, вращение, скорость и ID | Чтобы разобраться в состоянии конкретной вещи |
-| [SingleSlotInventory](../Libraries/Ars3D.Items/SingleSlotInventory.cs) | Хранит единственный подобранный экземпляр | Для поведения одного невидимого слота |
-| [ItemInteractionController](../Libraries/Ars3D.Items/ItemInteractionController.cs) | Обновляет вещи, выбирает ближайшую, реагирует на новое нажатие | Для общей логики подбора и броска |
-| [ItemInteractionSettings](../Libraries/Ars3D.Items/ItemInteractionSettings.cs) | Дистанция подбора и скорость броска игрока | Для настройки возможностей игрока |
-| [ItemCarrySettings](../Libraries/Ars3D.Items/ItemCarrySettings.cs) | Положение в руке, подъём и вращение при броске | Для настройки конкретного типа предмета |
+| [ItemInteractionController](../Libraries/Ars3D.Items/ItemInteractionController.cs) | Подбор, единственный слот, удержание, бросок и настройки взаимодействия игрока | Для всего сценария взаимодействия с предметом |
+| [ItemCarrySettings](../Libraries/Ars3D.Items/ItemDefinition.cs) | Положение в руке, подъём и вращение при броске; лежит рядом с дефиницией | Для настройки конкретного типа предмета |
 | [RigidBody](../Libraries/Ars3D.Items/Physics/RigidBody.cs) | Публичная точка входа в физику одного твёрдого тела | Чтобы читать или менять положение тела через API |
 | [RigidBodySettings](../Libraries/Ars3D.Items/Physics/RigidBodySettings.cs) | Гравитация, трение, отскок и параметры покоя | Для общей настройки физики |
 | [LevelItemWorld](../Items/LevelItemWorld.cs) | Переводит запросы библиотеки в столкновения с текущим уровнем | При переносе в другой движок или другой уровень |
@@ -41,7 +39,7 @@ Help/ItemSystemStepByStep.md эта инструкция
 | [ItemSpawner](../ItemSpawner.cs) | Находит маркер уровня и создаёт предмет из каталога | Для появления вещей в уровне |
 | [GameUi](../GameUi.cs) | Показывает пиксельную подсказку только для доступного подбора | Для внешнего вида подсказки |
 
-Внутренняя физика тоже разделена. [RoundedBoxShape](../Libraries/Ars3D.Items/Physics/RoundedBoxShape.cs) описывает форму, [BodyMotion](../Libraries/Ars3D.Items/Physics/BodyMotion.cs) — движение и инерцию, [BodyCollision](../Libraries/Ars3D.Items/Physics/BodyCollision.cs) — поиск контактов, [ContactSolver](../Libraries/Ars3D.Items/Physics/ContactSolver.cs) — реакцию на контакт, [BodyStepper](../Libraries/Ars3D.Items/Physics/BodyStepper.cs) — маленькие шаги времени, [RestingState](../Libraries/Ars3D.Items/Physics/RestingState.cs) — успокоение и пробуждение. Для добавления второй модели эти файлы не меняются.
+Состояние, шаги симуляции, движение и покой собраны в [RigidBody](../Libraries/Ars3D.Items/Physics/RigidBody.cs). Отдельно остались три самостоятельных алгоритма: [RoundedBoxShape](../Libraries/Ars3D.Items/Physics/RoundedBoxShape.cs) описывает форму, [BodyCollision](../Libraries/Ars3D.Items/Physics/BodyCollision.cs) ищет столкновения, [ContactSolver](../Libraries/Ars3D.Items/Physics/ContactSolver.cs) рассчитывает реакцию на контакт. Для добавления второй модели эти файлы не меняются. Краткая карта всех десяти файлов находится в [README библиотеки](../Libraries/Ars3D.Items/README.md).
 
 `ItemDefinition` — описание типа, например «Санта высотой 0.5 метра». `ItemInstance` — одна конкретная игрушка этого типа. У десяти Сант одна общая дефиниция, но десять разных состояний и `InstanceId`. Поэтому не нужны классы `SantaItem`, `SecondSantaItem` и `ThirdSantaItem`.
 
@@ -436,7 +434,7 @@ dotnet Tools\CollisionTests\bin\Debug\net8.0\CollisionTests.dll --graphics Conte
 
 **Действие.** Скопируй папку `Libraries/Ars3D.Items` в новый проект и добавь ссылку из шага 1 с подходящим относительным путём. В библиотеке все координаты — `System.Numerics.Vector3`, повороты — `System.Numerics.Quaternion`.
 
-Для нового движка реализуй интерфейс [IItemInteractionWorld](../Libraries/Ars3D.Items/IItemInteractionWorld.cs). Он наследует [ICollisionWorld](../Libraries/Ars3D.Items/Physics/Collision/ICollisionWorld.cs): два метода дают поиск контактов и непрерывное столкновение сферы, ещё два — проверку видимости и безопасное размещение выпускаемого предмета. Готовый пример адаптера для Ars3D — [LevelItemWorld.cs](../Items/LevelItemWorld.cs).
+Для нового движка реализуй единый интерфейс [ICollisionWorld](../Libraries/Ars3D.Items/Physics/Collision/ICollisionWorld.cs). Его четыре метода дают поиск контактов, непрерывное столкновение сферы, проверку видимости и безопасное размещение выпускаемого предмета. Готовый пример адаптера для Ars3D — [LevelItemWorld.cs](../Items/LevelItemWorld.cs).
 
 **Код данных.** Этот полный C#-фрагмент работает внутри метода с подключённой ссылкой на библиотеку; он создаёт два самостоятельных экземпляра без MonoGame:
 
@@ -461,7 +459,7 @@ controller.Add(second);
 ```csharp
 private static void UpdateItems(
     Ars3D.Items.ItemInteractionController controller,
-    Ars3D.Items.IItemInteractionWorld world,
+    Ars3D.Items.Physics.ICollisionWorld world,
     float seconds,
     System.Numerics.Vector3 playerFeet,
     System.Numerics.Vector3 eye,

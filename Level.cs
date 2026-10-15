@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace _3DLight
 {
-    public partial class Level
+    public partial class Level : IDisposable
     {
         // В модели level_one высота одной ступени равна 0.5.
         // Небольшой запас покрывает погрешность координат после импорта.
@@ -125,6 +125,22 @@ namespace _3DLight
             previousModel?.Dispose();
         }
 
+
+        public void Dispose()
+        {
+            model?.Dispose();
+            model = null;
+            collisionDebugEffect?.Dispose();
+            collisionDebugEffect = null;
+            platforms.Clear();
+            meshColliders.Clear();
+            collisionIndex = null;
+            collisionCandidateIndices.Clear();
+            collisionCandidates.Clear();
+            rigidSweepCandidates.Clear();
+            rigidSphereContacts.Clear();
+            itemWorld = null;
+        }
 
         public bool TryGetMarkerPosition(string markerName, out Vector3 position)
         {

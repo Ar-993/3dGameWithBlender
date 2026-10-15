@@ -1,67 +1,11 @@
-using _3DLight;
-using _3DLight.Models;
-using _3DLight.Items;
+using _3DLight.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using System;
-using System.Diagnostics;
-using System.IO;
 
 public sealed class LightGame : Game
 {
-    private enum SpawnMode
-    {
-        Coordinates,
-        BlenderEmpty
-    }
-
-    private const string ActiveLevelModel = "gas_station";
-    //private const string ActiveLevelTexture = "Assets/level_one.fbm/palette_0";
-    private static readonly SpawnMode ActivePlayerSpawnMode =
-        SpawnMode.BlenderEmpty;
-    private const string PlayerSpawnObjectName = "PlayerSpawn";
-    private static readonly Vector3 PlayerSpawnCoordinates = new(-1f, 0.03f, -0.06f);
-    private static readonly SpawnMode ActiveSkeletonSpawnMode =
-        SpawnMode.BlenderEmpty;
-    private const string SkeletonSpawnObjectName = "SkeletonSpawn";
-    private static readonly Vector3 SkeletonSpawnCoordinates = new(3f, 0.03f, -0.06f);
-    private const float Gravity = -28f;
-    private const float CharacterCollisionRadius = 0.35f;
-    private const float CharacterCollisionHeight = 1.8f;
-
     private readonly GraphicsDeviceManager graphics;
-    private readonly SceneLighting lighting = new();
-    private readonly PauseController pause = new();
-    private readonly GameUi gameUi = new();
-
-    private readonly Level level = new();
-    private readonly Player player = CreatePlayer();
-
-            
-    private readonly FirstPersonCamera camera = new();
-    private ItemInteraction itemInteraction = null!;
-    private ItemCatalog? itemCatalog;
-    private LevelHotReload? levelHotReload;
-
-    private readonly Skeleton skeleton = CreateSkeleton();
-
-    private KeyboardState previousKeyboard;
-    private MouseState previousMouse;
-    private bool mouseCaptured;
-    private bool wasActive;
-    private long fpsSampleStarted = Stopwatch.GetTimestamp();
-    private int framesInSample;
-    private double realFps;
-    private double workingSetMegabytes;
-    private string activeLevelVersion = "base";
-    private bool showCollisionDebug;
-
-    private ShootingCube shootingCube = null!;
-    private readonly List<Bullet> activeBullets = new();
-
-    private CompiledModel gunModel = null!;
-    private CompiledModel bulletModel = null!;
+    private readonly SceneManager scenes = new();
 
     public LightGame()
     {
@@ -74,12 +18,6 @@ public sealed class LightGame : Game
 
         IsFixedTimeStep = true;
         TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0);
-
-        lighting.Fog.Enabled = ActiveLevelModel == "gas_station";
-        lighting.Fog.Color = new Color(148, 155, 151);
-        lighting.Fog.StartDistance = 7f;
-        lighting.Fog.EndDistance = 28f;
-
         Window.Title = "Ars3D — First Person";
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
@@ -89,504 +27,40 @@ public sealed class LightGame : Game
     {
         graphics.PreferMultiSampling = true;
         graphics.ApplyChanges();
-
         var display = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
         Window.Position = new Point(
             Math.Max(0, (display.Width - Window.ClientBounds.Width) / 2),
             Math.Max(0, (display.Height - Window.ClientBounds.Height) / 2));
 
         base.Initialize();
-        gameUi.Initialize(this);
         DebugConsole.Open();
-        wasActive = IsActive;
-        CaptureMouse();
     }
 
-    protected override void LoadContent()
-    {
-        string animsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
-
-        level.LoadContent(
-            Content,
-            ActiveLevelModel); 
-        levelHotReload = null;
-        //TryLoadLatestLevelVersion();
-        SpawnCharacters();
-        skeleton.LoadContent(GraphicsDevice, Content, animsFolder);
-
-        Texture2D fallbackTexture = Content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
-
-        Effect toonEffect = Content.Load<Effect>("ToonShader");
-
-        gunModel = ModelAssetLoader.Load(GraphicsDevice, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
-        bulletModel = ModelAssetLoader.Load(GraphicsDevice, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
-        itemCatalog = ItemCatalog.Load(GraphicsDevice, fallbackTexture, toonEffect);
-        itemInteraction = new ItemInteraction(player.Definition.Interaction);
-        ItemSpawner.SpawnConfigured(level, itemCatalog, itemInteraction, player.Position);
-        camera.UpdateMatrices(player.Position, GraphicsDevice.Viewport.AspectRatio);
-
-        shootingCube = new ShootingCube(
-            GraphicsDevice,
-            position: new Vector3(70f, 2f, 5f),
-            size: new Vector3(1f, 1f, 1f),
-            gunModel: gunModel,
-            lighting: lighting,
-            fireRateSeconds: 1.5f);
-
-    }
-
-    private void SpawnCharacters()
-    {
-        player.SpawnAt(ResolveSpawnPosition(
-            ActivePlayerSpawnMode,
-            PlayerSpawnObjectName,
-            PlayerSpawnCoordinates,
-            "Player"));
-        skeleton.SpawnAt(ResolveSpawnPosition(
-            ActiveSkeletonSpawnMode,
-            SkeletonSpawnObjectName,
-            SkeletonSpawnCoordinates,
-            "Skeleton"));
-    }
-
-    private static Player CreatePlayer()
-    {
-        var physics = new CharacterPhysicsComponent(
-                PlayerSpawnCoordinates,
-                CharacterCollisionRadius,
-                CharacterCollisionHeight,
-                Gravity);
-
-        var stats = new StatsComponent(maxHealth: 100);
-
-        var attack = new AttackComponent(
-                damage: 25,
-                range: 1.6f,
-                hitTimeNormalized: 0.45f);
-
-        return new Player(physics, stats, attack, PlayerDefinition.Load());
-    }
-
-    private static Skeleton CreateSkeleton()
-    {
-        var physics = new CharacterPhysicsComponent(
-                SkeletonSpawnCoordinates,
-                CharacterCollisionRadius,
-                CharacterCollisionHeight,
-                Gravity);
-
-        var animation = new CharacterAnimationComponent(modelScale: 1f);
-
-        var stats = new StatsComponent(maxHealth: 100);
-
-        var ai = new SkeletonAIComponent();
-
-        var attack = new AttackComponent(
-        damage: 10,
-        range: 1.4f,
-        hitTimeNormalized: 0.45f);
-
-        GameEntity entity = CharacterFactory.Create(physics, animation, stats, ai, attack);
-
-        var skeleton = new CharacterFacade(entity);
-
-        return new Skeleton(skeleton);
-    }
-
-    private void TryLoadLatestLevelVersion()
-    {
-        if (levelHotReload is null)
-            return;
-
-        try
-        {
-            if (levelHotReload.TryTakePendingModel(
-                    out byte[] modelBytes,
-                    out string version))
-            {
-                ApplyLevelVersion(modelBytes, version, respawnCharacters: false);
-            }
-        }
-        catch (Exception error)
-        {
-            Console.WriteLine($"Initial level hot reload failed: {error.Message}");
-        }
-    }
-
-    private void UpdateLevelHotReload()
-    {
-        if (levelHotReload is null)
-            return;
-
-        try
-        {
-            if (levelHotReload.TryTakePendingModel(
-                    out byte[] modelBytes,
-                    out string version))
-            {
-                ApplyLevelVersion(modelBytes, version, respawnCharacters: true);
-            }
-        }
-        catch (Exception error)
-        {
-            Console.WriteLine($"Level hot reload failed: {error.Message}");
-        }
-    }
-
-    private void ApplyLevelVersion(
-        byte[] modelBytes,
-        string version,
-        bool respawnCharacters)
-    {
-        level.ReloadContent(
-            Content,
-            modelBytes,
-            ActiveLevelModel);
-
-        if (respawnCharacters)
-            SpawnCharacters();
-
-        activeLevelVersion = version;
-        Console.WriteLine($"Level hot reload applied: {version}");
-    }
-
-    private Vector3 ResolveSpawnPosition(
-        SpawnMode mode,
-        string objectName,
-        Vector3 fallbackCoordinates,
-        string characterName)
-    {
-        if (mode == SpawnMode.Coordinates)
-        {
-            Console.WriteLine(
-                $"{characterName} spawn from coordinates: {fallbackCoordinates}");
-            return fallbackCoordinates;
-        }
-
-        if (level.TryGetMarkerPosition(objectName, out Vector3 markerPosition))
-        {
-            Console.WriteLine(
-                $"{characterName} spawn from Blender Empty '{objectName}': " +
-                markerPosition);
-            return markerPosition;
-        }
-
-        Console.WriteLine(
-            $"Blender Empty '{objectName}' was not found for {characterName}. " +
-            $"Using fallback coordinates: {fallbackCoordinates}");
-        return fallbackCoordinates;
-    }
+    protected override void LoadContent() =>
+        scenes.ChangeScene(() => new GameplayScene(this));
 
     protected override void Update(GameTime gameTime)
     {
-        KeyboardState keyboard = Keyboard.GetState();
-        MouseState mouse = Mouse.GetState();
-        bool capturedThisFrame = false;
-        bool justActivated = IsActive && !wasActive;
-
-        gameUi.Update(gameTime);
-
-        // Потеря фокуса всегда освобождает курсор и приостанавливает управление.
-        if (!IsActive)
-        {
-            ReleaseMouse();
-            pause.SynchronizeInput(keyboard);
-            player.SynchronizeInput(keyboard);
-            itemInteraction.SuppressInput(keyboard.IsKeyDown(Keys.E));
-            previousKeyboard = keyboard;
-            previousMouse = mouse;
-            wasActive = false;
-            base.Update(gameTime);
-            return;
-        }
-
-        PauseTransition pauseTransition = pause.Update(keyboard);
-
-        if (pauseTransition != PauseTransition.None)
-        {
-            gameUi.SetPaused(pause.IsPaused);
-
-            if (pauseTransition == PauseTransition.Paused)
-            {
-                ReleaseMouse();
-            }
-            else
-            {
-                CaptureMouse();
-                capturedThisFrame = true;
-            }
-        }
-
-        // Пока включена пауза, игровой мир и анимации не обновляются.
-        if (pause.IsPaused)
-        {
-            player.SynchronizeInput(keyboard);
-            itemInteraction.SuppressInput(keyboard.IsKeyDown(Keys.E));
-            previousKeyboard = keyboard;
-            previousMouse = mouse;
-            wasActive = true;
-            base.Update(gameTime);
-            return;
-        }
-
-        UpdateLevelHotReload();
-
-        // Захватываем только по новому клику, а не по кнопке, зажатой во время Alt+Tab.
-        if (!mouseCaptured &&
-            !justActivated &&
-            IsInsideClient(mouse) &&
-            mouse.LeftButton == ButtonState.Pressed &&
-            previousMouse.LeftButton == ButtonState.Released)
-        {
-            CaptureMouse();
-            capturedThisFrame = true;
-        }
-
-        // В кадр захвата пропускаем смещение, потому что MouseState ещё хранит старую позицию.
-        if (mouseCaptured)
-        {
-            var windowCenter = new Point(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
-            if (!capturedThisFrame)
-                camera.UpdateMouse(windowCenter, mouse);
-            Mouse.SetPosition(windowCenter.X, windowCenter.Y);
-        }
-
-        // Клик, которым мышь только захватывается, не считается атакой.
-        bool attackPressed =
-            mouseCaptured &&
-            !capturedThisFrame &&
-            mouse.LeftButton == ButtonState.Pressed &&
-            previousMouse.LeftButton == ButtonState.Released;
-
-        bool flyKickPressed =
-            mouseCaptured &&
-            !capturedThisFrame &&
-            mouse.RightButton == ButtonState.Pressed &&
-            previousMouse.RightButton == ButtonState.Released;
-
-        // Обновление игрока и скелета
-        player.Update(
-            gameTime,
-            keyboard,
-            camera.Yaw,
-            level,
-            attackPressed,
-            flyKickPressed);
-
-        ApplyPlayerAttack();
-
-        camera.UpdateMatrices(
-            player.Position,
-            GraphicsDevice.Viewport.AspectRatio);
-
-        float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        skeleton.Update(player, level, deltaTime);
-        lighting.FollowPlayer(player.Position);
-
-        shootingCube.Update(deltaTime, player.Position);
-
-        if (shootingCube.ShouldSpawnBullet)
-        {
-            Vector3 spawnPos = shootingCube.Position + shootingCube.AimDirection * 1.2f;
-
-            activeBullets.Add(new Bullet(
-                GraphicsDevice,
-                spawnPos,
-                shootingCube.AimDirection,
-                bulletModel: bulletModel,
-                lighting: lighting,
-                damage: 15,
-                speed: 12f));
-        }
-
-        for (int i = activeBullets.Count - 1; i >= 0; i--)
-        {
-            var bullet = activeBullets[i];
-            bullet.Update(deltaTime);
-
-            float distanceToPlayer = Vector3.Distance(bullet.Position, player.Position);
-            if (distanceToPlayer <= (bullet.Bounds.Radius + CharacterCollisionRadius))
-            {
-                player.TakeDamage(bullet.Damage);
-                bullet.Dispose();
-                activeBullets.RemoveAt(i);
-                continue;
-            }
-
-            if (bullet.IsDead)
-            {
-                bullet.Dispose();
-                activeBullets.RemoveAt(i);
-            }
-        }
-
-        if (!mouseCaptured || capturedThisFrame || justActivated)
-            itemInteraction.SuppressInput(keyboard.IsKeyDown(Keys.E));
-        itemInteraction.Update(level, deltaTime, player.Position,
-            camera.Position, camera.Forward, keyboard.IsKeyDown(Keys.E),
-            canInteract: !player.IsDead);
-
-        keyboard = UpdateDebugKeys(keyboard);
-
-        DebugConsole.Update(
-            gameTime,
-            player,
-            skeleton,
-            realFps,
-            workingSetMegabytes);
-
-        previousKeyboard = keyboard;
-        previousMouse = mouse;
-        wasActive = true;
+        scenes.Update(gameTime);
         base.Update(gameTime);
-    }
-
-    private KeyboardState UpdateDebugKeys(KeyboardState keyboard)
-    {
-        if (keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L))
-            lighting.Enabled = !lighting.Enabled;
-
-        if (keyboard.IsKeyDown(Keys.O) && previousKeyboard.IsKeyUp(Keys.O))
-            showCollisionDebug = !showCollisionDebug;
-        return keyboard;
-    }
-
-    private void ApplyPlayerAttack()
-    {
-        if (player.AttackShouldDealDamage && !skeleton.IsDead)
-        {
-            Vector3 difference = skeleton.Position - player.Position;
-
-            if (difference.Length() <= player.AttackRange)
-                skeleton.TakeDamage(player.AttackDamage);
-        }
     }
 
     protected override void Draw(GameTime gameTime)
     {
-        UpdatePerformanceMetrics();
-
-        GraphicsDevice.Clear(lighting.Fog.Enabled
-            ? lighting.Fog.Color
-            : new Color(25, 30, 40));
-        GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-        GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-
-        if (showCollisionDebug)
-        {
-            level.DrawColliders(
-                camera.View,
-                camera.Projection,
-                CreateCharacterDebugBounds(player.Position),
-                CreateCharacterDebugBounds(skeleton.Position));
-        }
-        else
-        {
-            level.Draw(camera.View, camera.Projection, lighting);
-            skeleton.Draw(camera.View, camera.Projection, lighting);
-            itemInteraction.Draw(camera.View, camera.Projection, lighting);
-
-            shootingCube.Draw(camera.View, camera.Projection);
-            foreach (var bullet in activeBullets)
-            {
-                bullet.Draw(camera.View, camera.Projection);
-            }
-        }
-
-        string playerPlatform = player.CurrentPlatform?.Id.ToString() ?? "AIR";
-        string skeletonPlatform = skeleton.CurrentPlatform?.Id.ToString() ?? "AIR";
-        string playerText =
-            $"PLAYER HP: {player.Health}/{player.MaxHealth} | " +
-            $"X: {player.Position.X:F2} | " +
-            $"Y: {player.Position.Y:F2} | " +
-            $"Z: {player.Position.Z:F2} | " +
-            $"PLATFORM: {playerPlatform}";
-
-        string skelText =
-            $"SKELETON HP: {skeleton.Health}/{skeleton.MaxHealth} | " +
-            $"X: {skeleton.Position.X:F2} | " +
-            $"Y: {skeleton.Position.Y:F2} | " +
-            $"Z: {skeleton.Position.Z:F2} | " +
-            $"PLATFORM: {skeletonPlatform}";
-        string performanceText =
-            $"FPS: {realFps:F1} | RAM: {workingSetMegabytes:F1} MB | " +
-            $"LEVEL: {activeLevelVersion} | " +
-            $"LIGHT: {(lighting.Enabled ? "ON" : "OFF")} (L) | " +
-            $"COLLIDERS: {(showCollisionDebug ? "ON" : "OFF")} (O)";
-        gameUi.SetHudText(
-            playerText,
-            skelText,
-            performanceText,
-            skeleton.IsDead);
-        WorldItem? interactionItem = itemInteraction.HeldItem ?? itemInteraction.NearbyItem;
-        gameUi.SetInteractionText(interactionItem?.Name,
-            itemInteraction.HeldItem is not null,
-            IsActive && mouseCaptured && !pause.IsPaused && !player.IsDead);
-        gameUi.Draw();
-
+        scenes.Draw(gameTime);
         base.Draw(gameTime);
     }
 
-    private static BoundingBox CreateCharacterDebugBounds(Vector3 position) =>
-        new(
-            new Vector3(
-                position.X - CharacterCollisionRadius,
-                position.Y,
-                position.Z - CharacterCollisionRadius),
-            new Vector3(
-                position.X + CharacterCollisionRadius,
-                position.Y + CharacterCollisionHeight,
-                position.Z + CharacterCollisionRadius));
-
-    private void UpdatePerformanceMetrics()
+    protected override void UnloadContent()
     {
-        const double sampleDurationSeconds = 0.5;
-
-        framesInSample++;
-        long now = Stopwatch.GetTimestamp();
-        double elapsedSeconds = Stopwatch.GetElapsedTime(
-            fpsSampleStarted,
-            now).TotalSeconds;
-
-        if (elapsedSeconds >= sampleDurationSeconds)
-        {
-            realFps = framesInSample / elapsedSeconds;
-            framesInSample = 0;
-            fpsSampleStarted = now;
-        }
-
-        workingSetMegabytes = Environment.WorkingSet / (1024d * 1024d);
+        scenes.Dispose();
+        DebugConsole.Close();
+        base.UnloadContent();
     }
-
-    private void CaptureMouse()
-    {
-        mouseCaptured = true;
-        IsMouseVisible = false;
-        var center = new Point(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
-        Mouse.SetPosition(center.X, center.Y);
-    }
-
-    private void ReleaseMouse()
-    {
-        mouseCaptured = false;
-        IsMouseVisible = true;
-    }
-
-    private bool IsInsideClient(MouseState mouse) =>
-        mouse.X >= 0 && mouse.X < Window.ClientBounds.Width &&
-        mouse.Y >= 0 && mouse.Y < Window.ClientBounds.Height;
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
-        levelHotReload?.Dispose();
-        shootingCube?.Dispose();
-        gunModel?.Dispose();
-        bulletModel?.Dispose();
-        itemCatalog?.Dispose();
-        foreach (var bullet in activeBullets)
-            bullet.Dispose();
-        gameUi.Dispose();
+        scenes.Dispose();
         DebugConsole.Close();
         base.OnExiting(sender, args);
     }

@@ -5,40 +5,61 @@ namespace Ars3D.Items.Physics;
 
 // Traversal advances one common pose to the earliest sphere contact. Geometry,
 // continuous casts and coplanar seam handling remain the host world's job.
-internal sealed class BodyCollision(RoundedBoxShape shape, BodyMotion motion,
+internal sealed class BodyCollision(RoundedBoxShape shape, RigidBody body,
     ContactSolver solver, RigidBodySettings settings)
 {
-    public List<BodyContact> Contacts { get; } = [];
+    private List<BodyContact> Contacts { get; } = [];
 
     public void Gather(ICollisionWorld world)
     {
         Contacts.Clear();
         foreach (Vector3 offset in shape.SphereOffsets)
-            world.GetSphereContacts(motion.Center + Vector3.Transform(offset, motion.Orientation),
+            world.GetSphereContacts(body.Center + Vector3.Transform(offset, body.Orientation),
                 shape.SphereRadius, Contacts);
+    }
+
+    public void SolveContacts(ICollisionWorld world)
+    {
+        Gather(world);
+        solver.Solve(body, Contacts, allowBounce: false);
     }
 
     public void Move(ICollisionWorld world, float seconds)
     {
         float remaining = seconds;
-        for (int impact = 0; impact < settings.MaximumImpacts && remaining > 0.000001f; impact++)
+        for (int step = 0; step < settings.MaximumImpacts && remaining > 0.000001f; step++)
         {
-            float angularSpeed = motion.AngularVelocity.Length();
-            float interval = angularSpeed > 0.0001f
-                ? System.MathF.Min(remaining, settings.MaximumAngularStep / angularSpeed) : remaining;
-            Vector3 targetCenter = motion.Center + motion.Velocity * interval;
-            Quaternion targetOrientation = motion.PredictOrientation(interval);
-            bool hitAnything = FindFirstHit(world, targetCenter, targetOrientation, out SweepHit firstHit);
-            float fraction = hitAnything ? firstHit.Fraction : 1f;
-            motion.Center = Vector3.Lerp(motion.Center, targetCenter, fraction);
-            motion.Orientation = Quaternion.Normalize(Quaternion.Slerp(motion.Orientation, targetOrientation, fraction));
-            remaining -= interval * fraction;
-            if (!hitAnything)
-                continue;
-            Gather(world);
-            Contacts.Add(firstHit.Contact);
-            solver.Solve(motion, Contacts, allowBounce: true);
+            float stepSeconds = body.LimitStepByRotation(remaining);
+            remaining -= MoveStep(world, stepSeconds);
         }
+    }
+
+    private float MoveStep(ICollisionWorld world, float seconds)
+    {
+        Vector3 targetCenter = body.Center + body.Velocity * seconds;
+        Quaternion targetOrientation = body.PredictOrientation(seconds);
+        bool hitAnything = FindFirstHit(world, targetCenter, targetOrientation, out SweepHit firstHit);
+        float fraction = hitAnything ? firstHit.Fraction : 1f;
+
+        MoveToPose(targetCenter, targetOrientation, fraction);
+        if (hitAnything)
+            ResolveImpact(world, firstHit.Contact);
+
+        return seconds * fraction;
+    }
+
+    private void MoveToPose(Vector3 targetCenter, Quaternion targetOrientation, float fraction)
+    {
+        body.Center = Vector3.Lerp(body.Center, targetCenter, fraction);
+        body.Orientation = Quaternion.Normalize(
+            Quaternion.Slerp(body.Orientation, targetOrientation, fraction));
+    }
+
+    private void ResolveImpact(ICollisionWorld world, BodyContact contact)
+    {
+        Gather(world);
+        Contacts.Add(contact);
+        solver.Solve(body, Contacts, allowBounce: true);
     }
 
     private bool FindFirstHit(ICollisionWorld world, Vector3 targetCenter,
@@ -49,10 +70,10 @@ internal sealed class BodyCollision(RoundedBoxShape shape, BodyMotion motion,
         bool found = false;
         foreach (Vector3 localOffset in shape.SphereOffsets)
         {
-            Vector3 offset = Vector3.Transform(localOffset, motion.Orientation);
-            Vector3 start = motion.Center + offset;
+            Vector3 offset = Vector3.Transform(localOffset, body.Orientation);
+            Vector3 start = body.Center + offset;
             Vector3 end = targetCenter + Vector3.Transform(localOffset, targetOrientation);
-            if (world.SweepSphere(start, end - start, shape.SphereRadius, motion.PointVelocity(offset), out var hit) &&
+            if (world.SweepSphere(start, end - start, shape.SphereRadius, body.PointVelocity(offset), out var hit) &&
                 (!found || hit.Fraction < fraction))
             {
                 fraction = hit.Fraction;
@@ -74,7 +95,7 @@ internal sealed class BodyCollision(RoundedBoxShape shape, BodyMotion motion,
                     deepest = contact;
             if (deepest.Penetration <= settings.RecoveryTolerance)
                 break;
-            motion.Center += deepest.Normal * deepest.Penetration;
+            body.Center += deepest.Normal * deepest.Penetration;
         }
     }
 

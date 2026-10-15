@@ -12,26 +12,26 @@ internal sealed class ContactSolver(RigidBodySettings settings)
     private float[] restitutionSpeeds = [];
     private Vector3[] frictionImpulses = [];
 
-    public void Solve(BodyMotion motion, List<BodyContact> contacts, bool allowBounce)
+    public void Solve(RigidBody body, List<BodyContact> contacts, bool allowBounce)
     {
         int count = contacts.Count;
         if (count == 0)
             return;
-        PrepareBuffers(motion, contacts, allowBounce);
+        PrepareBuffers(body, contacts, allowBounce);
         for (int iteration = 0; iteration < settings.ContactIterations; iteration++)
         for (int index = 0; index < count; index++)
         {
             BodyContact contact = contacts[index];
-            Vector3 lever = contact.Point - motion.Center;
-            float closingSpeed = Vector3.Dot(motion.PointVelocity(lever), contact.Normal);
+            Vector3 lever = contact.Point - body.Center;
+            float closingSpeed = Vector3.Dot(body.PointVelocity(lever), contact.Normal);
             float normalDelta = (restitutionSpeeds[index] - closingSpeed) /
-                motion.ImpulseDenominator(lever, contact.Normal);
+                body.ImpulseDenominator(lever, contact.Normal);
             float previousNormal = normalImpulses[index];
             float accumulatedNormal = MathF.Max(previousNormal + normalDelta, 0f);
             normalImpulses[index] = accumulatedNormal;
-            motion.ApplyImpulse(lever, contact.Normal * (accumulatedNormal - previousNormal));
+            body.ApplyImpulse(lever, contact.Normal * (accumulatedNormal - previousNormal));
 
-            Vector3 pointVelocity = motion.PointVelocity(lever);
+            Vector3 pointVelocity = body.PointVelocity(lever);
             Vector3 tangent = pointVelocity - contact.Normal * Vector3.Dot(pointVelocity, contact.Normal);
             float tangentSpeed = tangent.Length();
             Vector3 previousFriction = frictionImpulses[index];
@@ -39,7 +39,7 @@ internal sealed class ContactSolver(RigidBodySettings settings)
             if (tangentSpeed > 0.000001f)
             {
                 tangent /= tangentSpeed;
-                accumulatedFriction -= tangent * (tangentSpeed / motion.ImpulseDenominator(lever, tangent));
+                accumulatedFriction -= tangent * (tangentSpeed / body.ImpulseDenominator(lever, tangent));
             }
             accumulatedFriction -= contact.Normal * Vector3.Dot(accumulatedFriction, contact.Normal);
             float maximumFriction = settings.Friction * accumulatedNormal;
@@ -47,11 +47,11 @@ internal sealed class ContactSolver(RigidBodySettings settings)
             if (frictionMagnitude > maximumFriction)
                 accumulatedFriction *= maximumFriction / frictionMagnitude;
             frictionImpulses[index] = accumulatedFriction;
-            motion.ApplyImpulse(lever, accumulatedFriction - previousFriction);
+            body.ApplyImpulse(lever, accumulatedFriction - previousFriction);
         }
     }
 
-    private void PrepareBuffers(BodyMotion motion, List<BodyContact> contacts, bool allowBounce)
+    private void PrepareBuffers(RigidBody body, List<BodyContact> contacts, bool allowBounce)
     {
         int count = contacts.Count;
         if (normalImpulses.Length < count)
@@ -66,7 +66,7 @@ internal sealed class ContactSolver(RigidBodySettings settings)
         for (int index = 0; index < count; index++)
         {
             BodyContact contact = contacts[index];
-            float closingSpeed = Vector3.Dot(motion.PointVelocity(contact.Point - motion.Center), contact.Normal);
+            float closingSpeed = Vector3.Dot(body.PointVelocity(contact.Point - body.Center), contact.Normal);
             restitutionSpeeds[index] = allowBounce && closingSpeed < -settings.BounceSpeed
                 ? -closingSpeed * settings.Restitution : 0f;
         }

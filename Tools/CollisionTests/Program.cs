@@ -15,10 +15,12 @@ RigidItemChecks.Run(Run);
 RigidInteractionChecks.Run(Run);
 ItemModelTransformChecks.Run(Run);
 FirstPersonChecks.Run(Run);
+SceneChecks.Run(Run);
 if (args.Contains("--graphics"))
 {
     ModelLoaderGraphicsChecks.Run(Run);
     InteractionGraphicsChecks.Run(Run);
+    SceneGraphicsChecks.Run(Run);
 }
 
 Run("hierarchy composes a child's local transform before its parent", () =>

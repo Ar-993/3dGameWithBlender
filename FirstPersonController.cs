@@ -18,12 +18,12 @@ internal sealed class FirstPersonController
         jumpWasDown = keyboard.IsKeyDown(Keys.Space);
 
     public void Update(KeyboardState keyboard, float yaw, Level level,
-        float seconds, float speed, bool canMove, bool canJump, Vector3 forcedMovement)
+        float seconds, float speed, bool canMove, bool canJump)
     {
         Yaw = yaw;
-        Vector3 movement = forcedMovement;
-        if (canMove)
-            movement += GetMoveDirection(keyboard, yaw) * speed * seconds;
+        Vector3 movement = canMove
+            ? GetMoveDirection(keyboard, yaw) * speed * seconds
+            : Vector3.Zero;
 
         bool jumpDown = keyboard.IsKeyDown(Keys.Space);
         if (canJump && jumpDown && !jumpWasDown)

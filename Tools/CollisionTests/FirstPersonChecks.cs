@@ -117,7 +117,7 @@ internal static class FirstPersonChecks
             FirstPersonController controller = new(physics);
             Vector3 start = physics.Position;
             controller.Update(new(Keys.W, Keys.D), 0.7f, new Level(), 0.5f, 4f,
-                canMove: true, canJump: true, forcedMovement: Vector3.Zero);
+                canMove: true, canJump: true);
             Near(Vector3.Distance(start, physics.Position), 2f);
             Near(physics.Position.Y, start.Y);
         });
@@ -183,7 +183,7 @@ internal static class FirstPersonChecks
 
     private static void Step(FirstPersonController controller, KeyboardState keyboard, Level floor) =>
         controller.Update(keyboard, 0f, floor, 1f / 60f, 4f,
-            canMove: true, canJump: true, forcedMovement: Vector3.Zero);
+            canMove: true, canJump: true);
 
     private static Level Floor()
     {

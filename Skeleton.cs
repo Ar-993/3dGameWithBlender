@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using _3DLight;
 
-public class Skeleton
+public class Skeleton : IDisposable
 {
     private const string UpperBodyRootBone = "spine";
 
@@ -165,4 +165,6 @@ public class Skeleton
     {
         character.Draw(view, projection, lighting);
     }
+
+    public void Dispose() => animation.Dispose();
 }

@@ -21,7 +21,7 @@ internal sealed class RoundedBoxShape
         if (!float.IsFinite(height) || height <= 0f)
             throw new ArgumentOutOfRangeException(nameof(height));
         HalfExtents = halfExtents ?? new Vector3(radius, height * 0.5f, radius);
-        if (!BodyMotion.Finite(HalfExtents) || HalfExtents.X <= 0f || HalfExtents.Y <= 0f || HalfExtents.Z <= 0f)
+        if (!RigidBody.Finite(HalfExtents) || HalfExtents.X <= 0f || HalfExtents.Y <= 0f || HalfExtents.Z <= 0f)
             throw new ArgumentOutOfRangeException(nameof(halfExtents));
         LocalCenter = Vector3.UnitY * (height * 0.5f);
         SphereRadius = MathF.Min(HalfExtents.X, MathF.Min(HalfExtents.Y, HalfExtents.Z));

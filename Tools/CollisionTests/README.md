@@ -1,5 +1,10 @@
 # Collision regressions
 
+The runner also checks scene lifecycle and deferred transitions without graphics.
+`--graphics` additionally loads, draws and unloads the real gameplay scene twice,
+checking GPU resource disposal and that the host's content survives transitions.
+See `Help/SceneArchitecture.md` for the scene layout and switching API.
+
 Run from the repository root:
 
 ```powershell

@@ -90,7 +90,7 @@ Run("one slot picks nearest on the action edge, freezes a held body and throws o
         "Pickup did not fill exactly one hidden slot");
     Near(near.Velocity, Vector3.Zero);
     Near(near.AngularVelocity, Vector3.Zero);
-    Require(!controller.Inventory.TryPickUp(far), "A second body entered an occupied slot");
+    Require(!controller.TryPickUp(far), "A second body entered an occupied slot");
     ItemPose frozen = near.WorldPose;
     Update(controller, world, true, seconds: 0.1f);
     Near(near.Position, frozen.Position);
@@ -158,7 +158,7 @@ Run("interaction settings and body settings remain isolated between controllers 
     Near(itemB.Velocity, new(0f, 1.7f, -7.5f));
     Require(itemB.AngularVelocity.Length() > 1f, "One controller's spin setting changed another controller");
 
-    Require(standard.Inventory.TryPickUp(itemA), "The second player could not pick up the released item");
+    Require(standard.TryPickUp(itemA), "The second player could not pick up the released item");
     Near(standard.GetHeldPose(eye, -Vector3.UnitZ).Position, eye + carry.HeldOffset);
     standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false);
     standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, true);
@@ -264,7 +264,7 @@ static string FindRepositoryRoot()
 }
 
 // An infinite analytic plane demonstrates the host contract without MonoGame or a level mesh.
-internal sealed class AnalyticWorld : IItemInteractionWorld
+internal sealed class AnalyticWorld : ICollisionWorld
 {
     public const float Skin = 0.001f;
     private const float ContactMargin = 0.0004f;

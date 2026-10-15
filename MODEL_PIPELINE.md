@@ -50,8 +50,8 @@ Empty, точки появления и другие узлы без меша н
 Физика и логика предметов в мире и в руке вынесены в самостоятельный проект
 `Libraries/Ars3D.Items`. Он использует только .NET 8 и `System.Numerics`.
 `ItemDefinition` хранит общие характеристики типа, `ItemInstance` — отдельное
-состояние, `SingleSlotInventory` — один скрытый слот, а
-`ItemInteractionController` — подбор и бросок. Физика игрока и камера остаются
+состояние, а `ItemInteractionController` — один скрытый слот, подбор, удержание
+и бросок. Физика игрока и камера остаются
 в игре.
 
 В игре `Items/ItemCatalog.cs` читает `Content/Items/items.json` и повторно

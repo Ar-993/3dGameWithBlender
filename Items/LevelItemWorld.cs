@@ -1,11 +1,10 @@
-using Ars3D.Items;
 using Ars3D.Items.Physics;
 using System.Numerics;
 
 namespace _3DLight.Items;
 
 // Item physics asks for contacts; this adapter translates those requests to the level.
-internal sealed class LevelItemWorld(Level level) : IItemInteractionWorld
+internal sealed class LevelItemWorld(Level level) : ICollisionWorld
 {
     private readonly List<RigidItemContact> gameContacts = [];
 

@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 
-internal sealed class CharacterAnimationComponent : IGameComponent
+internal sealed class CharacterAnimationComponent : IGameComponent, IDisposable
 {
     private CompiledModel model = null!;
     private AnimationSampler sampler = null!;
@@ -112,5 +112,14 @@ internal sealed class CharacterAnimationComponent : IGameComponent
     public float GetClipDuration(string clipName)
     {
         return sampler.GetClipDuration(clipName);
+    }
+
+    public void Dispose()
+    {
+        model?.Dispose();
+        model = null!;
+        sampler = null!;
+        animator = null!;
+        renderPose = [];
     }
 }
