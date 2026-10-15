@@ -37,7 +37,7 @@ public sealed class LightGame : Game
     }
 
     protected override void LoadContent() =>
-        scenes.ChangeScene(() => new GameplayScene(this));
+        scenes.ChangeScene(() => new SceneMenu(this,scenes));
 
     protected override void Update(GameTime gameTime)
     {
