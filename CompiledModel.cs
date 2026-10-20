@@ -235,12 +235,46 @@ internal sealed class CompiledModel : IDisposable
     }
 
     // Classify by the material, not the object's name: a window can also own an opaque frame.
-    private static bool IsTransparent(MeshData mesh) =>
-        mesh.MaterialOpacity < 1f ||
-        mesh.MaterialName.Contains("glass", StringComparison.OrdinalIgnoreCase) ||
-        (string.IsNullOrWhiteSpace(mesh.MaterialName) &&
-         mesh.Name.Contains("glass", StringComparison.OrdinalIgnoreCase) &&
-         string.IsNullOrWhiteSpace(mesh.TextureName));
+    private static bool IsTransparent(MeshData mesh)
+    {
+        // Растительность с отсечением альфы рисуем
+        // в обычном непрозрачном проходе.
+        if (VegetationMaterials.UseAlphaCutOut(mesh))
+        {
+            return false;
+        }
+
+        // У материала задана неполная непрозрачность.
+        if (mesh.MaterialOpacity < 1f)
+        {
+            return true;
+        }
+
+        // В имени материала есть слово glass.
+        if (mesh.MaterialName.Contains(
+            "glass",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Запасная проверка для модели без имени материала.
+        if (string.IsNullOrWhiteSpace(mesh.MaterialName))
+        {
+            if (mesh.Name.Contains(
+                "glass",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(mesh.TextureName))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // Все остальные меши считаем непрозрачными.
+        return false;
+    }
 
     private void DrawMesh(
         RuntimeMesh runtimeMesh,
@@ -313,6 +347,10 @@ internal sealed class CompiledModel : IDisposable
         parameters["Projection"]?.SetValue(projection);
         parameters["CameraPosition"]?.SetValue(cameraPosition);
         parameters["ModelTexture"]?.SetValue(runtimeMesh.Texture);
+        parameters["AlphaCutoff"]?.SetValue(
+            VegetationMaterials.UseAlphaCutOut(runtimeMesh.Source)
+                ? 0.5f
+                : 0f);
         parameters["Bones"]?.SetValue(runtimeMesh.BoneTransforms);
         lighting.Apply(parameters);
     }

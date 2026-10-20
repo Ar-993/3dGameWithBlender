@@ -23,6 +23,15 @@ float3 PointLightColor;
 float PointLightIntensity;
 float PointLightRange;
 
+float3 FlashlightPosition;
+float3 FlashlightDirection;
+float3 FlashlightColor = float3(1.0, 0.96, 0.85);
+float FlashlightRange = 25.0;
+float FlashlightConeAngle = 0.86;
+float FlashlightIntensity = 0.0;
+
+float AlphaCutOff = 0.0;
+
 float Alpha = 1.0; // По умолчанию 1.0 (полностью непрозрачный)
 float UseTexture = 1.0; // 1.0 = брать цвет из текстуры, 0.0 = использовать GlassColor
 float3 GlassColor = float3(1.0, 1.0, 1.0);
@@ -78,6 +87,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float3 N = normalize(input.Normal);
     
     float4 rawTex = tex2D(TextureSampler, input.TextureCoordinate);
+    clip(rawTex.a - AlphaCutOff);
     float3 baseColor = lerp(GlassColor, rawTex.rgb, UseTexture);
     float4 texColor = float4(baseColor, rawTex.a);
 
@@ -95,8 +105,43 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     pointAttenuation *= pointAttenuation;
     float3 pointLight = PointLightColor * pointDiffuse *
         pointAttenuation * PointLightIntensity;
+    
+    float3 flashlightLight = float3(0.0, 0.0, 0.0);
 
-    float3 totalLight = saturate(AmbientColor + sunLight + pointLight);
+    if (FlashlightIntensity > 0.0)
+    {
+        float3 toFlashlight = FlashlightPosition - input.WorldPosition;
+        float flashDistance = length(toFlashlight);
+        
+        if (flashDistance < FlashlightRange)
+        {
+            float3 flashDir = toFlashlight / max(flashDistance, 0.0001);
+            
+            // Направление света ИЗ фонарика на поверхность
+            float3 lightForward = normalize(FlashlightDirection);
+            
+            // Считаем угол между направлением фонарика и вектором до пикселя
+            float spotEffect = dot(lightForward, -flashDir);
+            
+            // Если пиксель находится внутри конуса света
+            if (spotEffect > FlashlightConeAngle)
+            {
+                // Плавное размытие краев конуса, чтобы свет не обрывался резко
+                float spotIntensity = smoothstep(FlashlightConeAngle, FlashlightConeAngle + 0.04, spotEffect);
+                
+                // Квадратичное затухание света с расстоянием (как у точечного источника)
+                float flashAttenuation = saturate(1.0 - flashDistance / FlashlightRange);
+                flashAttenuation *= flashAttenuation;
+                
+                // Диффузное освещение пикселя
+                float flashDiffuse = max(0.0, dot(N, flashDir));
+                
+                flashlightLight = FlashlightColor * flashDiffuse * flashAttenuation * spotIntensity * FlashlightIntensity;
+            }
+        }
+    }
+
+    float3 totalLight = saturate(AmbientColor + sunLight + pointLight + flashlightLight);
     float3 litColor = texColor.rgb * totalLight;
     float3 finalColor = lerp(texColor.rgb, litColor, LightingEnabled);
     float finalAlpha = saturate(rawTex.a * Alpha);
