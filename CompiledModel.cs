@@ -347,7 +347,7 @@ internal sealed class CompiledModel : IDisposable
         parameters["Projection"]?.SetValue(projection);
         parameters["CameraPosition"]?.SetValue(cameraPosition);
         parameters["ModelTexture"]?.SetValue(runtimeMesh.Texture);
-        parameters["AlphaCutoff"]?.SetValue(
+        parameters["AlphaCutOff"]?.SetValue(
             VegetationMaterials.UseAlphaCutOut(runtimeMesh.Source)
                 ? 0.5f
                 : 0f);
