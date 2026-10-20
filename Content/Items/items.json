@@ -30,26 +30,26 @@
         "throwLift": 1.7,
         "throwSpin": [ 7.0, 2.0, 0.75 ]
       }
+    },
+    {
+      "id": "flashlight",
+      "displayName": "Фонарик",
+      "model": "flashlight_model",
+      "textureFolder": "Flashlight",
+      "height": 0.06,
+      "radius": 0.03,
+      "spawnSpin": [ 0.1, 0.5, 0.1 ],
+      "heldYawDegrees": 90,
+      "interaction": {
+        "heldOffset": [ 0.35, -0.45, -0.7 ],
+        "throwLift": 1.5,
+        "throwSpin": [ 5.0, 1.0, 0.5 ]
+      },
+      "physics": {
+        "gravity": 15.0,
+        "friction": 0.7
+      }
     }
-    //{
-    //  "id": "flashlight",
-    //  "displayName": "Фонарик",
-    //  "model": "flashlight_model",
-    //  "textureFolder": "Flashlight",
-    //  "height": 0.3,
-    //  "radius": 0.05,
-    //  "spawnSpin": [ 0.1, 0.5, 0.1 ],
-    //  "heldYawDegrees": 0,
-    //  "interaction": {
-    //    "heldOffset": [ 0.35, -0.45, -0.7 ],
-    //    "throwLift": 1.5,
-    //    "throwSpin": [ 5.0, 1.0, 0.5 ]
-    //  },
-    //  "physics": {
-    //    "gravity": 15.0,
-    //    "friction": 0.7
-    //  }
-    //}
   ],
 
   "spawns": [
@@ -57,11 +57,11 @@
       "itemId": "santa",
       "marker": "ItemSpawn",
       "fallback": [ 8.0, 5.0, 15.0 ]
+    },
+    {
+      "itemId": "flashlight",
+      "marker": "FlashlightSpawn",
+      "fallback": [ 10.0, 5.0, 15.0 ]
     }
-    //{
-    //  "itemId": "flashlight",
-    //  "marker": "FlashlightSpawn",
-    //  "fallback": [ 10.0, 5.0, 15.0 ]
-    //}
   ]
 }

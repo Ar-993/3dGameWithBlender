@@ -11,8 +11,10 @@
       "output": "../Content/Models/bullet.3dmodel"
     },
     {
-      "name": "level", 
-      "source": "level.fbx", "output": "../Content/Models/level.3dmodel" },
+      "name": "level",
+      "source": "level.fbx",
+      "output": "../Content/Models/level.3dmodel"
+    },
 
     {
       "name": "level_one",
@@ -30,8 +32,18 @@
       "output": "../Content/Models/christmas_santa.3dmodel"
     },
     {
+      "name": "flashlight_model",
+      "source": "flashLight.fbx",
+      "output": "../Content/Models/flashlight_model.3dmodel"
+    },
+    {
+      "name": "flashlight_beam",
+      "source": "lightcone.fbx",
+      "output": "../Content/Models/flashlight_beam.3dmodel"
+    },
+    {
       "name": "player",
-      "source": "../Content/Assets/Player/RogueTPose.fbx", 
+      "source": "../Content/Assets/Player/RogueTPose.fbx",
       "output": "../Content/Models/player.3dmodel",
       "clips": {
         "TPose": "../Content/Assets/Player/RogueTPose.fbx",
@@ -44,10 +56,11 @@
         "Attack": "../Content/Assets/Player/RogueAttack.fbx",
         "Hurt": "../Content/Assets/Player/RogueHurt.fbx",
         "Die": "../Content/Assets/Player/RogueDeath.fbx"
-      } },
+      }
+    },
     {
       "name": "skeleton",
-      "source": "../Content/Assets/Skeleton/SkeletonTPose.fbx", 
+      "source": "../Content/Assets/Skeleton/SkeletonTPose.fbx",
       "output": "../Content/Models/skeleton.3dmodel",
       "clips": {
         "Idle": "../Content/Assets/Skeleton/SkeletonIdle.fbx",
@@ -55,6 +68,7 @@
         "Attack": "../Content/Assets/Skeleton/SkeletonAttack.fbx",
         "Hurt": "../Content/Assets/Skeleton/SkeletonHurt.fbx",
         "Die": "../Content/Assets/Skeleton/SkeletonDeath.fbx"
-      } }
+      }
+    }
   ]
 }
