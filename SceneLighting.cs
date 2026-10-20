@@ -11,6 +11,10 @@ public sealed class SceneLighting
     private Vector3 sunDirection = Vector3.Normalize(
         new Vector3(-0.55f, -1f, -0.35f));
 
+    public bool FlashlightEnabled { get; set; }
+    public Vector3 FlashlightPosition { get; set; }
+    public Vector3 FlashlightDirection { get; set; } = Vector3.Forward;
+
     public bool Enabled { get; set; } = true;
 
     public SceneFog Fog { get; } = new();
@@ -52,12 +56,12 @@ public sealed class SceneLighting
         parameters["PointLightColor"]?.SetValue(PointColor);
         parameters["PointLightIntensity"]?.SetValue(MathF.Max(0f, PointIntensity));
         parameters["PointLightRange"]?.SetValue(MathF.Max(0.001f, PointRange));
-        parameters["FlashlightPosition"]?.SetValue(flashlightPosition);
-        parameters["FlashlightDirection"]?.SetValue(flashlightDirection);
+        parameters["FlashlightPosition"]?.SetValue(FlashlightPosition);
+        parameters["FlashlightDirection"]?.SetValue(FlashlightDirection);
         parameters["FlashlightColor"]?.SetValue(new Vector3(1f, 0.96f, 0.85f));
         parameters["FlashlightRange"]?.SetValue(15f);
         parameters["FlashlightConeAngle"]?.SetValue(0.8944f);
-        parameters["FlashlightIntensity"]?.SetValue(flashlightEnabled ? 2f : 0f);
+        parameters["FlashlightIntensity"]?.SetValue(FlashlightEnabled ? 2f : 0f);
         Fog.Apply(parameters);
     }
 }

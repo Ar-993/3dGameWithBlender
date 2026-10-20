@@ -37,6 +37,24 @@ internal sealed class ItemInteraction
         controller.Update(level.ItemWorld, seconds, ItemMath.ToLibrary(playerFeet),
             ItemMath.ToLibrary(eye), ItemMath.ToLibrary(forward), eDown, canInteract);
 
+    public bool TryGetHeldLight(Vector3 eye, Vector3 forward, out Vector3 origin, out Vector3 direction)
+    {
+        origin = default;
+        direction = forward;
+        if (HeldItem is not { Renderer: { } renderer } held ||
+            !string.Equals(held.State.Definition.Id, "flashlight", StringComparison.OrdinalIgnoreCase))
+            return false;
+        ItemPose pose = controller.GetHeldPose(ItemMath.ToLibrary(eye), ItemMath.ToLibrary(forward));
+        if (!renderer.TryGetMarker(pose, "LightOrigin", out origin) ||
+            !renderer.TryGetMarker(pose, "LightTarget", out Vector3 target))
+            return false;
+        direction = target - origin;
+        if (direction.LengthSquared() < 0.000001f)
+            return false;
+        direction.Normalize();
+        return true;
+    }
+
     public void Draw(Matrix view, Matrix projection, SceneLighting lighting)
     {
         foreach (WorldItem item in items)

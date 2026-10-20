@@ -136,6 +136,43 @@ internal static class InteractionGraphicsChecks
                     itemSettled = true;
                 });
 
+                run("flashlight E pickup and release preserve the transformed lens direction", () =>
+                {
+                    Require(File.Exists(Path.Combine(AppContext.BaseDirectory,
+                        "Content", "Assets", "Flashlight", "Lantern.png")), "Flashlight texture missing");
+                    var flashlightLighting = new SceneLighting { FlashlightEnabled = true };
+                    flashlightLighting.Apply(effect.Parameters);
+                    Require(effect.Parameters["FlashlightIntensity"].GetValueSingle() > 0f,
+                        "Enabled flashlight does not reach shader");
+                    flashlightLighting.FlashlightEnabled = false;
+                    flashlightLighting.Apply(effect.Parameters);
+                    Require(effect.Parameters["FlashlightIntensity"].GetValueSingle() == 0f,
+                        "Disabled flashlight still illuminates scene");
+                    var pickup = new ItemInteraction();
+                    using var flashlightCatalog = ItemCatalog.Load(GraphicsDevice, fallback, effect);
+                    var flashlight = flashlightCatalog.Create("flashlight", new Vector3(0f, 1f, -1f));
+                    pickup.Add(flashlight);
+                    var emptyLevel = new Level();
+                    Vector3 eye = new(0f, 1.6f, 0f);
+                    pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, false);
+                    pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, true);
+                    Require(pickup.HeldItem == flashlight, "E did not pick up the flashlight");
+                    foreach (Vector3 forward in new[] { Vector3.Forward, Vector3.Right,
+                        Vector3.Normalize(new Vector3(0.3f, 0.5f, -1f)) })
+                    {
+                        Require(pickup.TryGetHeldLight(eye, forward, out Vector3 origin, out Vector3 direction),
+                            "Missing or coincident light markers");
+                        Require(Vector3.Dot(direction, forward) > 0.99f,
+                            $"Light points away from aim: {direction} vs {forward}");
+                        Require(Vector3.Distance(origin, eye) < 2f, "Lens was not normalized with the model");
+                    }
+                    pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, false);
+                    pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, true);
+                    Require(pickup.HeldItem is null, "Second E did not release flashlight");
+                    Require(!pickup.TryGetHeldLight(eye, Vector3.Forward, out _, out _),
+                        "Released flashlight still emits held light");
+                });
+
                 if (!itemSettled)
                     return;
 

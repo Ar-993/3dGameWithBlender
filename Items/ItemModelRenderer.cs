@@ -8,6 +8,14 @@ internal sealed class ItemModelRenderer(CompiledModel model, Matrix normalizatio
 {
     public CompiledModel Model => model;
 
+    public bool TryGetMarker(ItemPose pose, string name, out Vector3 position)
+    {
+        if (!model.Hierarchy.TryGetNodePosition(name, out position))
+            return false;
+        position = Vector3.Transform(position, normalization * ItemMath.ToGame(pose.ToMatrix()));
+        return true;
+    }
+
     public void Draw(ItemPose pose, Matrix view, Matrix projection, SceneLighting lighting) =>
         model.Draw(normalization * ItemMath.ToGame(pose.ToMatrix()), view, projection, lighting);
 }

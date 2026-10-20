@@ -72,7 +72,10 @@ internal sealed class GameplayHud : IDisposable
         ui.SetHudText(playerText, skeletonText, performanceText, skeleton.IsDead);
 
         WorldItem? interactionItem = interaction.HeldItem ?? interaction.NearbyItem;
-        ui.SetInteractionText(interactionItem?.Name,
+        string? itemName = interactionItem?.Name;
+        if (interaction.HeldItem?.State.Definition.Id == "flashlight")
+            itemName += " [F: ON/OFF]";
+        ui.SetInteractionText(itemName,
             interaction.HeldItem is not null,
             canInteract);
         ui.Draw();

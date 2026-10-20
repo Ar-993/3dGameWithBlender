@@ -54,6 +54,7 @@ internal sealed class ItemCatalog : IDisposable
         var options = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         };
         ItemCatalogData data = JsonSerializer.Deserialize<ItemCatalogData>(File.ReadAllText(path), options)

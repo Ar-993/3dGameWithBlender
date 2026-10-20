@@ -10,7 +10,8 @@ internal readonly record struct GameplayInputFrame(
     bool AttackPressed,
     Vector2 LookDelta,
     bool ToggleLighting,
-    bool ToggleColliders);
+    bool ToggleColliders,
+    bool ToggleFlashlight = false);
 
 /// <summary>
 /// Owns gameplay input history, focus, pause, and cursor capture.
@@ -113,13 +114,15 @@ internal sealed class GameplayInput
         bool attackPressed = MouseCaptured && !capturedThisFrame &&
             mouse.LeftButton == ButtonState.Pressed &&
             previousMouse.LeftButton == ButtonState.Released;
+        bool toggleFlashlight = MouseCaptured && !capturedThisFrame && !justActivated &&
+            keyboard.IsKeyDown(Keys.F) && previousKeyboard.IsKeyUp(Keys.F);
         bool toggleLighting = keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L);
         bool toggleColliders = keyboard.IsKeyDown(Keys.O) && previousKeyboard.IsKeyUp(Keys.O);
         bool suppressInteraction = !MouseCaptured || capturedThisFrame || justActivated;
 
         SynchronizeInput(keyboard, mouse);
         return new GameplayInputFrame(keyboard, true, suppressInteraction,
-            attackPressed, lookDelta, toggleLighting, toggleColliders);
+            attackPressed, lookDelta, toggleLighting, toggleColliders, toggleFlashlight);
     }
 
     private Point WindowCenter => new(

@@ -30,7 +30,7 @@ float FlashlightRange = 25.0;
 float FlashlightConeAngle = 0.86;
 float FlashlightIntensity = 0.0;
 
-float AlphaCutOff = 0.0;
+float AlphaCutoff = 0.0;
 
 float Alpha = 1.0; // По умолчанию 1.0 (полностью непрозрачный)
 float UseTexture = 1.0; // 1.0 = брать цвет из текстуры, 0.0 = использовать GlassColor
@@ -87,7 +87,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float3 N = normalize(input.Normal);
     
     float4 rawTex = tex2D(TextureSampler, input.TextureCoordinate);
-    clip(rawTex.a - AlphaCutOff);
+    clip(rawTex.a - AlphaCutoff);
     float3 baseColor = lerp(GlassColor, rawTex.rgb, UseTexture);
     float4 texColor = float4(baseColor, rawTex.a);
 

@@ -39,7 +39,7 @@
       "height": 0.06,
       "radius": 0.03,
       "spawnSpin": [ 0.1, 0.5, 0.1 ],
-      "heldYawDegrees": 90,
+      "heldYawDegrees": 180,
       "interaction": {
         "heldOffset": [ 0.35, -0.45, -0.7 ],
         "throwLift": 1.5,

@@ -14,6 +14,7 @@ internal sealed class GameplayWorld : IDisposable
     private ItemCatalog? itemCatalog;
     private ProjectileSystem? projectiles;
     private bool disposed;
+    private bool flashlightOn = true;
 
     public Player Player { get; } = GameplayCharacters.CreatePlayer();
     public Skeleton Skeleton { get; } = GameplayCharacters.CreateSkeleton();
@@ -75,6 +76,14 @@ internal sealed class GameplayWorld : IDisposable
             Items.SuppressInput(interactDown);
         Items.Update(Session.Level, seconds, Player.Position, Camera.Position,
             Camera.Forward, interactDown, canInteract: !Player.IsDead);
+
+        if (input.ToggleFlashlight && Items.HeldItem?.State.Definition.Id == "flashlight")
+            flashlightOn = !flashlightOn;
+        bool holdingFlashlight = Items.TryGetHeldLight(Camera.Position, Camera.Forward,
+            out Vector3 lightOrigin, out Vector3 lightDirection);
+        Lighting.FlashlightEnabled = flashlightOn && holdingFlashlight && !Player.IsDead;
+        Lighting.FlashlightPosition = lightOrigin;
+        Lighting.FlashlightDirection = lightDirection;
 
         if (input.ToggleLighting)
             Lighting.Enabled = !Lighting.Enabled;

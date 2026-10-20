@@ -45,6 +45,54 @@ internal static class ModelLoaderGraphicsChecks
             using var fallback = new Texture2D(GraphicsDevice, 1, 1);
             fallback.SetData(new[] { Color.White });
 
+            run("foliage cutoff parameter reaches the shader and holes do not write depth", () =>
+            {
+                Require(effect.Parameters["AlphaCutoff"] is not null,
+                    "The shader parameter name must exactly match CompiledModel's AlphaCutoff binding");
+                using var texture = new Texture2D(GraphicsDevice, 2, 1);
+                texture.SetData(new[] { Color.Transparent, new Color(8, 35, 10, 255) });
+                using var target = new RenderTarget2D(GraphicsDevice, 64, 64, false,
+                    SurfaceFormat.Color, DepthFormat.Depth24);
+                var lighting = new SceneLighting { Enabled = false };
+                foreach (string foliage in new[] { "Bush", "Tree", "Tree_01", "Background", "Background_01" })
+                {
+                    using CompiledModel leaves = QuadModel(foliage, foliage + ".png", texture, 0f);
+                    using CompiledModel background = QuadModel("Concrete", "concrete.png", fallback, 0.5f);
+                    GraphicsDevice.SetRenderTarget(target);
+                    try
+                    {
+                        GraphicsDevice.Clear(Color.CornflowerBlue);
+                        leaves.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity, lighting);
+                        background.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity, lighting);
+                    }
+                    finally { GraphicsDevice.SetRenderTarget(null); }
+                    var pixels = new Color[64 * 64];
+                    target.GetData(pixels);
+                    Color hole = pixels[32 * 64 + 16], leaf = pixels[32 * 64 + 48];
+                    Require(hole.R > 240 && hole.G > 240 && hole.B > 240,
+                        $"{foliage}: transparent pixels still occlude the background: {hole}");
+                    Require(leaf.R < 20 && leaf.G > 25 && leaf.G < 45 && leaf.B < 20,
+                        $"{foliage}: dark opaque leaves were discarded or overwritten: {leaf}");
+                }
+
+                CompiledModel QuadModel(string material, string textureName, Texture2D map, float z)
+                {
+                    var data = new ModelData();
+                    data.Nodes.Add(new("Quad", -1, System.Numerics.Matrix4x4.Identity));
+                    data.Meshes.Add(new MeshData
+                    {
+                        Node = 0, MaterialName = material, TextureName = textureName,
+                        Vertices = [Vertex(-1f, -1f, 0f), Vertex(1f, -1f, 1f),
+                            Vertex(1f, 1f, 1f), Vertex(-1f, 1f, 0f)],
+                        Indices = [0, 1, 2, 0, 2, 3]
+                    });
+                    return new CompiledModel(GraphicsDevice, data, [map], [], effect);
+
+                    VertexData Vertex(float x, float y, float u) => new(new(x, y, z),
+                        System.Numerics.Vector3.UnitZ, new(u, 0.5f), 0, 0, 0, 0, new(1f, 0f, 0f, 0f));
+                }
+            });
+
             run("loader reads a model file, draws it and disposes only owned resources", () =>
             {
                 var resources = new List<GraphicsResource>();

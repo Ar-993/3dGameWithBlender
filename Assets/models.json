@@ -33,12 +33,12 @@
     },
     {
       "name": "flashlight_model",
-      "source": "flashLight.fbx",
+      "source": "Flashlight/flashLight.fbx",
       "output": "../Content/Models/flashlight_model.3dmodel"
     },
     {
       "name": "flashlight_beam",
-      "source": "lightcone.fbx",
+      "source": "Flashlight/lightcone.fbx",
       "output": "../Content/Models/flashlight_beam.3dmodel"
     },
     {
