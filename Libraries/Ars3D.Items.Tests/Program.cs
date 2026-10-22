@@ -90,14 +90,14 @@ Run("one slot picks nearest on the action edge, freezes a held body and throws o
         "Pickup did not fill exactly one hidden slot");
     Near(near.Velocity, Vector3.Zero);
     Near(near.AngularVelocity, Vector3.Zero);
-    Require(!controller.TryPickUp(far), "A second body entered an occupied slot");
+    Require(!controller.TryPickUp(near), "The same item entered the inventory twice");
     ItemPose frozen = near.WorldPose;
     Update(controller, world, true, seconds: 0.1f);
     Near(near.Position, frozen.Position);
     SameRotation(near.Orientation, frozen.Orientation);
     Require(controller.HeldItem == near, "A held action button immediately threw the item");
     Update(controller, world, false);
-    Update(controller, world, true);
+    controller.Update(world, 0f, Vector3.Zero, new(0f, 1.6f, 0f), -Vector3.UnitZ, false, dropPressed: true);
     Require(controller.HeldItem is null && !near.IsHeld && near.Velocity.Z < -7f && near.AngularVelocity.Length() > 1f,
         "A new action edge did not release the body with throw motion");
     Require(world.LastPlacement is { } placement &&
@@ -125,7 +125,7 @@ Run("per-definition held yaw preserves a pitched held pose when released", () =>
     Require(Vector3.Dot(Vector3.Transform(Vector3.UnitX, frontPose.Orientation),
         Vector3.Transform(Vector3.UnitX, backPose.Orientation)) < -0.9999f, "Held yaw was shared globally instead of read from each definition");
     front.Update(world, 0f, Vector3.Zero, eye, forward, false);
-    front.Update(world, 0f, Vector3.Zero, eye, forward, true);
+    front.Update(world, 0f, Vector3.Zero, eye, forward, false, dropPressed: true);
     Near(first.Position, frontPose.Position);
     SameRotation(first.Orientation, frontPose.Orientation);
     Near(first.Center, Vector3.Transform(first.LocalCenter, frontPose.ToMatrix()));
@@ -151,8 +151,8 @@ Run("interaction settings and body settings remain isolated between controllers 
         standard.GetHeldPose(eye, -Vector3.UnitZ).Position) > 0.3f, "Held offsets changed globally");
     slow.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false);
     standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false);
-    slow.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, true);
-    standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, true);
+    slow.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false, dropPressed: true);
+    standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false, dropPressed: true);
     Near(itemA.Velocity, new(0f, 0f, -3f));
     Near(itemA.AngularVelocity, Vector3.Zero);
     Near(itemB.Velocity, new(0f, 1.7f, -7.5f));
@@ -161,7 +161,7 @@ Run("interaction settings and body settings remain isolated between controllers 
     Require(standard.TryPickUp(itemA), "The second player could not pick up the released item");
     Near(standard.GetHeldPose(eye, -Vector3.UnitZ).Position, eye + carry.HeldOffset);
     standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false);
-    standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, true);
+    standard.Update(world, 0f, Vector3.Zero, eye, -Vector3.UnitZ, false, dropPressed: true);
     Near(itemA.Velocity, new(0f, 0f, -7.5f));
     Near(itemA.AngularVelocity, Vector3.Zero);
 

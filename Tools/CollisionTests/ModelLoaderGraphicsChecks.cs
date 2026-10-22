@@ -75,6 +75,50 @@ internal static class ModelLoaderGraphicsChecks
                         $"{foliage}: dark opaque leaves were discarded or overwritten: {leaf}");
                 }
 
+                run("fog colors distant pixels and skips fully hidden mesh draw calls", () =>
+                {
+                    using CompiledModel distant = QuadModel("Concrete", "concrete.png", fallback, 0.5f);
+                    lighting.Fog.Enabled = true;
+                    lighting.Fog.StartDistance = 0.1f;
+                    lighting.Fog.EndDistance = 0.2f;
+                    lighting.Fog.Color = Color.Lime;
+                    GraphicsDevice.SetRenderTarget(target);
+                    try
+                    {
+                        GraphicsDevice.Clear(Color.Red);
+                        distant.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity, lighting);
+                    }
+                    finally { GraphicsDevice.SetRenderTarget(null); }
+                    var pixels = new Color[64 * 64];
+                    target.GetData(pixels);
+                    Color fogPixel = pixels[32 * 64 + 32];
+                    Require(fogPixel.G > 240 && fogPixel.R < 10 && fogPixel.B < 10,
+                        $"Distant pixel does not match fog: {fogPixel}");
+                    lighting.Fog.CullFullyFoggedMeshes = true;
+                    GraphicsDevice.SetRenderTarget(target);
+                    try
+                    {
+                        GraphicsDevice.Clear(Color.Red);
+                        var before = GraphicsDevice.Metrics.DrawCount;
+                        distant.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity, lighting);
+                        Require(GraphicsDevice.Metrics.DrawCount == before,
+                            "Fully fogged static mesh still issued a draw call");
+                    }
+                    finally { GraphicsDevice.SetRenderTarget(null); }
+                    target.GetData(pixels);
+                    Require(pixels[32 * 64 + 32] == Color.Red, "Culled mesh changed the render target");
+                    var box = new BoundingBox(new(-1f), new(1f));
+                    lighting.Fog.EndDistance = 28f;
+                    Require(!lighting.Fog.IsFullyFogged(box, Matrix.CreateScale(10f) *
+                        Matrix.CreateRotationY(0.5f) * Matrix.CreateTranslation(30f, 0f, 0f), Vector3.Zero),
+                        "Large rotated mesh intersecting visible range was culled");
+                    Require(lighting.Fog.IsFullyFogged(box, Matrix.CreateTranslation(40f, 0f, 0f), Vector3.Zero),
+                        "Distant mesh was retained");
+                    lighting.Fog.Enabled = false;
+                    Require(!lighting.Fog.IsFullyFogged(box, Matrix.CreateTranslation(40f, 0f, 0f), Vector3.Zero),
+                        "Disabling fog did not disable distance culling");
+                });
+
                 CompiledModel QuadModel(string material, string textureName, Texture2D map, float z)
                 {
                     var data = new ModelData();

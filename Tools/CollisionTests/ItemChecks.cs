@@ -51,7 +51,7 @@ internal static class ItemChecks
                 $"Slope did not affect item motion: {item.Position}");
         });
 
-        run("one invisible slot picks the nearest item on the E rising edge", () =>
+        run("E fills a slot and T releases it without retaining a held reference", () =>
         {
             Level level = new();
             ItemInteraction interaction = new();
@@ -68,9 +68,10 @@ internal static class ItemChecks
             Update(interaction, level, true);
             Require(interaction.HeldItem == near, "Holding E immediately threw the item");
             Update(interaction, level, false);
-            Update(interaction, level, true);
+            interaction.Update(level, 0f, Vector3.Zero, new(0f, 1.6f, 0f),
+                Vector3.Forward, false, dropPressed: true);
             Require(interaction.HeldItem is null && !near.IsHeld && near.Velocity.Z < -7f,
-                "Second E press did not throw in the look direction");
+                "T did not throw in the look direction");
         });
 
         run("held items leave world physics until they are released", () =>
@@ -96,7 +97,7 @@ internal static class ItemChecks
             Vector3 eye = new(0f, 1.6f, 0f);
             Vector3 forward = new(0f, 0.6f, -0.8f);
             interaction.Update(level, 0f, Vector3.Zero, eye, forward, false);
-            interaction.Update(level, 0f, Vector3.Zero, eye, forward, true);
+            interaction.Update(level, 0f, Vector3.Zero, eye, forward, false, dropPressed: true);
 
             Vector3 cameraUp = Vector3.Cross(Vector3.Right, forward);
             Vector3 heldOffset = ItemMath.ToGame(item.State.Definition.Interaction.HeldOffset);
@@ -138,7 +139,7 @@ internal static class ItemChecks
             interaction.Update(level, 0f, new(-0.65f, 0f, 0f), eye, Vector3.Right, true);
             Require(interaction.HeldItem == item, "Fixture item was not picked up");
             interaction.Update(level, 0f, new(-0.65f, 0f, 0f), eye, Vector3.Right, false);
-            interaction.Update(level, 0f, new(-0.65f, 0f, 0f), eye, Vector3.Right, true);
+            interaction.Update(level, 0f, new(-0.65f, 0f, 0f), eye, Vector3.Right, false, dropPressed: true);
             Require(item.Position.X <= -item.Radius,
                 $"Item was released through the wall: {item.Position}");
             item.UpdatePhysics(level, 0.1f);
@@ -159,7 +160,7 @@ internal static class ItemChecks
             interaction.Update(level, 0f, feet, eye, forward, true);
             Require(interaction.HeldItem == item, "Fixture item was not picked up");
             interaction.Update(level, 0f, feet, eye, forward, false);
-            interaction.Update(level, 0f, feet, eye, forward, true);
+            interaction.Update(level, 0f, feet, eye, forward, false, dropPressed: true);
             Require(item.Position.X <= -item.Radius,
                 $"Camera pitch put the release point behind the wall: {item.Position}");
             item.UpdatePhysics(level, 0.1f);

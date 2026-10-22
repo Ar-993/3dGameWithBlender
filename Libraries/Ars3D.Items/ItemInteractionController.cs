@@ -20,7 +20,7 @@ public sealed class ItemInteractionController
     public int SelectedSlot { get; private set; }
     public IReadOnlyList<ItemInstance> Items => readOnlyItems;
     public ItemInteractionSettings Settings { get; }
-    public ItemInstance? HeldItem { get; private set; }
+    public ItemInstance? HeldItem => slots[SelectedSlot];
     public ItemInstance? NearbyItem { get; private set; }
 
     public ItemInteractionController(ItemInteractionSettings? settings = null)
@@ -101,7 +101,7 @@ public sealed class ItemInteractionController
 
     public void SelectSlot(int index)
     {
-        if ((uint)index >= SlotCount)
+        if (index < 0 || index >= SlotCount)
             throw new ArgumentOutOfRangeException(nameof(index));
         SelectedSlot = index;
     }
@@ -121,10 +121,18 @@ public sealed class ItemInteractionController
     public bool TryPickUp(ItemInstance item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        if (HeldItem is not null || item.IsHeld)
+        if (item.IsHeld)
             return false;
+
+        int destination = SelectedSlot;
+        if (slots[destination] is not null)
+            destination = Array.IndexOf(slots, null);
+        if (destination < 0)
+            return false;
+
         item.PickUp();
-        HeldItem = item;
+        slots[destination] = item;
+        SelectedSlot = destination;
         return true;
     }
 

@@ -11,6 +11,7 @@ int failures = 0;
 
 AnimationChecks.Run(Run);
 ItemChecks.Run(Run);
+InventoryChecks.Run(Run);
 RigidItemChecks.Run(Run);
 RigidInteractionChecks.Run(Run);
 ItemModelTransformChecks.Run(Run);

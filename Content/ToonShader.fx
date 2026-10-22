@@ -11,6 +11,10 @@ matrix World;
 matrix View;
 matrix Projection;
 float3 CameraPosition;
+float FogEnabled;
+float3 FogColor;
+float FogStart;
+float FogEnd;
 texture ModelTexture;
 
 float LightingEnabled;
@@ -146,6 +150,9 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float3 finalColor = lerp(texColor.rgb, litColor, LightingEnabled);
     float finalAlpha = saturate(rawTex.a * Alpha);
     
+    float fogDistance = distance(CameraPosition, input.WorldPosition);
+    float fogAmount = saturate((fogDistance - FogStart) / max(FogEnd - FogStart, 0.001)) * FogEnabled;
+    finalColor = lerp(finalColor, FogColor, fogAmount);
     return float4(finalColor, finalAlpha);
 }
 

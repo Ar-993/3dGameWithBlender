@@ -138,7 +138,8 @@ internal sealed class CompiledModel : IDisposable
                 indexBuffer,
                 meshEffect,
                 CreateIdentityBoneTransforms(),
-                texture);
+                texture,
+                BoundingBox.CreateFromPoints(sourceMesh.Vertices.Select(v => ToXnaVector3(v.Position))));
         }
         catch
         {
@@ -284,10 +285,14 @@ internal sealed class CompiledModel : IDisposable
         Vector3 cameraPosition,
         SceneLighting lighting)
     {
+        Matrix meshWorld = PrepareMeshTransforms(runtimeMesh, modelWorld);
+        // Animated bounds change with the pose; do not cull them using static vertex bounds.
+        if (runtimeMesh.Source.Bones.Length == 0 &&
+            lighting.Fog.IsFullyFogged(runtimeMesh.LocalBounds, meshWorld, cameraPosition))
+            return;
+
         graphicsDevice.SetVertexBuffer(runtimeMesh.VertexBuffer);
         graphicsDevice.Indices = runtimeMesh.IndexBuffer;
-
-        Matrix meshWorld = PrepareMeshTransforms(runtimeMesh, modelWorld);
         ApplyEffectParameters(
             runtimeMesh,
             meshWorld,
@@ -382,7 +387,8 @@ internal sealed class CompiledModel : IDisposable
         IndexBuffer IndexBuffer,
         Effect Effect,
         Matrix[] BoneTransforms,
-        Texture2D Texture) : IDisposable
+        Texture2D Texture,
+        BoundingBox LocalBounds) : IDisposable
     {
         public void Dispose()
         {

@@ -54,7 +54,7 @@ internal static class RigidInteractionChecks
                 "The rotated pickup shape bypassed wall occlusion");
         });
 
-        run("E pickup stops rigid angular motion and E throw restores tumbling", () =>
+        run("E pickup stops rigid angular motion and T throw restores tumbling", () =>
         {
             Level level = new();
             WorldItem item = Toy(new(0.4f, 0f, 0f), new(3f, 1f, 0.25f));
@@ -72,9 +72,9 @@ internal static class RigidInteractionChecks
             Require(interaction.HeldItem == item, "Holding E released the body without a new press");
 
             interaction.Update(level, 0f, Vector3.Zero, eye, Vector3.Forward, false);
-            interaction.Update(level, 0f, Vector3.Zero, eye, Vector3.Forward, true);
+            interaction.Update(level, 0f, Vector3.Zero, eye, Vector3.Forward, false, dropPressed: true);
             Require(interaction.HeldItem is null && !item.IsHeld,
-                "A second E press did not release the rigid item");
+                "T did not release the rigid item");
             Require(item.AngularVelocity.LengthSquared() > 1f && item.Velocity.Z < -7f,
                 "Throwing did not restore physical spin and forward motion");
             Quaternion releaseOrientation = item.Orientation;
@@ -125,7 +125,7 @@ internal static class RigidInteractionChecks
             interaction.Update(level, 0f, feet, eye, forward, true);
             Require(interaction.HeldItem == item, "Fixture rigid item was not picked up");
             interaction.Update(level, 0f, feet, eye, forward, false);
-            interaction.Update(level, 0f, feet, eye, forward, true);
+            interaction.Update(level, 0f, feet, eye, forward, false, dropPressed: true);
             Require(item.Bounds.Max.X <= 0.003f,
                 $"Release placed part of the rotated toy through the wall: {item.Bounds}");
 

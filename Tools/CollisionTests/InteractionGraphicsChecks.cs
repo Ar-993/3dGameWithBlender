@@ -2,6 +2,7 @@ using System.Reflection;
 using _3DLight;
 using _3DLight.Models;
 using _3DLight.Items;
+using _3DLight.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -156,7 +157,17 @@ internal static class InteractionGraphicsChecks
                     Vector3 eye = new(0f, 1.6f, 0f);
                     pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, false);
                     pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, true);
-                    Require(pickup.HeldItem == flashlight, "E did not pick up the flashlight");
+                    Require(pickup.HeldItem == flashlight && pickup.GetSlot(0) == flashlight,
+                        "E did not place the flashlight in its active slot");
+                    using var icons = new InventoryIconCache(GraphicsDevice);
+                    icons.Prepare(pickup.GetSlot(0));
+                    Texture2D icon = icons.Get(flashlight) ?? throw new Exception("No flashlight icon");
+                    var pixels = new Color[icon.Width * icon.Height];
+                    icon.GetData(pixels);
+                    Require(pixels.Any(pixel => pixel.A > 0) && pixels.Any(pixel => pixel.A == 0),
+                        "Icon must contain the model and a transparent background");
+                    icons.Prepare(flashlight);
+                    Require(ReferenceEquals(icon, icons.Get(flashlight)), "Icon was not cached");
                     foreach (Vector3 forward in new[] { Vector3.Forward, Vector3.Right,
                         Vector3.Normalize(new Vector3(0.3f, 0.5f, -1f)) })
                     {
@@ -167,8 +178,8 @@ internal static class InteractionGraphicsChecks
                         Require(Vector3.Distance(origin, eye) < 2f, "Lens was not normalized with the model");
                     }
                     pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, false);
-                    pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, true);
-                    Require(pickup.HeldItem is null, "Second E did not release flashlight");
+                    pickup.Update(emptyLevel, 0f, Vector3.Zero, eye, Vector3.Forward, false, dropPressed: true);
+                    Require(pickup.HeldItem is null, "T did not release flashlight");
                     Require(!pickup.TryGetHeldLight(eye, Vector3.Forward, out _, out _),
                         "Released flashlight still emits held light");
                 });
@@ -212,11 +223,11 @@ internal static class InteractionGraphicsChecks
                     Capture("held-item.png");
                 });
 
-                run("the next E press throws Santa and renders its physical flight", () =>
+                run("T throws Santa and renders its physical flight", () =>
                 {
                     Require(interaction.HeldItem == santa, "Santa was not held before the throw");
                     interaction.Update(level, 0f, playerFeet, camera.Position, camera.Forward, eDown: false);
-                    interaction.Update(level, 0f, playerFeet, camera.Position, camera.Forward, eDown: true);
+                    interaction.Update(level, 0f, playerFeet, camera.Position, camera.Forward, eDown: false, dropPressed: true);
                     Require(interaction.HeldItem is null && !santa.IsHeld && santa.Velocity.Z < 0f,
                         "The second E press did not throw Santa forward");
                     Vector3 release = santa.Center;
@@ -250,6 +261,7 @@ internal static class InteractionGraphicsChecks
                 {
                     try
                     {
+                        ui.SetInventory(interaction);
                         GraphicsDevice.SetRenderTarget(target);
                         GraphicsDevice.Clear(lighting.Fog.Color);
                         GraphicsDevice.BlendState = BlendState.Opaque;
