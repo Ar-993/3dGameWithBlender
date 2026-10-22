@@ -55,6 +55,7 @@ internal sealed class GameplayScene : IGameScene
 
     public void Draw(GameTime gameTime)
     {
+        hud.PrepareInventory(world.Items);
         world.Draw();
         hud.Draw(world.Player, world.Skeleton, world.Items, world.Session.Version,
             world.Lighting.Enabled, world.ShowCollisionDebug,

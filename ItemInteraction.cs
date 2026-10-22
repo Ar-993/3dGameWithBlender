@@ -15,6 +15,8 @@ internal sealed class ItemInteraction
     public IReadOnlyList<WorldItem> Items => items;
     public WorldItem? HeldItem => FindView(controller.HeldItem);
     public WorldItem? NearbyItem => FindView(controller.NearbyItem);
+    public int SelectedSlot => controller.SelectedSlot;
+    public WorldItem? GetSlot(int index) => FindView(controller.Slots[index]);
 
     public ItemInteraction(ItemInteractionSettings? settings = null) =>
         controller = new ItemInteractionController(settings);
@@ -32,10 +34,32 @@ internal sealed class ItemInteraction
 
     public void SuppressInput(bool actionDown) => controller.SyncInput(actionDown);
 
-    public void Update(Level level, float seconds, Vector3 playerFeet, Vector3 eye,
-        Vector3 forward, bool eDown, bool canInteract = true) =>
-        controller.Update(level.ItemWorld, seconds, ItemMath.ToLibrary(playerFeet),
-            ItemMath.ToLibrary(eye), ItemMath.ToLibrary(forward), eDown, canInteract);
+    public void Update(
+    Level level,
+    float seconds,
+    Vector3 playerFeet,
+    Vector3 eye,
+    Vector3 forward,
+    bool eDown,
+    bool canInteract = true,
+    int selectedSlot = -1,
+    bool dropPressed = false)
+    {
+        var playerPosition = ItemMath.ToLibrary(playerFeet);
+        var eyePosition = ItemMath.ToLibrary(eye);
+        var lookDirection = ItemMath.ToLibrary(forward);
+
+        controller.Update(
+            world: level.ItemWorld,
+            seconds: seconds,
+            playerFeet: playerPosition,
+            eyePosition: eyePosition,
+            forward: lookDirection,
+            actionDown: eDown,
+            canInteract: canInteract,
+            selectedSlot: selectedSlot,
+            dropPressed: dropPressed);
+    }
 
     public bool TryGetHeldLight(Vector3 eye, Vector3 forward, out Vector3 origin, out Vector3 direction)
     {

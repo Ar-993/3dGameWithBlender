@@ -74,8 +74,27 @@ internal sealed class GameplayWorld : IDisposable
         bool interactDown = input.Keyboard.IsKeyDown(Keys.E);
         if (input.SuppressInteraction)
             Items.SuppressInput(interactDown);
-        Items.Update(Session.Level, seconds, Player.Position, Camera.Position,
-            Camera.Forward, interactDown, canInteract: !Player.IsDead);
+        int selectedSlot = -1;
+        bool dropPressed = false;
+        bool canInteract = !Player.IsDead;
+
+        if (!input.SuppressInteraction)
+        {
+            selectedSlot = input.SelectedSlot;
+            dropPressed = input.DropPressed;
+        }
+
+        Items.Update(
+            Session.Level,
+            seconds,
+            Player.Position,
+            Camera.Position,
+            Camera.Forward,
+            interactDown,
+            canInteract,
+            selectedSlot,
+            dropPressed);
+
 
         if (input.ToggleFlashlight && Items.HeldItem?.State.Definition.Id == "flashlight")
             flashlightOn = !flashlightOn;

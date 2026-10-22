@@ -11,7 +11,13 @@ public sealed class ItemInteractionController
     private readonly Dictionary<Guid, ItemInstance> itemsById = [];
     private readonly ReadOnlyCollection<ItemInstance> readOnlyItems;
     private bool wasActionDown;
+    public const int SlotCount = 4;
+    private readonly ItemInstance?[] slots = new ItemInstance?[SlotCount];
+    private readonly ReadOnlyCollection<ItemInstance?> readOnlySlots;
 
+    public IReadOnlyList<ItemInstance?> Slots => readOnlySlots;
+
+    public int SelectedSlot { get; private set; }
     public IReadOnlyList<ItemInstance> Items => readOnlyItems;
     public ItemInteractionSettings Settings { get; }
     public ItemInstance? HeldItem { get; private set; }
@@ -21,6 +27,7 @@ public sealed class ItemInteractionController
     {
         Settings = settings ?? new ItemInteractionSettings();
         readOnlyItems = items.AsReadOnly();
+        readOnlySlots = Array.AsReadOnly(slots);
     }
 
     public void Add(ItemInstance item)
@@ -50,7 +57,9 @@ public sealed class ItemInteractionController
         Vector3 eyePosition,
         Vector3 forward,
         bool actionDown,
-        bool canInteract = true)
+        bool canInteract = true,
+        int selectedSlot = -1,
+        bool dropPressed = false)
     {
         ArgumentNullException.ThrowIfNull(world);
         foreach (ItemInstance item in items)
@@ -62,26 +71,51 @@ public sealed class ItemInteractionController
 
         if (!canInteract)
         {
-            ReleaseHeldItem(world, eyePosition, forward, throwItem: false);
+            // Preserve the former behavior on death: release owned items.
+            int previousSlot = SelectedSlot;
+            for (int i = 0; i < SlotCount; i++)
+            {
+                SelectedSlot = i;
+                ReleaseHeldItem(world, eyePosition, forward, throwItem: false);
+            }
+            SelectedSlot = previousSlot;
             return;
         }
 
-        if (HeldItem is null)
-            NearbyItem = FindNearest(world, playerFeet, eyePosition);
-        if (!pressed)
-            return;
+        if (selectedSlot >= 0)
+            SelectSlot(selectedSlot);
 
-        if (HeldItem is not null)
+        // T wins if E and T are pressed on the same frame.
+        if (dropPressed)
+        {
             ReleaseHeldItem(world, eyePosition, forward, throwItem: true);
-        else if (NearbyItem is not null && TryPickUp(NearbyItem))
+            return;
+        }
+
+        if (Array.IndexOf(slots, null) >= 0)
+            NearbyItem = FindNearest(world, playerFeet, eyePosition);
+
+        if (pressed && NearbyItem is not null && TryPickUp(NearbyItem))
             NearbyItem = null;
     }
+
+    public void SelectSlot(int index)
+    {
+        if ((uint)index >= SlotCount)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        SelectedSlot = index;
+    }
+
 
     // Use this same pose to draw the held model and to release it without a visual jump.
     public ItemPose GetHeldPose(Vector3 eyePosition, Vector3 forward)
     {
-        ItemInstance item = HeldItem ?? throw new InvalidOperationException("The inventory is empty.");
-        return CreatePose(item, eyePosition, CreateFrame(forward));
+        ItemInstance? item = HeldItem;
+
+        if (item is not null)
+            return CreatePose(item, eyePosition, CreateFrame(forward));
+
+        throw new InvalidOperationException("The inventory is empty.");
     }
 
     public bool TryPickUp(ItemInstance item)
@@ -117,28 +151,59 @@ public sealed class ItemInteractionController
         return nearest;
     }
 
-    private void ReleaseHeldItem(ICollisionWorld world, Vector3 eyePosition, Vector3 forward, bool throwItem)
+    private void ReleaseHeldItem(ICollisionWorld world, Vector3 eyePosition,
+        Vector3 forward, bool throwItem)
     {
         ItemInstance? item = HeldItem;
         if (item is null)
             return;
+
         Frame frame = CreateFrame(forward);
+        ItemPose pose = CalculateReleasePose(world, item, eyePosition, frame);
+        Vector3 velocity = CalculateReleaseVelocity(item, frame, throwItem);
+        Vector3 spin = CalculateReleaseSpin(item, frame, throwItem);
+
+        item.Release(pose.Position, velocity, pose.Orientation, spin);
+        slots[SelectedSlot] = null;
+    }
+
+    private ItemPose CalculateReleasePose(ICollisionWorld world, ItemInstance item,
+        Vector3 eyePosition, Frame frame)
+    {
         ItemPose heldPose = CreatePose(item, eyePosition, frame);
-        ItemCarrySettings carry = item.Definition.Interaction;
         Vector3 centerOffset = Vector3.Transform(item.LocalCenter, heldPose.Orientation);
-        Vector3 sourceCenter = eyePosition - item.LocalCenter;
         Vector3 desiredCenter = heldPose.Position + centerOffset;
+        Vector3 safeCenter = ResolveReleaseCenter(world, item, eyePosition, desiredCenter);
+
+        return heldPose with { Position = safeCenter - centerOffset };
+    }
+
+    private Vector3 ResolveReleaseCenter(ICollisionWorld world, ItemInstance item,
+        Vector3 eyePosition, Vector3 desiredCenter)
+    {
+        Vector3 sourceCenter = eyePosition - item.LocalCenter;
         float radius = item.BoundingRadius + Settings.ReleaseClearance;
-        Vector3 releaseCenter = world.ResolveSpherePlacement(sourceCenter, desiredCenter, radius);
-        var releasePose = heldPose with { Position = releaseCenter - centerOffset };
-        Vector3 velocity = throwItem
-            ? frame.Forward * Settings.ThrowSpeed + Vector3.UnitY * carry.ThrowLift
-            : Vector3.Zero;
-        Vector3 spin = throwItem
-            ? frame.Right * carry.ThrowSpin.X + frame.Up * carry.ThrowSpin.Y + frame.Forward * carry.ThrowSpin.Z
-            : Vector3.Zero;
-        item.Release(releasePose.Position, velocity, releasePose.Orientation, spin);
-        HeldItem = null;
+        return world.ResolveSpherePlacement(sourceCenter, desiredCenter, radius);
+    }
+
+    private Vector3 CalculateReleaseVelocity(ItemInstance item, Frame frame, bool throwItem)
+    {
+        if (!throwItem)
+            return Vector3.Zero;
+
+        float lift = item.Definition.Interaction.ThrowLift;
+        return frame.Forward * Settings.ThrowSpeed + Vector3.UnitY * lift;
+    }
+
+    private static Vector3 CalculateReleaseSpin(ItemInstance item, Frame frame, bool throwItem)
+    {
+        if (!throwItem)
+            return Vector3.Zero;
+
+        Vector3 spin = item.Definition.Interaction.ThrowSpin;
+        return frame.Right * spin.X
+            + frame.Up * spin.Y
+            + frame.Forward * spin.Z;
     }
 
     // Положение предмета относительно камеры, общее для удержания и броска.
@@ -207,7 +272,7 @@ public sealed class ItemInteractionController
         float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
 }
 
-public sealed class ItemInteractionSettings
+public sealed class ItemInteractionSettings // вычленить
 {
     public float PickupDistance { get; }
     public float ThrowSpeed { get; }

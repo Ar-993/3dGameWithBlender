@@ -71,13 +71,8 @@ internal sealed class GameplayHud : IDisposable
             $"COLLIDERS: {(showColliders ? "ON" : "OFF")} (O)";
         ui.SetHudText(playerText, skeletonText, performanceText, skeleton.IsDead);
 
-        WorldItem? interactionItem = interaction.HeldItem ?? interaction.NearbyItem;
-        string? itemName = interactionItem?.Name;
-        if (interaction.HeldItem?.State.Definition.Id == "flashlight")
-            itemName += " [F: ON/OFF]";
-        ui.SetInteractionText(itemName,
-            interaction.HeldItem is not null,
-            canInteract);
+        ui.SetInteractionText(interaction.NearbyItem?.Name,
+    isHeld: false, isVisible: canInteract);
         ui.Draw();
     }
 
@@ -90,4 +85,10 @@ internal sealed class GameplayHud : IDisposable
         if (initializationStarted)
             ui.Dispose();
     }
+
+    public void PrepareInventory(ItemInteraction interaction)
+    {
+        ui.SetInventory(interaction);
+    }
+
 }

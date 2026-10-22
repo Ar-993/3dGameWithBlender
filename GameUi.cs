@@ -1,10 +1,11 @@
+using _3DLight;
+using _3DLight.Ui;
 using Gum;
 using Gum.Forms;
 using Gum.GueDeriving;
 using Gum.Wireframe;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using _3DLight.Ui;
 using BlendState = Microsoft.Xna.Framework.Graphics.BlendState;
 
 /// <summary>
@@ -24,6 +25,10 @@ internal sealed class GameUi : IDisposable
     private bool interactionItemIsHeld;
     private bool interactionIsVisible;
     private bool isPaused;
+    private readonly WorldItem?[] inventorySlots = new WorldItem?[4];
+    private InventoryIconCache inventoryIcons = null!;
+    private int selectedInventorySlot;
+
 
     public void Initialize(Game game)
     {
@@ -41,6 +46,8 @@ internal sealed class GameUi : IDisposable
         spriteBatch = new SpriteBatch(game.GraphicsDevice);
         pixel = new Texture2D(game.GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
+
+        inventoryIcons = new InventoryIconCache(game.GraphicsDevice);
     }
 
     public void Update(GameTime gameTime)
@@ -92,6 +99,8 @@ internal sealed class GameUi : IDisposable
             DepthStencilState.None,
             RasterizerState.CullNone);
 
+        DrawInventory(viewport.Height);
+
         DrawCrosshair(viewport.Width / 2, viewport.Height / 2);
 
         if (interactionItemName is not null && !interactionItemIsHeld)
@@ -102,7 +111,8 @@ internal sealed class GameUi : IDisposable
     }
 
     public void Dispose()
-    {
+    {   
+        inventoryIcons?.Dispose();
         gum.Uninitialize();
         spriteBatch?.Dispose();
         pixel?.Dispose();
@@ -113,6 +123,67 @@ internal sealed class GameUi : IDisposable
         spriteBatch.Draw(pixel, new Rectangle(x, y, 3, 3), new Color(0, 0, 0, 150));
         spriteBatch.Draw(pixel, new Rectangle(x - 1, y - 1, 2, 2), new Color(230, 230, 230, 210));
     }
+
+    public void SetInventory(ItemInteraction interaction)
+    {
+        selectedInventorySlot = interaction.SelectedSlot;
+        for (int i = 0; i < inventorySlots.Length; i++)
+        {
+            WorldItem? item = interaction.GetSlot(i);
+            inventorySlots[i] = item;
+            inventoryIcons.Prepare(item);
+        }
+    }
+
+    private void DrawInventory(int screenHeight)
+    {
+        const int size = 64, gap = 8, left = 20;
+        int top = screenHeight - size - 24;
+        for (int i = 0; i < inventorySlots.Length; i++)
+        {
+            var rect = new Rectangle(left + i * (size + gap), top, size, size);
+            bool selected = i == selectedInventorySlot;
+            spriteBatch.Draw(pixel, rect, new Color(18, 20, 24, 150));
+            Color border = selected ? Color.Gold : new Color(160, 160, 160, 180);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, size, 2), border);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, size, 2), border);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, size), border);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, size), border);
+
+            WorldItem? item = inventorySlots[i];
+            if (item is not null)
+            {
+                Texture2D? icon = inventoryIcons.Get(item);
+                if (icon is not null)
+                {
+                    float scale = MathF.Min(44f / icon.Width, 44f / icon.Height);
+                    int width = Math.Max(1, (int)(icon.Width * scale));
+                    int height = Math.Max(1, (int)(icon.Height * scale));
+                    var destination = new Rectangle(rect.Center.X - width / 2,
+                        rect.Center.Y - height / 2 + 3, width, height);
+                    spriteBatch.Draw(icon, destination, Color.White);
+                }
+                else
+                {
+                    PsxPixelFont.Draw(spriteBatch, pixel, "?",
+                        new Vector2(rect.X + 27, rect.Y + 25), Color.White);
+                }
+            }
+            PsxPixelFont.Draw(spriteBatch, pixel, (i + 1).ToString(),
+                new Vector2(rect.X + 5, rect.Y + 5), Color.White, scale: 1);
+        }
+
+        string hint = "1-4: СЛОТ   E: ВЗЯТЬ   T: ВЫБРОСИТЬ";
+        if (inventorySlots[selectedInventorySlot] is { } active)
+        {
+            hint = active.Name + "   T: ВЫБРОСИТЬ";
+            if (active.State.Definition.Id == "flashlight")
+                hint += "   F: СВЕТ";
+        }
+        PsxPixelFont.Draw(spriteBatch, pixel, hint,
+            new Vector2(left, top - 20), Color.White, scale: 1);
+    }
+
 
     private void DrawPickupHint(int screenWidth, int screenHeight)
     {

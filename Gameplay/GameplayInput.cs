@@ -11,7 +11,10 @@ internal readonly record struct GameplayInputFrame(
     Vector2 LookDelta,
     bool ToggleLighting,
     bool ToggleColliders,
-    bool ToggleFlashlight = false);
+    bool ToggleFlashlight = false,
+    int SelectedSlot = -1,
+    bool DropPressed = false);
+
 
 /// <summary>
 /// Owns gameplay input history, focus, pause, and cursor capture.
@@ -114,15 +117,50 @@ internal sealed class GameplayInput
         bool attackPressed = MouseCaptured && !capturedThisFrame &&
             mouse.LeftButton == ButtonState.Pressed &&
             previousMouse.LeftButton == ButtonState.Released;
+
         bool toggleFlashlight = MouseCaptured && !capturedThisFrame && !justActivated &&
             keyboard.IsKeyDown(Keys.F) && previousKeyboard.IsKeyUp(Keys.F);
+
         bool toggleLighting = keyboard.IsKeyDown(Keys.L) && previousKeyboard.IsKeyUp(Keys.L);
+
         bool toggleColliders = keyboard.IsKeyDown(Keys.O) && previousKeyboard.IsKeyUp(Keys.O);
+
         bool suppressInteraction = !MouseCaptured || capturedThisFrame || justActivated;
 
+        bool Pressed(Keys key)
+        {
+            return keyboard.IsKeyDown(key)
+                && previousKeyboard.IsKeyUp(key);
+        }
+
+        // По умолчанию слот не переключаем.
+        int selectedSlot = -1;
+        bool dropPressed = false;
+
+        // Обрабатываем инвентарь, только если ввод разрешён.
+        if (!suppressInteraction)
+        {
+            if (Pressed(Keys.D1) || Pressed(Keys.NumPad1))
+                selectedSlot = 0;
+            else if (Pressed(Keys.D2) || Pressed(Keys.NumPad2))
+                selectedSlot = 1;
+            else if (Pressed(Keys.D3) || Pressed(Keys.NumPad3))
+                selectedSlot = 2;
+            else if (Pressed(Keys.D4) || Pressed(Keys.NumPad4))
+                selectedSlot = 3;
+
+            dropPressed = Pressed(Keys.T);
+        }
+
+        // Запоминаем состояние кнопок после проверки нажатий.
         SynchronizeInput(keyboard, mouse);
-        return new GameplayInputFrame(keyboard, true, suppressInteraction,
-            attackPressed, lookDelta, toggleLighting, toggleColliders, toggleFlashlight);
+
+        return new GameplayInputFrame(
+            keyboard, true, suppressInteraction,
+            attackPressed, lookDelta,
+            toggleLighting, toggleColliders, toggleFlashlight,
+            selectedSlot, dropPressed);
+
     }
 
     private Point WindowCenter => new(
