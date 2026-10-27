@@ -1,0 +1,9 @@
+[
+  {
+    "node": "Door_03",
+    "displayName": "ДВЕРЬ МАГАЗИНА",
+    "openAngleDegrees": 100,
+    "degreesPerSecond": 180,
+    "interactionDistance": 2.5
+  }
+]

@@ -96,6 +96,7 @@ internal sealed class GameplayInputState
             AttackPressed = MouseCaptured && !capturedThisFrame && leftClick,
             LookDelta = lookDelta,
             InteractDown = keyboard.IsKeyDown(Keys.E),
+            InteractPressed = !suppressInteraction && Pressed(keyboard, Keys.E),
             SelectedSlot = suppressInteraction ? -1 : ReadSelectedSlot(keyboard),
             DropPressed = !suppressInteraction && Pressed(keyboard, Keys.T),
             ToggleFlashlight = !suppressInteraction && Pressed(keyboard, Keys.F),

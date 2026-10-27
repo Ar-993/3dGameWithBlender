@@ -53,13 +53,16 @@ namespace _3DLight.Collision
             return new BoundingBox(minimum, maximum);
         }
 
-        public static List<Level.TriangleCollider> BuildTriangleColliders(ModelData modelData, Matrix[] bindPoseGlobalTransforms)
+        public static List<Level.TriangleCollider> BuildTriangleColliders(
+            ModelData modelData, Matrix[] bindPoseGlobalTransforms, IReadOnlySet<int>? meshFilter = null)
         {
             const float minimumTriangleAreaSquared = 0.00000001f;
             var colliders = new List<Level.TriangleCollider>();
 
             for (int meshIndex = 0; meshIndex < modelData.Meshes.Count; meshIndex++)
             {
+                if (meshFilter is not null && !meshFilter.Contains(meshIndex))
+                    continue;
                 MeshData mesh = modelData.Meshes[meshIndex];
                 string nodeName = modelData.Nodes[mesh.Node].Name;
                 if (mesh.Vertices.Length == 0 || mesh.Indices.Length < 3)

@@ -15,12 +15,12 @@ internal static class GameplayInputChecks
             GameplayInputFrame first = Read(input, held, click: true);
             Require(first.Move == Vector2.One && first.JumpPressed && first.AttackPressed,
                 "Movement, jump or attack was not mapped to an action");
-            Require(first.InteractDown && first.SelectedSlot == 1 && first.DropPressed &&
+            Require(first.InteractDown && first.InteractPressed && first.SelectedSlot == 1 && first.DropPressed &&
                 first.ToggleFlashlight && first.ToggleLighting && first.ToggleColliders,
                 "Item or debug controls were not mapped");
 
             GameplayInputFrame repeated = Read(input, held, click: true);
-            Require(repeated.Move == Vector2.One && repeated.InteractDown &&
+            Require(repeated.Move == Vector2.One && repeated.InteractDown && !repeated.InteractPressed &&
                 !repeated.JumpPressed && !repeated.AttackPressed && !repeated.DropPressed &&
                 !repeated.ToggleFlashlight && !repeated.ToggleLighting && !repeated.ToggleColliders &&
                 repeated.SelectedSlot == -1, "Holding buttons repeated an edge action");
@@ -40,7 +40,7 @@ internal static class GameplayInputChecks
             KeyboardState held = new(Keys.Space, Keys.E, Keys.D2, Keys.T, Keys.F);
             GameplayInputFrame paused = Read(input, held, click: true);
             Require(!paused.CanUpdateWorld && paused.SuppressInteraction && paused.InteractDown &&
-                !paused.JumpPressed && !paused.AttackPressed && paused.SelectedSlot == -1,
+                !paused.JumpPressed && !paused.AttackPressed && !paused.InteractPressed && paused.SelectedSlot == -1,
                 "Paused input exposed actions or lost the held E state");
 
             GameplayInputFrame resumed = Read(input,

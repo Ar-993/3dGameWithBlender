@@ -29,6 +29,12 @@ public partial class Level
         foreach (int index in collisionCandidateIndices)
             collisionCandidates.Add(collisionIndex[index]);
 
+        // Движущиеся створки проверяются отдельно: статическое дерево уровня не пересобирается.
+        if (levelDoors is not null)
+            foreach (TriangleCollider triangle in levelDoors.Colliders)
+                if (CapsuleCollision.Overlaps(bounds, triangle.Bounds))
+                    collisionCandidates.Add(triangle);
+
         return collisionCandidates;
     }
 

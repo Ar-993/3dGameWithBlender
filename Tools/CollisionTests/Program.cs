@@ -20,6 +20,8 @@ FirstPersonChecks.Run(Run);
 GameplayInputChecks.Run(Run);
 ProjectileChecks.Run(Run);
 RenderingLibraryChecks.Run(Run);
+DoorChecks.Run(Run);
+WorldInteractionChecks.Run(Run);
 SceneChecks.Run(Run);
 if (args.Contains("--graphics"))
 {

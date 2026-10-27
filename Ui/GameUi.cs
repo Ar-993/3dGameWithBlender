@@ -23,6 +23,7 @@ internal sealed class GameUi : IDisposable
     private SpriteFont interfaceFont = null!;
     private Texture2D pixel = null!;
     private string? interactionItemName;
+    private string? worldInteractionText;
     private bool interactionItemIsHeld;
     private bool interactionIsVisible;
     private bool isPaused;
@@ -84,6 +85,8 @@ internal sealed class GameUi : IDisposable
         interactionIsVisible = isVisible;
     }
 
+    public void SetWorldInteractionText(string? text) => worldInteractionText = text;
+
     public void Draw()
     {
         gum.Draw();
@@ -105,9 +108,9 @@ internal sealed class GameUi : IDisposable
 
         DrawCrosshair(viewport.Width / 2, viewport.Height / 2);
 
-        if (interactionItemName is not null && !interactionItemIsHeld)
+        if (worldInteractionText is not null || interactionItemName is not null && !interactionItemIsHeld)
         {
-            DrawPickupHint(viewport.Width, viewport.Height);
+            DrawInteractionHint(viewport.Width, viewport.Height);
         }
         spriteBatch.End();
     }
@@ -190,12 +193,12 @@ internal sealed class GameUi : IDisposable
     }
 
 
-    private void DrawPickupHint(int screenWidth, int screenHeight)
+    private void DrawInteractionHint(int screenWidth, int screenHeight)
     {
         string itemName = interactionItemName == "Дед Мороз"
             ? "ДЕДА МОРОЗА"
             : interactionItemName!;
-        string hint = $"[E] ВЗЯТЬ {itemName}";
+        string hint = worldInteractionText ?? $"[E] ВЗЯТЬ {itemName}";
         Vector2 size = interfaceFont.MeasureString(hint);
         Vector2 position = new((int)((screenWidth - size.X) * 0.5f), screenHeight - 54);
         spriteBatch.DrawString(interfaceFont, hint, position + new Vector2(2f), new Color(0, 0, 0, 190));

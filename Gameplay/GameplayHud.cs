@@ -47,7 +47,8 @@ internal sealed class GameplayHud : IDisposable
         string levelVersion,
         bool lightingEnabled,
         bool showColliders,
-        bool canInteract)
+        bool canInteract,
+        string? worldInteractionText = null)
     {
         metrics.RecordDraw();
 
@@ -72,6 +73,7 @@ internal sealed class GameplayHud : IDisposable
             $"COLLIDERS: {(showColliders ? "ON" : "OFF")} (O)";
         ui.SetHudText(playerText, skeletonText, performanceText, skeleton.IsDead);
 
+        ui.SetWorldInteractionText(worldInteractionText);
         ui.SetInteractionText(interaction.NearbyItem?.Name,
     isHeld: false, isVisible: canInteract);
         ui.Draw();

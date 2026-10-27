@@ -1,6 +1,8 @@
 using System.Reflection;
 using _3DLight;
 using Ars3D.Rendering;
+using Ars3D.ModelFormat;
+using _3DLight.Interaction;
 using _3DLight.Items;
 using _3DLight.Ui;
 using Microsoft.Xna.Framework;
@@ -96,6 +98,33 @@ internal static class InteractionGraphicsChecks
 
                 WorldItem? item = null;
                 bool itemSettled = false;
+                run("the shop door renders closed, open and closed again with matching collision", () =>
+                {
+                    using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Models", "gas_station.3dmodel"));
+                    ModelData data = ModelDataIo.Read(stream);
+                    var doors = new LevelDoors(data, new ModelHierarchy(data), DoorDefinition.Load("gas_station"));
+                    BoundingBox bounds = doors.Colliders.Select(triangle => triangle.Bounds).Aggregate(BoundingBox.CreateMerged);
+                    playerFeet = new((bounds.Min.X + bounds.Max.X) / 2f, 0f, bounds.Max.Z + 2f);
+                    AimAt((bounds.Min + bounds.Max) / 2f);
+                    var sceneInteraction = new InteractionSystem(level.IsInteractionVisible);
+                    sceneInteraction.Update(level.Interactables, camera.Position, camera.Forward, false, true);
+                    Require(sceneInteraction.Target is not null, "The shop door was not visible from outside");
+                    ui.SetWorldInteractionText(sceneInteraction.Hint);
+                    Capture("shop-door-closed.png");
+
+                    sceneInteraction.Update(level.Interactables, camera.Position, camera.Forward, true, true);
+                    for (int frame = 0; frame < 40; frame++) level.UpdateDoors(1f / 60f, []);
+                    ui.SetWorldInteractionText(sceneInteraction.Hint);
+                    Capture("shop-door-open.png");
+                    Require(sceneInteraction.Hint!.Contains("ЗАКРЫТЬ"), "The door action did not change after opening");
+
+                    sceneInteraction.Update(level.Interactables, camera.Position, camera.Forward, true, true);
+                    for (int frame = 0; frame < 40; frame++) level.UpdateDoors(1f / 60f, []);
+                    ui.SetWorldInteractionText(sceneInteraction.Hint);
+                    Capture("shop-door-closed-again.png");
+                    Require(sceneInteraction.Hint!.Contains("ОТКРЫТЬ"), "The door did not close again");
+                    ui.SetWorldInteractionText(null);
+                });
                 run("real ItemSpawn creates rigid Santa that tumbles and rests on gas station geometry", () =>
                 {
                     Require(level.TryGetMarkerPosition("ItemSpawn", out Vector3 marker),

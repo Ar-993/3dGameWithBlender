@@ -60,7 +60,8 @@ internal sealed class GameplayScene : IGameScene
         renderer.Draw(world);
         hud.Draw(world.Player, world.Skeleton, world.Items, world.LevelVersion,
             world.Lighting.Enabled, world.ShowCollisionDebug,
-            game.IsActive && input.MouseCaptured && !input.IsPaused && !world.Player.IsDead);
+            game.IsActive && input.MouseCaptured && !input.IsPaused && !world.Player.IsDead,
+            world.Interactions.Hint);
     }
 
     public void Dispose()

@@ -64,12 +64,13 @@ namespace _3DLight
 
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
+            DoorDefinition[] doors = DoorDefinition.Load(modelName);
             ReplaceModel(ModelAssetLoader.Load(
                 graphicsDevice,
                 ModelPaths.ModelFile(modelName),
                 texture,
                 toonEffect,
-                ModelPaths.TextureDirectory(modelName)));
+                ModelPaths.TextureDirectory(modelName)), doors);
         }
 
         public void ReloadContent(
@@ -88,28 +89,21 @@ namespace _3DLight
 
             Texture2D texture = content.Load<Texture2D>(texturePath);
             Effect toonEffect = content.Load<Effect>("ToonShader");
+            DoorDefinition[] doors = DoorDefinition.Load(modelName);
 
             ReplaceModel(ModelAssetLoader.LoadFromBytes(
                 graphicsDevice,
                 modelBytes,
                 texture,
                 toonEffect,
-                ModelPaths.TextureDirectory(modelName)));
+                ModelPaths.TextureDirectory(modelName)), doors);
         }
 
-        private void ReplaceModel(CompiledModel replacement)
+        private void ReplaceModel(CompiledModel replacement, IReadOnlyList<DoorDefinition> doors)
         {
-            List<Platform> replacementPlatforms;
-            List<TriangleCollider> replacementMeshColliders;
-
             try
             {
-                replacementPlatforms = LevelGeometryBuilder.BuildPlatforms(
-                    replacement.Data,
-                    replacement.Hierarchy.BindPoseGlobalTransforms);
-                replacementMeshColliders = LevelGeometryBuilder.BuildTriangleColliders(
-                    replacement.Data,
-                    replacement.Hierarchy.BindPoseGlobalTransforms);
+                InitializeGeometry(replacement.Data, replacement.Hierarchy, doors);
             }
             catch
             {
@@ -119,11 +113,6 @@ namespace _3DLight
 
             CompiledModel? previousModel = model;
             model = replacement;
-            platforms.Clear();
-            platforms.AddRange(replacementPlatforms);
-            meshColliders.Clear();
-            meshColliders.AddRange(replacementMeshColliders);
-            collisionIndex = null;
             previousModel?.Dispose();
         }
 
@@ -142,6 +131,8 @@ namespace _3DLight
             rigidSweepCandidates.Clear();
             rigidSphereContacts.Clear();
             itemWorld = null;
+            levelDoors = null;
+            interactables.Clear();
         }
 
         public bool TryGetMarkerPosition(string markerName, out Vector3 position)
@@ -201,7 +192,12 @@ namespace _3DLight
             Matrix projection,
             SceneLighting lighting)
         {
-            model?.Draw(Matrix.Identity, view, projection, lighting);
+            if (model is null)
+                return;
+            if (levelDoors is null)
+                model.Draw(Matrix.Identity, view, projection, lighting);
+            else
+                model.DrawTransforms(levelDoors.LocalTransforms, Matrix.Identity, view, projection, lighting);
         }
 
         public void DrawColliders(
@@ -216,7 +212,7 @@ namespace _3DLight
             var lines = new List<VertexPositionColor>(
                 meshColliders.Count * 6 + 600);
 
-            foreach (TriangleCollider triangle in meshColliders)
+            foreach (TriangleCollider triangle in meshColliders.Concat(levelDoors?.Colliders ?? []))
             {
                 Color color = MathF.Abs(triangle.Normal.Y) >= MinimumGroundNormalY
                     ? Color.LimeGreen

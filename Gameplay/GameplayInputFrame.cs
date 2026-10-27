@@ -17,6 +17,7 @@ internal readonly record struct GameplayInputFrame
     public Vector2 LookDelta { get; init; }
 
     public bool InteractDown { get; init; }
+    public bool InteractPressed { get; init; }
     public int SelectedSlot { get; init; } = -1;
     public bool DropPressed { get; init; }
     public bool ToggleFlashlight { get; init; }

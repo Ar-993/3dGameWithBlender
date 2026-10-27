@@ -40,6 +40,7 @@
     <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Christmas\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Items\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Levels\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Player\*.json" CopyToOutputDirectory="PreserveNewest" />
 	  <None Update="Assets\GasStation\Textures\*.png;Assets\GasStation\Textures\*.jpg;Assets\GasStation\Textures\*.jpeg" TargetPath="Content\Assets\gas_station\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\Pistols_Colt_01_A.fbx">

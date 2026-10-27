@@ -1,4 +1,5 @@
 using _3DLight.Items;
+using _3DLight.Interaction;
 using Ars3D.Rendering;
 using Camera;
 using Items;
@@ -26,6 +27,7 @@ internal sealed class GameplayWorld : IDisposable
     public Level Level => levelSession.Level;
     public string LevelVersion => levelSession.Version;
     public ItemInteraction Items { get; }
+    public InteractionSystem Interactions { get; }
     public ProjectileSystem Projectiles { get; }
     public bool ShowCollisionDebug { get; private set; }
 
@@ -35,6 +37,7 @@ internal sealed class GameplayWorld : IDisposable
         this.content = content;
         levelSession = new LevelSession(content, Player, Skeleton);
         Items = new ItemInteraction(Player.Definition.Interaction);
+        Interactions = new InteractionSystem(Level.IsInteractionVisible);
         Projectiles = new ProjectileSystem(new ShootingCube(
             position: new Vector3(70f, 2f, 5f),
             size: Vector3.One,
@@ -64,6 +67,9 @@ internal sealed class GameplayWorld : IDisposable
     {
         levelSession.Update();
         UpdatePlayer(seconds, input);
+        Interactions.Update(Level.Interactables, Camera.Position, Camera.Forward,
+            input.InteractPressed, !input.SuppressInteraction && !Player.IsDead);
+        UpdateDoors(seconds);
         Skeleton.Update(Player, Level, seconds);
         Lighting.PointPosition = Player.Position + new Vector3(0f, 1.25f, 0f);
         Projectiles.Update(seconds, Player);
@@ -88,7 +94,8 @@ internal sealed class GameplayWorld : IDisposable
 
     private void UpdateItems(float seconds, GameplayInputFrame input)
     {
-        if (input.SuppressInteraction)
+        // Маршрутизация одной кнопки: мировое действие не должно одновременно подбирать предмет.
+        if (input.SuppressInteraction || Interactions.Target is not null)
             Items.SuppressInput(input.InteractDown);
 
         Items.Update(
@@ -101,6 +108,16 @@ internal sealed class GameplayWorld : IDisposable
             canInteract: !Player.IsDead,
             selectedSlot: input.SelectedSlot,
             dropPressed: input.DropPressed);
+    }
+
+    private void UpdateDoors(float seconds)
+    {
+        ReadOnlySpan<CapsuleShape> occupants =
+        [
+            new(Player.Position, GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight),
+            new(Skeleton.Position, GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight)
+        ];
+        Level.UpdateDoors(seconds, occupants);
     }
 
     private void UpdateFlashlight(bool togglePressed)

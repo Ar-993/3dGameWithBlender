@@ -101,6 +101,22 @@ public sealed class CompiledModel : IDisposable
         }
     }
 
+    // Для жёстких узлов (дверей, лифтов): сохраняет исходные матрицы без разложения в TRS.
+    public void DrawTransforms(
+        Matrix[] nodeLocalTransforms,
+        Matrix world,
+        Matrix view,
+        Matrix projection,
+        SceneLighting lighting)
+    {
+        ArgumentNullException.ThrowIfNull(nodeLocalTransforms);
+        if (nodeLocalTransforms.Length != NodeCount)
+            throw new ArgumentException("Для каждого узла нужна локальная матрица.", nameof(nodeLocalTransforms));
+
+        Hierarchy.CalculateGlobalTransforms(nodeLocalTransforms, globalTransforms);
+        DrawMeshes(world, view, projection, lighting);
+    }
+
     private RuntimeMesh CreateRuntimeMesh(
         MeshData sourceMesh,
         Texture2D texture,
