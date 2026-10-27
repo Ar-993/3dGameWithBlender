@@ -1,7 +1,8 @@
+using _3DLight;
 using _3DLight.Items;
 using Microsoft.Xna.Framework;
 
-namespace _3DLight;
+namespace Items;
 
 internal static class ItemSpawner
 {
