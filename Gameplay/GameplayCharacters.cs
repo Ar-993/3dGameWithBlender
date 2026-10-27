@@ -1,3 +1,4 @@
+using Characters;
 using Microsoft.Xna.Framework;
 
 namespace _3DLight.Gameplay;

@@ -1,4 +1,6 @@
 using _3DLight;
+using Camera;
+using Characters;
 using Microsoft.Xna.Framework;
 
 // The local player is a physics capsule: no mesh or animation is required.

@@ -1,4 +1,5 @@
 using Ars3D.Rendering;
+using Camera;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;

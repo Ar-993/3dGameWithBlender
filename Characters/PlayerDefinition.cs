@@ -2,7 +2,7 @@ using Ars3D.Items;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace _3DLight;
+namespace Characters;
 
 public sealed class PlayerDefinition
 {

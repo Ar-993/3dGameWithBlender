@@ -1,6 +1,7 @@
+using _3DLight;
 using Microsoft.Xna.Framework;
 
-namespace _3DLight;
+namespace Camera;
 
 internal sealed class FirstPersonController
 {

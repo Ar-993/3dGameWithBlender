@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Items;
 
 namespace _3DLight.Items;
 

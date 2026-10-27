@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
-namespace _3DLight;
+namespace Camera;
 
 internal sealed class FirstPersonCamera
 {

@@ -1,5 +1,7 @@
 using _3DLight.Items;
 using Ars3D.Rendering;
+using Camera;
+using Items;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;

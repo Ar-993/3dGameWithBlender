@@ -2,8 +2,9 @@ using Ars3D.Items;
 using Ars3D.Rendering;
 using _3DLight.Items;
 using Microsoft.Xna.Framework;
+using _3DLight;
 
-namespace _3DLight;
+namespace Items;
 
 // Game glue only: input comes from LightGame, rules come from Ars3D.Items.
 internal sealed class ItemInteraction

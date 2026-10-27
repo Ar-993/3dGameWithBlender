@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using _3DLight;
 using Ars3D.Rendering;
+using Characters;
 
 public class Skeleton : IDisposable
 {

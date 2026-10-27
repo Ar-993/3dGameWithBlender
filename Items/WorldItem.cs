@@ -2,8 +2,9 @@ using Ars3D.Items;
 using Ars3D.Rendering;
 using _3DLight.Items;
 using Microsoft.Xna.Framework;
+using _3DLight;
 
-namespace _3DLight;
+namespace Items;
 
 // MonoGame view of an item. All physical and inventory state lives in the library.
 internal sealed class WorldItem
