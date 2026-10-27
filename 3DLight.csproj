@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="Shared\ModelFormat\ModelFormat.csproj" />
     <ProjectReference Include="Libraries\Ars3D.Items\Ars3D.Items.csproj" />
+    <ProjectReference Include="Libraries\Ars3D.Rendering\Ars3D.Rendering.csproj" />
     <InternalsVisibleTo Include="CollisionTests" />
     <None Update="Assets\Flashlight\*.png" TargetPath="Content\Assets\Flashlight\%(Filename)%(Extension)"
       CopyToOutputDirectory="PreserveNewest" />

@@ -1,4 +1,5 @@
 using Ars3D.Items;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 
 namespace _3DLight.Items;

@@ -99,7 +99,7 @@ internal static class RigidInteractionChecks
             Matrix cameraWorld = Matrix.Invert(Matrix.CreateLookAt(eye, eye + forward, Vector3.Up));
             Matrix heldWorld = Matrix.CreateRotationY(item.State.Definition.HeldYaw) *
                 Matrix.CreateTranslation(ItemMath.ToGame(item.State.Definition.Interaction.HeldOffset)) * cameraWorld;
-            interaction.Update(level, 0f, feet, eye, forward, true);
+            interaction.Update(level, 0f, feet, eye, forward, false, dropPressed: true);
 
             Near(item.Position, Vector3.Transform(Vector3.Zero, heldWorld));
             Near(item.Center, Vector3.Transform(item.LocalCenter, heldWorld));

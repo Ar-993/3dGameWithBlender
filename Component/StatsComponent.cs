@@ -2,7 +2,7 @@
 
 namespace _3DLight;
 
-internal sealed class StatsComponent : global::IGameComponent
+internal sealed class StatsComponent
 {
     public event Action<int>? Damaged;
     public event Action? Died;

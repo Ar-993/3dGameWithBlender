@@ -1,6 +1,6 @@
 ﻿using System;
 using _3DLight.Gameplay;
-using _3DLight.Ui;
+using Ars3D.Rendering;
 using Gum;
 using Gum.DataTypes;
 using Gum.Forms;
@@ -27,7 +27,7 @@ namespace _3DLight.Scenes
 
         private ContentManager? content;
         private SpriteBatch spriteBatch = null!;
-        private Texture2D pixel = null!;
+        private SpriteFont menuFont = null!;
         private Button playButton = null!;
         private Button exitButton = null!;
         private Matrix view;
@@ -47,6 +47,7 @@ namespace _3DLight.Scenes
            game.Content.RootDirectory);
 
             level.LoadContent(content, LevelSession.ModelName);
+            menuFont = content.Load<SpriteFont>("Fonts/OldStandardMenu");
 
             view = Matrix.CreateLookAt(
                 cameraPosition,
@@ -64,8 +65,6 @@ namespace _3DLight.Scenes
             gumStarted = true;
             gum.Initialize(game, DefaultVisualsVersion.V3);
             spriteBatch = new SpriteBatch(game.GraphicsDevice);
-            pixel = new Texture2D(game.GraphicsDevice, 1, 1);
-            pixel.SetData(new[] { Color.White });
             playButton = CreateButton(-36f, (_, _) =>
         scenes.ChangeScene(() => new GameplayScene(game)));
 
@@ -125,7 +124,7 @@ namespace _3DLight.Scenes
             spriteBatch.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
-                SamplerState.PointClamp,
+                SamplerState.LinearClamp,
                 DepthStencilState.None,
                 RasterizerState.CullNone);
 
@@ -137,25 +136,21 @@ namespace _3DLight.Scenes
 
         private void DrawButtonText(Button button, string text)
         {
-            const int scale = 2;
-
-            Vector2 size = PsxPixelFont.MeasureString(text, scale);
+            Vector2 size = menuFont.MeasureString(text);
 
             Vector2 position = new(
                 button.AbsoluteLeft + (button.ActualWidth - size.X) / 2f,
                 button.AbsoluteTop + (button.ActualHeight - size.Y) / 2f);
 
-            PsxPixelFont.Draw(
-                spriteBatch, pixel, text,
+            spriteBatch.DrawString(
+                menuFont, text,
                 position + new Vector2(2f),
-                new Color(0, 0, 0, 150),
-                scale);
+                new Color(0, 0, 0, 150));
 
-            PsxPixelFont.Draw(
-                spriteBatch, pixel, text,
+            spriteBatch.DrawString(
+                menuFont, text,
                 position,
-                new Color(230, 230, 230, 210),
-                scale);
+                new Color(230, 230, 230, 210));
 
         }
 
@@ -171,7 +166,7 @@ namespace _3DLight.Scenes
             if (gumStarted) gum.Uninitialize();
             spriteBatch?.Dispose();
             level.Dispose();
-            content.Dispose();
+            content?.Dispose();
         }
     }
 }

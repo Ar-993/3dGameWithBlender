@@ -37,13 +37,7 @@ internal static class GameplayCharacters
         var animation = new CharacterAnimationComponent(modelScale: 1f);
         var stats = new StatsComponent(maxHealth: 100);
         var ai = new SkeletonAIComponent();
-        var attack = new AttackComponent(
-            damage: 10,
-            range: 1.4f,
-            hitTimeNormalized: 0.45f);
 
-        GameEntity entity = CharacterFactory.Create(physics, animation, stats, ai, attack);
-        var character = new CharacterFacade(entity);
-        return new Skeleton(character);
+        return new Skeleton(physics, animation, stats, ai);
     }
 }

@@ -86,6 +86,23 @@
 /processorParam:Version=3.8.5.0
 /build:DebugFont.spritefont
 
+#begin Fonts/OldStandardText.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/OldStandardText.spritefont
+
+#begin Fonts/OldStandardMenu.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/OldStandardMenu.spritefont
+
+#begin Fonts/OFL.txt
+/copy:Fonts/OFL.txt
+
 #begin FogShader.fx
 /importer:EffectImporter
 /processor:EffectProcessor

@@ -1,18 +1,9 @@
-﻿using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace _3DLight;
 
-internal sealed class ShootingCube : IDisposable
+internal sealed class ShootingCube
 {
-    private static readonly Matrix ModelOrientation =
-        Matrix.CreateRotationY(-MathHelper.PiOver2);
-
-    private readonly GraphicsDevice graphicsDevice;
-    private readonly CompiledModel gunModel;
-    private readonly SceneLighting lighting;
-
     private readonly AttackComponent attack = new(
         damage: 15,
         range: 20f,
@@ -25,11 +16,8 @@ internal sealed class ShootingCube : IDisposable
     public bool ShouldSpawnBullet => attack.ShouldDealDamage;
     public Vector3 AimDirection { get; private set; } = Vector3.Forward;
 
-    public ShootingCube(GraphicsDevice graphicsDevice, Vector3 position, Vector3 size, CompiledModel gunModel, SceneLighting lighting, float fireRateSeconds = 2.0f)
+    public ShootingCube(Vector3 position, Vector3 size, float fireRateSeconds = 2f)
     {
-        this.graphicsDevice = graphicsDevice;
-        this.gunModel = gunModel;
-        this.lighting = lighting;
         Position = position;
         Size = size;
 
@@ -58,20 +46,5 @@ internal sealed class ShootingCube : IDisposable
         }
 
         attack.Update(deltaTime);
-    }
-
-    public void Draw(Matrix view, Matrix projection)
-    {
-        Matrix rotation = Matrix.CreateLookAt(Vector3.Zero, AimDirection, Vector3.Up);
-        rotation = Matrix.Invert(rotation);
-
-        Matrix world = Matrix.CreateScale(Size) * ModelOrientation * rotation * Matrix.CreateTranslation(Position);
-
-        gunModel.Draw(world, view, projection, lighting);
-    }
-
-    public void Dispose()
-    {
-        
     }
 }

@@ -1,18 +1,19 @@
 using _3DLight.Items;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace _3DLight.Gameplay;
 
-// Порядок игрового шага задаётся здесь; ввод, загрузка и пули имеют своих владельцев.
+// Владеет объектами игрового мира и задаёт порядок симуляции.
+// Получает готовые действия из GameplayInput; отрисовкой занимается GameplayRenderer.
 internal sealed class GameplayWorld : IDisposable
 {
-    private readonly GraphicsDevice graphics;
+    private readonly GraphicsDevice graphicsDevice;
     private readonly ContentManager content;
+    private readonly LevelSession levelSession;
     private ItemCatalog? itemCatalog;
-    private ProjectileSystem? projectiles;
     private bool disposed;
     private bool flashlightOn = true;
 
@@ -20,16 +21,22 @@ internal sealed class GameplayWorld : IDisposable
     public Skeleton Skeleton { get; } = GameplayCharacters.CreateSkeleton();
     public FirstPersonCamera Camera { get; } = new();
     public SceneLighting Lighting { get; } = new();
-    public LevelSession Session { get; }
+    public Level Level => levelSession.Level;
+    public string LevelVersion => levelSession.Version;
     public ItemInteraction Items { get; }
+    public ProjectileSystem Projectiles { get; }
     public bool ShowCollisionDebug { get; private set; }
 
-    public GameplayWorld(GraphicsDevice graphics, ContentManager content)
+    public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content)
     {
-        this.graphics = graphics;
+        this.graphicsDevice = graphicsDevice;
         this.content = content;
-        Session = new LevelSession(content, Player, Skeleton);
+        levelSession = new LevelSession(content, Player, Skeleton);
         Items = new ItemInteraction(Player.Definition.Interaction);
+        Projectiles = new ProjectileSystem(new ShootingCube(
+            position: new Vector3(70f, 2f, 5f),
+            size: Vector3.One,
+            fireRateSeconds: 1.5f));
 
         Lighting.Fog.Enabled = LevelSession.ModelName == "gas_station";
         Lighting.Fog.Color = new Color(148, 155, 151);
@@ -39,71 +46,75 @@ internal sealed class GameplayWorld : IDisposable
 
     public void LoadContent()
     {
-        Session.LoadContent();
-        string animationsFolder = Path.Combine(AppContext.BaseDirectory, "Content", "Assets");
-        Skeleton.LoadContent(graphics, content, animationsFolder);
+        levelSession.LoadContent();
+        Skeleton.LoadContent(graphicsDevice, content);
 
-        Texture2D fallback = content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
-        Effect effect = content.Load<Effect>("ToonShader");
-        itemCatalog = ItemCatalog.Load(graphics, fallback, effect);
-        ItemSpawner.SpawnConfigured(Session.Level, itemCatalog, Items, Player.Position);
-        projectiles = new ProjectileSystem(graphics, content, Lighting);
-        Camera.UpdateMatrices(Player.Position, graphics.Viewport.AspectRatio);
+        Texture2D fallbackTexture = content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
+        Effect toonEffect = content.Load<Effect>("ToonShader");
+        itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
+        ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
+        Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
     }
 
-    public void SynchronizeInput(KeyboardState keyboard)
+    public void SynchronizeInteraction(bool interactDown) => Items.SuppressInput(interactDown);
+
+    public void Update(float seconds, GameplayInputFrame input)
     {
-        Player.SynchronizeInput(keyboard);
-        Items.SuppressInput(keyboard.IsKeyDown(Keys.E));
+        levelSession.Update();
+        UpdatePlayer(seconds, input);
+        Skeleton.Update(Player, Level, seconds);
+        Lighting.PointPosition = Player.Position + new Vector3(0f, 1.25f, 0f);
+        Projectiles.Update(seconds, Player);
+        UpdateItems(seconds, input);
+        UpdateFlashlight(input.ToggleFlashlight);
+        ApplyDebugCommands(input);
     }
 
-    public void Update(GameTime gameTime, GameplayInputFrame input)
+    private void UpdatePlayer(float seconds, GameplayInputFrame input)
     {
-        Session.Update();
         Camera.ApplyMouseDelta(input.LookDelta.X, input.LookDelta.Y);
-        Player.Update(gameTime, input.Keyboard, Camera.Yaw, Session.Level,
-            input.AttackPressed);
+        Player.Update(
+            seconds,
+            movement: input.Move,
+            jumpPressed: input.JumpPressed,
+            attackPressed: input.AttackPressed,
+            cameraYaw: Camera.Yaw,
+            level: Level);
         ApplyPlayerAttack();
-        Camera.UpdateMatrices(Player.Position, graphics.Viewport.AspectRatio);
+        Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
+    }
 
-        float seconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
-        Skeleton.Update(Player, Session.Level, seconds);
-        Lighting.FollowPlayer(Player.Position);
-        projectiles!.Update(seconds, Player);
-
-        bool interactDown = input.Keyboard.IsKeyDown(Keys.E);
+    private void UpdateItems(float seconds, GameplayInputFrame input)
+    {
         if (input.SuppressInteraction)
-            Items.SuppressInput(interactDown);
-        int selectedSlot = -1;
-        bool dropPressed = false;
-        bool canInteract = !Player.IsDead;
-
-        if (!input.SuppressInteraction)
-        {
-            selectedSlot = input.SelectedSlot;
-            dropPressed = input.DropPressed;
-        }
+            Items.SuppressInput(input.InteractDown);
 
         Items.Update(
-            Session.Level,
+            Level,
             seconds,
             Player.Position,
             Camera.Position,
             Camera.Forward,
-            interactDown,
-            canInteract,
-            selectedSlot,
-            dropPressed);
+            eDown: input.InteractDown,
+            canInteract: !Player.IsDead,
+            selectedSlot: input.SelectedSlot,
+            dropPressed: input.DropPressed);
+    }
 
-
-        if (input.ToggleFlashlight && Items.HeldItem?.State.Definition.Id == "flashlight")
+    private void UpdateFlashlight(bool togglePressed)
+    {
+        if (togglePressed && Items.HeldItem?.State.Definition.Id == "flashlight")
             flashlightOn = !flashlightOn;
+
         bool holdingFlashlight = Items.TryGetHeldLight(Camera.Position, Camera.Forward,
             out Vector3 lightOrigin, out Vector3 lightDirection);
         Lighting.FlashlightEnabled = flashlightOn && holdingFlashlight && !Player.IsDead;
         Lighting.FlashlightPosition = lightOrigin;
         Lighting.FlashlightDirection = lightDirection;
+    }
 
+    private void ApplyDebugCommands(GameplayInputFrame input)
+    {
         if (input.ToggleLighting)
             Lighting.Enabled = !Lighting.Enabled;
         if (input.ToggleColliders)
@@ -119,41 +130,14 @@ internal sealed class GameplayWorld : IDisposable
         }
     }
 
-    public void Draw()
-    {
-        graphics.Clear(Lighting.Fog.Enabled ? Lighting.Fog.Color : new Color(25, 30, 40));
-        graphics.DepthStencilState = DepthStencilState.Default;
-        graphics.RasterizerState = RasterizerState.CullNone;
-
-        if (ShowCollisionDebug)
-        {
-            Session.Level.DrawColliders(Camera.View, Camera.Projection,
-                CreateCharacterDebugBounds(Player.Position),
-                CreateCharacterDebugBounds(Skeleton.Position));
-            return;
-        }
-
-        Session.Level.Draw(Camera.View, Camera.Projection, Lighting);
-        Skeleton.Draw(Camera.View, Camera.Projection, Lighting);
-        Items.Draw(Camera.View, Camera.Projection, Lighting);
-        projectiles!.Draw(Camera.View, Camera.Projection);
-    }
-
-    private static BoundingBox CreateCharacterDebugBounds(Vector3 position) => new(
-        position - new Vector3(GameplayCharacters.CharacterCollisionRadius, 0f,
-            GameplayCharacters.CharacterCollisionRadius),
-        position + new Vector3(GameplayCharacters.CharacterCollisionRadius,
-            GameplayCharacters.CharacterCollisionHeight, GameplayCharacters.CharacterCollisionRadius));
-
     public void Dispose()
     {
         if (disposed)
             return;
 
         disposed = true;
-        projectiles?.Dispose();
         itemCatalog?.Dispose();
         Skeleton.Dispose();
-        Session.Dispose();
+        levelSession.Dispose();
     }
 }

@@ -1,18 +1,9 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace _3DLight;
 
-internal sealed class Bullet : System.IDisposable
+internal sealed class Bullet
 {
-    // The asset's tip points up; align it with local forward before aiming.
-    private static readonly Matrix ModelOrientation =
-        Matrix.CreateRotationX(-MathHelper.PiOver2);
-
-    private readonly GraphicsDevice _graphicsDevice;
-    private readonly CompiledModel _bulletModel;
-    private readonly SceneLighting _lighting;
-
     public Vector3 Position { get; private set; }
     public Vector3 Direction { get; }
     public float Speed { get; private set; }
@@ -22,11 +13,8 @@ internal sealed class Bullet : System.IDisposable
 
     public BoundingSphere Bounds => new BoundingSphere(Position, 0.2f);
 
-    public Bullet(GraphicsDevice graphicsDevice, Vector3 position, Vector3 direction, CompiledModel bulletModel, SceneLighting lighting, int damage, float speed = 18f)
+    public Bullet(Vector3 position, Vector3 direction, int damage, float speed = 18f)
     {
-        this._graphicsDevice = graphicsDevice;
-        this._bulletModel = bulletModel;
-        this._lighting = lighting;
         Position = position;
         Direction = Vector3.Normalize(direction);
         Speed = speed;
@@ -37,20 +25,5 @@ internal sealed class Bullet : System.IDisposable
     {
         Position += Direction * Speed * deltaTime;
         LifeTime -= deltaTime;
-    }
-
-    public void Draw(Matrix view, Matrix projection)
-    {
-        Matrix rotation = Matrix.CreateLookAt(Vector3.Zero, Direction, Vector3.Up);
-        rotation = Matrix.Invert(rotation);
-
-        Matrix world = ModelOrientation * rotation * Matrix.CreateTranslation(Position);
-
-        _bulletModel.Draw(world, view, projection, _lighting);
-    }
-
-    public void Dispose()
-    {
-
     }
 }

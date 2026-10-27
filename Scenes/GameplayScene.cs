@@ -1,7 +1,6 @@
 using _3DLight.Gameplay;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
-using Microsoft.Xna.Framework.Input;
 
 namespace _3DLight.Scenes;
 
@@ -12,6 +11,7 @@ internal sealed class GameplayScene : IGameScene
     private readonly GameplayHud hud;
     private ContentManager? content;
     private GameplayWorld world = null!;
+    private GameplayRenderer renderer = null!;
     private bool disposed;
 
     public GameplayScene(Game game)
@@ -27,13 +27,14 @@ internal sealed class GameplayScene : IGameScene
         content = new ContentManager(game.Services, game.Content.RootDirectory);
         world = new GameplayWorld(game.GraphicsDevice, content);
         world.LoadContent();
+        renderer = new GameplayRenderer(game.GraphicsDevice, content);
     }
 
     public void Enter()
     {
         hud.Enter();
-        input.Enter();
-        world.SynchronizeInput(Keyboard.GetState());
+        GameplayInputFrame initialInput = input.Enter();
+        world.SynchronizeInteraction(initialInput.InteractDown);
     }
 
     public void Exit() => input.Exit();
@@ -44,11 +45,11 @@ internal sealed class GameplayScene : IGameScene
         hud.Update(gameTime, input.IsPaused);
         if (!frame.CanUpdateWorld)
         {
-            world.SynchronizeInput(frame.Keyboard);
+            world.SynchronizeInteraction(frame.InteractDown);
             return;
         }
 
-        world.Update(gameTime, frame);
+        world.Update((float)gameTime.ElapsedGameTime.TotalSeconds, frame);
         DebugConsole.Update(gameTime, world.Player, world.Skeleton,
             hud.Fps, hud.WorkingSetMegabytes);
     }
@@ -56,8 +57,8 @@ internal sealed class GameplayScene : IGameScene
     public void Draw(GameTime gameTime)
     {
         hud.PrepareInventory(world.Items);
-        world.Draw();
-        hud.Draw(world.Player, world.Skeleton, world.Items, world.Session.Version,
+        renderer.Draw(world);
+        hud.Draw(world.Player, world.Skeleton, world.Items, world.LevelVersion,
             world.Lighting.Enabled, world.ShowCollisionDebug,
             game.IsActive && input.MouseCaptured && !input.IsPaused && !world.Player.IsDead);
     }
@@ -75,8 +76,12 @@ internal sealed class GameplayScene : IGameScene
         }
         finally
         {
-            try { world?.Dispose(); }
-            finally { content?.Dispose(); }
+            try { renderer?.Dispose(); }
+            finally
+            {
+                try { world?.Dispose(); }
+                finally { content?.Dispose(); }
+            }
         }
     }
 }

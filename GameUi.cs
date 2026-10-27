@@ -20,6 +20,7 @@ internal sealed class GameUi : IDisposable
     private TextRuntime performanceText = null!;
     private TextRuntime pauseText = null!;
     private SpriteBatch spriteBatch = null!;
+    private SpriteFont interfaceFont = null!;
     private Texture2D pixel = null!;
     private string? interactionItemName;
     private bool interactionItemIsHeld;
@@ -44,6 +45,7 @@ internal sealed class GameUi : IDisposable
         pauseText.Visible = false;
 
         spriteBatch = new SpriteBatch(game.GraphicsDevice);
+        interfaceFont = game.Content.Load<SpriteFont>("Fonts/OldStandardText");
         pixel = new Texture2D(game.GraphicsDevice, 1, 1);
         pixel.SetData(new[] { Color.White });
 
@@ -95,7 +97,7 @@ internal sealed class GameUi : IDisposable
         spriteBatch.Begin(
             SpriteSortMode.Deferred,
             BlendState.AlphaBlend,
-            SamplerState.PointClamp,
+            SamplerState.LinearClamp,
             DepthStencilState.None,
             RasterizerState.CullNone);
 
@@ -165,12 +167,15 @@ internal sealed class GameUi : IDisposable
                 }
                 else
                 {
-                    PsxPixelFont.Draw(spriteBatch, pixel, "?",
-                        new Vector2(rect.X + 27, rect.Y + 25), Color.White);
+                    Vector2 placeholderSize = interfaceFont.MeasureString("?");
+                    var placeholderPosition = new Vector2(
+                        rect.Center.X - placeholderSize.X / 2f,
+                        rect.Center.Y - placeholderSize.Y / 2f);
+                    spriteBatch.DrawString(interfaceFont, "?", placeholderPosition, Color.White);
                 }
             }
-            PsxPixelFont.Draw(spriteBatch, pixel, (i + 1).ToString(),
-                new Vector2(rect.X + 5, rect.Y + 5), Color.White, scale: 1);
+            spriteBatch.DrawString(interfaceFont, (i + 1).ToString(),
+                new Vector2(rect.X + 5, rect.Y + 2), Color.White);
         }
 
         string hint = "1-4: СЛОТ   E: ВЗЯТЬ   T: ВЫБРОСИТЬ";
@@ -180,8 +185,8 @@ internal sealed class GameUi : IDisposable
             if (active.State.Definition.Id == "flashlight")
                 hint += "   F: СВЕТ";
         }
-        PsxPixelFont.Draw(spriteBatch, pixel, hint,
-            new Vector2(left, top - 20), Color.White, scale: 1);
+        spriteBatch.DrawString(interfaceFont, hint,
+            new Vector2(left, top - interfaceFont.LineSpacing - 6), Color.White);
     }
 
 
@@ -191,10 +196,10 @@ internal sealed class GameUi : IDisposable
             ? "ДЕДА МОРОЗА"
             : interactionItemName!;
         string hint = $"[E] ВЗЯТЬ {itemName}";
-        Vector2 size = PsxPixelFont.MeasureString(hint);
+        Vector2 size = interfaceFont.MeasureString(hint);
         Vector2 position = new((int)((screenWidth - size.X) * 0.5f), screenHeight - 54);
-        PsxPixelFont.Draw(spriteBatch, pixel, hint, position + new Vector2(2f), new Color(0, 0, 0, 190));
-        PsxPixelFont.Draw(spriteBatch, pixel, hint, position, new Color(235, 235, 235));
+        spriteBatch.DrawString(interfaceFont, hint, position + new Vector2(2f), new Color(0, 0, 0, 190));
+        spriteBatch.DrawString(interfaceFont, hint, position, new Color(235, 235, 235));
     }
 
     private static TextRuntime CreateText(float x, float y, Color color)

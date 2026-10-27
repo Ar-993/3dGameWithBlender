@@ -1,5 +1,8 @@
 using System.Reflection;
+using _3DLight;
+using _3DLight.Gameplay;
 using _3DLight.Scenes;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -46,6 +49,40 @@ internal static class SceneGraphicsChecks
                 // BasicEffect создаёт общий шаблон в GraphicsDevice.EffectCache.
                 // Его срок жизни равен устройству, поэтому создаём его до захвата сцены.
                 using (var warmup = new BasicEffect(GraphicsDevice)) { }
+                run("projectile renderer draws live bullets without changing simulation and releases owned resources", () =>
+                {
+                    Texture2D hostTexture = Content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
+                    Player player = new(
+                        new CharacterPhysicsComponent(Vector3.Right * 10f, 0.35f, 1.8f, -28f),
+                        new StatsComponent(100), new AttackComponent(25, 1.6f, 0.45f), new PlayerDefinition());
+                    var projectiles = new ProjectileSystem(
+                        new ShootingCube(Vector3.Zero, Vector3.One, fireRateSeconds: 1f));
+                    projectiles.Update(0.5f, player);
+                    Require(projectiles.Bullets.Count == 1, "No live bullet was available for rendering");
+                    Bullet bullet = projectiles.Bullets[0];
+                    Vector3 position = bullet.Position;
+                    float lifetime = bullet.LifeTime;
+
+                    HashSet<GraphicsResource> before = Snapshot(GraphicsDevice);
+                    HashSet<GraphicsResource> ownedResources;
+                    using (var renderer = new ProjectileRenderer(GraphicsDevice, Content))
+                    {
+                        ownedResources = Snapshot(GraphicsDevice).Except(before).ToHashSet();
+                        renderer.Draw(projectiles,
+                            Matrix.CreateLookAt(new Vector3(6f, 3f, 8f), Vector3.Right * 5f, Vector3.Up),
+                            Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4,
+                                GraphicsDevice.Viewport.AspectRatio, 0.04f, 1000f),
+                            new SceneLighting());
+                        Require(bullet.Position == position && bullet.LifeTime == lifetime &&
+                            projectiles.Bullets.Count == 1 && player.Health == 100,
+                            "Rendering changed projectile simulation");
+                    }
+
+                    Require(ownedResources.Count > 0 && ownedResources.All(resource => resource.IsDisposed),
+                        "The projectile renderer leaked model resources");
+                    Require(!hostTexture.IsDisposed && !hostEffect.IsDisposed,
+                        "The projectile renderer disposed borrowed content");
+                });
                 run("gameplay scenes enter, update, draw and release their GPU resources across two transitions", () =>
                 {
                     using var scenes = new SceneManager();

@@ -1,6 +1,9 @@
 # Collision regressions
 
 The runner also checks scene lifecycle and deferred transitions without graphics.
+It verifies that rendering comes from the public `Ars3D.Rendering` assembly,
+which has no dependency on the game, item logic or Assimp. Model-loader and
+graphics ownership checks exercise that library through its explicit file paths.
 `--graphics` additionally loads, draws and unloads the real gameplay scene twice,
 checking GPU resource disposal and that the host's content survives transitions.
 See `Help/SceneArchitecture.md` for the scene layout and switching API.
@@ -66,7 +69,17 @@ integration by launching the game.
 
 First-person checks cover the eye inside the invisible player capsule, mouse
 look, pitch limits, horizontal WASD movement, diagonal speed, and Space press
-handling across jumps and pauses. Item checks cover gravity, settling, fast
+handling across jumps and pauses. CPU input checks exercise the same
+`GameplayInputState` used by the game: button edges, held keys across pause,
+focus recovery, mouse capture clicks, slot selection and mouse displacement.
+`GameplayInput` polls devices and applies cursor state; `GameplayInputFrame`
+contains the actions consumed by the player and world.
+Projectile CPU checks cover firing range and timing, movement, a single hit and
+expiry. `ProjectileSystem`, `Bullet` and `ShootingCube` need no graphics device;
+`ProjectileRenderer` owns their model loading and drawing resources.
+The graphics checks also verify that the packaged Old Standard TT fonts include
+Cyrillic characters and fit the menu buttons and inventory hint.
+Item checks cover gravity, settling, fast
 throws, slopes, nearby pickup, wall occlusion, the single hidden slot, E press
 handling, and release along a pitched camera view. Model fitting checks cover
 static and skinned bind transforms. The gas station fixture verifies that Santa

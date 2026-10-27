@@ -1,5 +1,6 @@
 using _3DLight;
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
+using Ars3D.Rendering;
 using _3DLight.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -144,7 +145,8 @@ internal static class ModelLoaderGraphicsChecks
                 try
                 {
                     Capture(resources, () => model = ModelAssetLoader.Load(
-                        GraphicsDevice, "gun", fallback, effect, "Gun"));
+                        GraphicsDevice, ModelPaths.ModelFile("gun"), fallback, effect,
+                        ModelPaths.TextureDirectory("Gun")));
                     Require(resources.OfType<Texture2D>().Any(), "No material texture was loaded");
                     model!.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity, new SceneLighting());
                 }
@@ -161,7 +163,7 @@ internal static class ModelLoaderGraphicsChecks
                 try
                 {
                     Capture(resources, () => model = ModelAssetLoader.LoadFromBytes(
-                        GraphicsDevice, bytes, "player", fallback, effect));
+                        GraphicsDevice, bytes, fallback, effect, ModelPaths.TextureDirectory("player")));
                     var sampler = new AnimationSampler(model!.Data.Nodes, model.Data.Clips);
                     var pose = new BonePose[sampler.NodeCount];
                     sampler.SamplePose("Idle", sampler.GetClipDuration("Idle") * 0.5f, false, pose);
@@ -176,7 +178,8 @@ internal static class ModelLoaderGraphicsChecks
             {
                 var resources = new List<GraphicsResource>();
                 Throws<NullReferenceException>(() => Capture(resources, () => ModelAssetLoader.Load(
-                    GraphicsDevice, "gun", fallback, null!, "Gun")));
+                    GraphicsDevice, ModelPaths.ModelFile("gun"), fallback, null!,
+                    ModelPaths.TextureDirectory("Gun"))));
                 Require(resources.Count == 0, "Partial construction left resources registered with the graphics device");
                 Require(!fallback.IsDisposed && !effect.IsDisposed, "Failure disposed borrowed resources");
             });
@@ -206,7 +209,7 @@ internal static class ModelLoaderGraphicsChecks
                     File.WriteAllBytes(invalidPath, new byte[] { 1, 2, 3 });
                     var resources = new List<GraphicsResource>();
                     Throws<InvalidOperationException>(() => Capture(resources, () => ModelAssetLoader.Load(
-                        GraphicsDevice, "gun", fallback, effect, folder)));
+                        GraphicsDevice, ModelPaths.ModelFile("gun"), fallback, effect, directory)));
                     Require(resources.Count == 0, "Failed PNG loading left textures registered with the graphics device");
                     Require(!fallback.IsDisposed && !effect.IsDisposed, "PNG failure disposed borrowed resources");
                 }

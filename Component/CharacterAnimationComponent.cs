@@ -1,10 +1,10 @@
 using _3DLight;
 using _3DLight.Models;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Collections.Generic;
 
-internal sealed class CharacterAnimationComponent : IGameComponent, IDisposable
+internal sealed class CharacterAnimationComponent : IDisposable
 {
     private CompiledModel model = null!;
     private AnimationSampler sampler = null!;
@@ -19,22 +19,14 @@ internal sealed class CharacterAnimationComponent : IGameComponent, IDisposable
 
     public void LoadContent(
         GraphicsDevice graphicsDevice,
-        string animationsFolder,
-        Dictionary<string, string> animations,
+        string modelAssetName,
+        string initialClip,
         Texture2D texture,
         Effect toonEffect)
     {
-        string initialClip = animations.Keys.FirstOrDefault(
-            clipName => clipName.Equals("Idle", StringComparison.OrdinalIgnoreCase))
-            ?? animations.Keys.FirstOrDefault()
-            ?? throw new InvalidOperationException("Для модели не заданы анимации.");
-        string assetName = new DirectoryInfo(animationsFolder).Name.Equals(
-            "Skeleton", StringComparison.OrdinalIgnoreCase)
-            ? "skeleton"
-            : "player";
-
         CompiledModel replacement = ModelAssetLoader.Load(
-            graphicsDevice, assetName, texture, toonEffect);
+            graphicsDevice, ModelPaths.ModelFile(modelAssetName), texture, toonEffect,
+            ModelPaths.TextureDirectory(modelAssetName));
         AnimationSampler replacementSampler;
         CharacterAnimator replacementAnimator;
         BonePose[] replacementPose;

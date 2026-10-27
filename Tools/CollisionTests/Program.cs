@@ -1,6 +1,7 @@
 using System.Reflection;
 using _3DLight;
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
+using Ars3D.Rendering;
 using _3DLight.Collision;
 using Microsoft.Xna.Framework;
 using NumericsMatrix = System.Numerics.Matrix4x4;
@@ -16,6 +17,9 @@ RigidItemChecks.Run(Run);
 RigidInteractionChecks.Run(Run);
 ItemModelTransformChecks.Run(Run);
 FirstPersonChecks.Run(Run);
+GameplayInputChecks.Run(Run);
+ProjectileChecks.Run(Run);
+RenderingLibraryChecks.Run(Run);
 SceneChecks.Run(Run);
 if (args.Contains("--graphics"))
 {

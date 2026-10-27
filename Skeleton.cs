@@ -2,53 +2,55 @@
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using _3DLight;
+using Ars3D.Rendering;
 
 public class Skeleton : IDisposable
 {
     private const string UpperBodyRootBone = "spine";
 
-    private readonly CharacterFacade character;
+    private readonly CharacterPhysicsComponent physics;
     private readonly SkeletonAIComponent ai;
     private readonly CharacterAnimationComponent animation;
     private readonly StatsComponent stats;
 
-    public Vector3 Position => character.Position;
-    public float RotationY => character.RotationY;
+    public Vector3 Position => physics.Position;
+    public float RotationY => animation.RotationY;
     public float Speed { get; set; } = 3.5f;
     public int Health => stats.Health;
     public int MaxHealth => stats.MaxHealth;
     public bool IsDead => stats.IsDead;
 
-    public Level.Platform? CurrentPlatform => character.CurrentPlatform;
+    public Level.Platform? CurrentPlatform => physics.CurrentPlatform;
 
-    internal Skeleton(CharacterFacade character)
+    internal Skeleton(
+        CharacterPhysicsComponent physics,
+        CharacterAnimationComponent animation,
+        StatsComponent stats,
+        SkeletonAIComponent ai)
     {
-        this.character = character;
-        ai = character.GetComponent<SkeletonAIComponent>();
-        animation = character.GetComponent<CharacterAnimationComponent>();
-        stats = character.GetComponent<StatsComponent>();
+        this.physics = physics;
+        this.animation = animation;
+        this.stats = stats;
+        this.ai = ai;
         ai.BindStats(stats);
     }
 
-    public void LoadContent(GraphicsDevice graphicsDevice, ContentManager content, string animsFolder)
+    public void LoadContent(
+        GraphicsDevice graphicsDevice,
+        ContentManager content)
     {
-        string skeletonFolder = Path.Combine(animsFolder, "Skeleton");
-        Texture2D skeletonTexture = content.Load<Texture2D>("Assets/Skeleton/skeleton_texture");
+        Texture2D skeletonTexture =
+            content.Load<Texture2D>("Assets/Skeleton/skeleton_texture");
         Effect toonEffect = content.Load<Effect>("ToonShader");
 
-        var monsterAnims = new Dictionary<string, string>
-        {
-            { "Idle", "SkeletonIdle.fbx" },
-            { "Run",  "SkeletonRun.fbx"  },
-            { "Attack", "SkeletonAttack.fbx" },
-            { "Hurt", "SkeletonHurt.fbx" },
-            { "Die", "SkeletonDeath.fbx" }
-        };
+        animation.LoadContent(
+            graphicsDevice,
+            modelAssetName: "skeleton",
+            initialClip: "Idle",
+            texture: skeletonTexture,
+            toonEffect: toonEffect);
 
-        character.LoadContent(graphicsDevice, skeletonFolder, monsterAnims, skeletonTexture, toonEffect);
         ai.SetAttackDuration(animation.GetClipDuration("Attack"));
         ai.SetHurtDuration(animation.GetClipDuration("Hurt"));
     }
@@ -61,7 +63,7 @@ public class Skeleton : IDisposable
             animation.Restart("Hurt", loop: false);
     }
 
-    public void SpawnAt(Vector3 position) => character.SpawnAt(position);
+    public void SpawnAt(Vector3 position) => physics.SpawnAt(position);
 
     public void Update(Player player, Level level, float deltaTime)
     {
@@ -80,7 +82,7 @@ public class Skeleton : IDisposable
             ai.Direction != Vector3.Zero &&
             CurrentPlatform is { } currentPlatform)
         {
-            character.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
+            animation.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
 
             float movementDistance = Speed * deltaTime;
 
@@ -90,7 +92,7 @@ public class Skeleton : IDisposable
                 difference.Y = 0f;
 
                 float minimumDistance =
-                    character.CollisionRadius + player.CollisionRadius;
+                    physics.Radius + player.CollisionRadius;
                 float availableDistance =
                     MathF.Max(0f, difference.Length() - minimumDistance);
 
@@ -102,7 +104,7 @@ public class Skeleton : IDisposable
 
             if (currentPlatform.ContainsHorizontal(
                     newPosition,
-                    character.CollisionRadius))
+                    physics.Radius))
             {
                 horizontalMovement = requestedMovement;
             }
@@ -111,14 +113,14 @@ public class Skeleton : IDisposable
         Vector3 oldPosition = Position;
 
         // Во время Hurt и Dead движение равно Vector3.Zero; Attacking сохраняет преследование.
-        character.Move(level, horizontalMovement, deltaTime);
+        physics.Move(level, horizontalMovement, deltaTime);
 
         bool isRunning = horizontalMovement != Vector3.Zero &&
                          (Position.X != oldPosition.X || Position.Z != oldPosition.Z);
 
         if (ai.State == AIComponent.AiState.Attacking)
         {
-            character.SetUpperBodyOverlay(
+            animation.SetUpperBodyOverlay(
                 "Attack",
                 UpperBodyRootBone,
                 ai.AttackElapsedSeconds);
@@ -129,7 +131,7 @@ public class Skeleton : IDisposable
         }
         else
         {
-            character.ClearUpperBodyOverlay();
+            animation.ClearUpperBodyOverlay();
 
             switch (ai.State)
             {
@@ -163,7 +165,7 @@ public class Skeleton : IDisposable
         Matrix projection,
         SceneLighting lighting)
     {
-        character.Draw(view, projection, lighting);
+        animation.Draw(Position, view, projection, lighting);
     }
 
     public void Dispose() => animation.Dispose();

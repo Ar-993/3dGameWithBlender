@@ -2,7 +2,7 @@
 
 namespace _3DLight;
 
-internal sealed class AttackComponent : global::IGameComponent
+internal sealed class AttackComponent
 {
     private float duration;
     private float elapsedTime;

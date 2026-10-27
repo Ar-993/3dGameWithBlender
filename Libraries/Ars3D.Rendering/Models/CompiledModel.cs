@@ -1,14 +1,13 @@
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Graphics.PackedVector;
 using NumericsMatrix = System.Numerics.Matrix4x4;
 using NumericsVector4 = System.Numerics.Vector4;
-using _3DLight.Models;
 
-namespace _3DLight;
+namespace Ars3D.Rendering;
 
-internal sealed class CompiledModel : IDisposable
+public sealed class CompiledModel : IDisposable
 {
     private const int MaximumBoneCount = 72;
 

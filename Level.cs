@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using _3DLight.Models;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework.Content;
 using _3DLight.Collision;
 using Microsoft.Xna.Framework.Graphics;
@@ -50,7 +51,7 @@ namespace _3DLight
 
         public void LoadContent(
             ContentManager content,
-            string modelPath,
+            string modelName,
             string texturePath = "Assets/level.fbm/palette_0")
         {
             var graphicsService = (IGraphicsDeviceService?)
@@ -65,15 +66,16 @@ namespace _3DLight
             Effect toonEffect = content.Load<Effect>("ToonShader");
             ReplaceModel(ModelAssetLoader.Load(
                 graphicsDevice,
-                modelPath,
+                ModelPaths.ModelFile(modelName),
                 texture,
-                toonEffect));
+                toonEffect,
+                ModelPaths.TextureDirectory(modelName)));
         }
 
         public void ReloadContent(
             ContentManager content,
             byte[] modelBytes,
-            string modelPath,
+            string modelName,
             string texturePath = "Assets/level.fbm/palette_0")
         {
             var graphicsService = (IGraphicsDeviceService?)
@@ -90,9 +92,9 @@ namespace _3DLight
             ReplaceModel(ModelAssetLoader.LoadFromBytes(
                 graphicsDevice,
                 modelBytes,
-                modelPath,
                 texture,
-                toonEffect));
+                toonEffect,
+                ModelPaths.TextureDirectory(modelName)));
         }
 
         private void ReplaceModel(CompiledModel replacement)

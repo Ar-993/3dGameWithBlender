@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Libraries/">
     <Project Path="Libraries/Ars3D.Items/Ars3D.Items.csproj" />
+    <Project Path="Libraries/Ars3D.Rendering/Ars3D.Rendering.csproj" />
   </Folder>
   <Folder Name="/Shared/">
     <Project Path="Shared/ModelFormat/ModelFormat.csproj" />

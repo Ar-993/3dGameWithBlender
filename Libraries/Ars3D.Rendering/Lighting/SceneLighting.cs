@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace _3DLight;
+namespace Ars3D.Rendering;
 
 /// <summary>
 /// Единые настройки света для всей сцены.
@@ -36,14 +36,6 @@ public sealed class SceneLighting
     public Vector3 PointColor { get; set; } = new(1f, 0.52f, 0.20f);
     public float PointIntensity { get; set; } = 1.45f;
     public float PointRange { get; set; } = 5.5f;
-
-    /// <summary>
-    /// Держит тёплый точечный свет немного выше центра игрока.
-    /// </summary>
-    public void FollowPlayer(Vector3 playerFeetPosition)
-    {
-        PointPosition = playerFeetPosition + new Vector3(0f, 1.25f, 0f);
-    }
 
     internal void Apply(EffectParameterCollection parameters)
     {

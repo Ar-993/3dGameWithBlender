@@ -1,72 +1,30 @@
-using _3DLight.Models;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Content;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace _3DLight.Gameplay;
 
-internal sealed class ProjectileSystem : IDisposable
+// Только симуляция: стрельба, движение снарядов и попадания по игроку.
+internal sealed class ProjectileSystem
 {
-    private readonly GraphicsDevice graphics;
-    private readonly SceneLighting lighting;
-    private readonly CompiledModel gunModel;
-    private readonly CompiledModel bulletModel;
-    private readonly ShootingCube shootingCube;
     private readonly List<Bullet> activeBullets = new();
-    private bool disposed;
 
-    public ProjectileSystem(GraphicsDevice graphics, ContentManager content, SceneLighting lighting)
+    public ShootingCube Shooter { get; }
+    public IReadOnlyList<Bullet> Bullets { get; }
+
+    public ProjectileSystem(ShootingCube shooter)
     {
-        this.graphics = graphics;
-        this.lighting = lighting;
-
-        CompiledModel? loadedGun = null;
-        CompiledModel? loadedBullet = null;
-        ShootingCube? loadedCube = null;
-        try
-        {
-            Texture2D fallbackTexture = content.Load<Texture2D>(
-                "Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
-            Effect toonEffect = content.Load<Effect>("ToonShader");
-            loadedGun = ModelAssetLoader.Load(
-                graphics, "gun", fallbackTexture, toonEffect, textureFolderName: "Gun");
-            loadedBullet = ModelAssetLoader.Load(
-                graphics, "bullet", fallbackTexture, toonEffect, textureFolderName: "Gun");
-            loadedCube = new ShootingCube(
-                graphics,
-                position: new Vector3(70f, 2f, 5f),
-                size: new Vector3(1f, 1f, 1f),
-                gunModel: loadedGun,
-                lighting: lighting,
-                fireRateSeconds: 1.5f);
-
-            gunModel = loadedGun;
-            bulletModel = loadedBullet;
-            shootingCube = loadedCube;
-        }
-        catch
-        {
-            loadedCube?.Dispose();
-            loadedBullet?.Dispose();
-            loadedGun?.Dispose();
-            throw;
-        }
+        Shooter = shooter;
+        Bullets = activeBullets.AsReadOnly();
     }
 
     public void Update(float seconds, Player player)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
-        shootingCube.Update(seconds, player.Position);
-        if (shootingCube.ShouldSpawnBullet)
+        Shooter.Update(seconds, player.Position);
+        if (Shooter.ShouldSpawnBullet)
         {
-            Vector3 spawnPosition = shootingCube.Position + shootingCube.AimDirection * 1.2f;
+            Vector3 spawnPosition = Shooter.Position + Shooter.AimDirection * 1.2f;
             activeBullets.Add(new Bullet(
-                graphics,
                 spawnPosition,
-                shootingCube.AimDirection,
-                bulletModel: bulletModel,
-                lighting: lighting,
+                Shooter.AimDirection,
                 damage: 15,
                 speed: 12f));
         }
@@ -80,39 +38,12 @@ internal sealed class ProjectileSystem : IDisposable
             if (distanceToPlayer <= bullet.Bounds.Radius + player.CollisionRadius)
             {
                 player.TakeDamage(bullet.Damage);
-                bullet.Dispose();
                 activeBullets.RemoveAt(i);
                 continue;
             }
 
             if (bullet.IsDead)
-            {
-                bullet.Dispose();
                 activeBullets.RemoveAt(i);
-            }
         }
-    }
-
-    public void Draw(Matrix view, Matrix projection)
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
-        shootingCube.Draw(view, projection);
-        foreach (Bullet bullet in activeBullets)
-            bullet.Draw(view, projection);
-    }
-
-    public void Dispose()
-    {
-        if (disposed)
-            return;
-
-        disposed = true;
-        foreach (Bullet bullet in activeBullets)
-            bullet.Dispose();
-        activeBullets.Clear();
-        shootingCube.Dispose();
-        bulletModel.Dispose();
-        gunModel.Dispose();
     }
 }

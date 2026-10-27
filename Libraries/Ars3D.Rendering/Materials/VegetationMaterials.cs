@@ -1,11 +1,11 @@
-﻿using _3DLight.Assets;
+using Ars3D.ModelFormat;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace _3DLight.Models
+namespace Ars3D.Rendering
 {
     internal static class VegetationMaterials
     {

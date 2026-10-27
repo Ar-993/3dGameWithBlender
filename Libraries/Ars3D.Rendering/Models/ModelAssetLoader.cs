@@ -1,23 +1,17 @@
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace _3DLight.Models;
+namespace Ars3D.Rendering;
 
-internal static class ModelAssetLoader
+public static class ModelAssetLoader
 {
     public static CompiledModel Load(
         GraphicsDevice graphicsDevice,
-        string modelName,
+        string modelPath,
         Texture2D texture,
         Effect toonEffect,
-        string? textureFolderName = null)
+        string textureDirectory)
     {
-        string modelPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "Content",
-            "Models",
-            modelName + ".3dmodel");
-
         using FileStream modelStream = File.OpenRead(modelPath);
         ModelData modelData = ModelDataIo.Read(modelStream);
 
@@ -26,16 +20,15 @@ internal static class ModelAssetLoader
             modelData,
             texture,
             toonEffect,
-            textureFolderName ?? modelName);
+            textureDirectory);
     }
 
     public static CompiledModel LoadFromBytes(
         GraphicsDevice graphicsDevice,
         byte[] modelBytes,
-        string modelName,
         Texture2D texture,
         Effect toonEffect,
-        string? textureFolderName = null)
+        string textureDirectory)
     {
         using var modelStream = new MemoryStream(
             modelBytes,
@@ -47,7 +40,7 @@ internal static class ModelAssetLoader
             modelData,
             texture,
             toonEffect,
-            textureFolderName ?? modelName);
+            textureDirectory);
     }
 
     private static CompiledModel CreateModel(
@@ -55,10 +48,10 @@ internal static class ModelAssetLoader
         ModelData modelData,
         Texture2D fallbackTexture,
         Effect toonEffect,
-        string textureFolderName)
+        string textureDirectory)
     {
         Dictionary<string, Texture2D> materialTextures =
-            LoadMaterialTextures(graphicsDevice, textureFolderName);
+            LoadMaterialTextures(graphicsDevice, textureDirectory);
         try
         {
             Texture2D[] meshTextures = modelData.Meshes
@@ -85,19 +78,16 @@ internal static class ModelAssetLoader
 
     private static Dictionary<string, Texture2D> LoadMaterialTextures(
         GraphicsDevice graphicsDevice,
-        string textureFolderName)
+        string textureDirectory)
     {
         var textures = new Dictionary<string, Texture2D>(
             StringComparer.OrdinalIgnoreCase);
-        string directory = Path.Combine(
-            AppContext.BaseDirectory, "Content", "Assets", textureFolderName);
-
-        if (!Directory.Exists(directory))
+        if (!Directory.Exists(textureDirectory))
             return textures;
 
         try
         {
-            foreach (string path in Directory.EnumerateFiles(directory)
+            foreach (string path in Directory.EnumerateFiles(textureDirectory)
                          .Where(path => Path.GetExtension(path).ToLowerInvariant()
                          is ".png" or ".jpg" or ".jpeg")
                          .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
@@ -112,7 +102,7 @@ internal static class ModelAssetLoader
             }
 
             Console.WriteLine(
-                $"Loaded {textures.Count} material textures from '{directory}'.");
+                $"Loaded {textures.Count} material textures from '{textureDirectory}'.");
             return textures;
         }
         catch

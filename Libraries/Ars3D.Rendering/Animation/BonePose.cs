@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace _3DLight.Models
+namespace Ars3D.Rendering
 {
-    internal readonly record struct BonePose(
+    public readonly record struct BonePose(
         Vector3 Position,
         Quaternion Rotation,
         Vector3 Scale)

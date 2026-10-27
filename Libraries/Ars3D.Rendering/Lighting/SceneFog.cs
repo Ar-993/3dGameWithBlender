@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace _3DLight;
+namespace Ars3D.Rendering;
 
 public sealed class SceneFog
 {

@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace _3DLight.Models
+namespace Ars3D.Rendering
 {
     internal readonly struct RuntimeVertex : IVertexType
     {

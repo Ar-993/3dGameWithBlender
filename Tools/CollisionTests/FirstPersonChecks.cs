@@ -1,5 +1,6 @@
 using System.Reflection;
 using _3DLight;
+using _3DLight.Gameplay;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
@@ -85,7 +86,7 @@ internal static class FirstPersonChecks
                     FirstPersonCamera camera = new();
                     camera.ApplyMouseDelta(horizontalDelta, verticalDelta);
                     camera.UpdateMatrices(Vector3.Zero, 16f / 9f);
-                    Vector3 walking = FirstPersonController.GetMoveDirection(new(Keys.W), camera.Yaw);
+                    Vector3 walking = FirstPersonController.GetMoveDirection(Movement(Keys.W), camera.Yaw);
                     Vector3 groundForward = new(camera.Forward.X, 0f, camera.Forward.Z);
                     groundForward.Normalize();
                     Near(walking.Y, 0f);
@@ -100,23 +101,23 @@ internal static class FirstPersonChecks
         {
             foreach (float yaw in new[] { 0f, MathHelper.PiOver2, -1.2f })
             {
-                Vector3 forward = FirstPersonController.GetMoveDirection(new(Keys.W), yaw);
-                Vector3 right = FirstPersonController.GetMoveDirection(new(Keys.D), yaw);
-                Vector3 diagonal = FirstPersonController.GetMoveDirection(new(Keys.W, Keys.D), yaw);
+                Vector3 forward = FirstPersonController.GetMoveDirection(Movement(Keys.W), yaw);
+                Vector3 right = FirstPersonController.GetMoveDirection(Movement(Keys.D), yaw);
+                Vector3 diagonal = FirstPersonController.GetMoveDirection(Movement(Keys.W, Keys.D), yaw);
                 Near(diagonal.Length(), forward.Length());
                 Near(diagonal.Length(), right.Length());
                 Require(Vector3.Dot(diagonal, forward) > 0f && Vector3.Dot(diagonal, right) > 0f,
                     "Diagonal input lost one of its two movement directions");
-                Near(FirstPersonController.GetMoveDirection(new(Keys.W, Keys.S), yaw), Vector3.Zero);
-                Near(FirstPersonController.GetMoveDirection(new(Keys.A, Keys.D), yaw), Vector3.Zero);
-                Near(FirstPersonController.GetMoveDirection(new(Keys.W, Keys.S, Keys.A, Keys.D), yaw), Vector3.Zero);
-                Near(FirstPersonController.GetMoveDirection(new(Keys.W, Keys.S, Keys.D), yaw), right);
+                Near(FirstPersonController.GetMoveDirection(Movement(Keys.W, Keys.S), yaw), Vector3.Zero);
+                Near(FirstPersonController.GetMoveDirection(Movement(Keys.A, Keys.D), yaw), Vector3.Zero);
+                Near(FirstPersonController.GetMoveDirection(Movement(Keys.W, Keys.S, Keys.A, Keys.D), yaw), Vector3.Zero);
+                Near(FirstPersonController.GetMoveDirection(Movement(Keys.W, Keys.S, Keys.D), yaw), right);
             }
 
             CharacterPhysicsComponent physics = new(new(0f, 2f, 0f), 0.35f, 1.8f, gravity: 0f);
             FirstPersonController controller = new(physics);
             Vector3 start = physics.Position;
-            controller.Update(new(Keys.W, Keys.D), 0.7f, new Level(), 0.5f, 4f,
+            controller.Update(Movement(Keys.W, Keys.D), false, 0.7f, new Level(), 0.5f, 4f,
                 canMove: true, canJump: true);
             Near(Vector3.Distance(start, physics.Position), 2f);
             Near(physics.Position.Y, start.Y);
@@ -127,22 +128,24 @@ internal static class FirstPersonChecks
             Level floor = Floor();
             CharacterPhysicsComponent physics = GroundedCharacter(floor);
             FirstPersonController controller = new(physics);
+            GameplayInputState input = new();
+            input.Enter(new(), default, true);
             float groundedHeight = physics.Position.Y;
-            Step(controller, new(Keys.Space), floor);
+            Step(controller, input, new(Keys.Space), floor);
             Require(!physics.IsGrounded && physics.Position.Y > groundedHeight && physics.VerticalVelocity > 0f,
                 "A fresh Space press did not lift the capsule off the floor");
 
             for (int frame = 0; frame < 240 && !physics.IsGrounded; frame++)
-                Step(controller, new(Keys.Space), floor);
+                Step(controller, input, new(Keys.Space), floor);
             Require(physics.IsGrounded, "The jump did not return to the floor");
             for (int frame = 0; frame < 30; frame++)
             {
-                Step(controller, new(Keys.Space), floor);
+                Step(controller, input, new(Keys.Space), floor);
                 Require(physics.IsGrounded, "Holding Space triggered another jump after landing");
             }
 
-            Step(controller, new(), floor);
-            Step(controller, new(Keys.Space), floor);
+            Step(controller, input, new(), floor);
+            Step(controller, input, new(Keys.Space), floor);
             Require(!physics.IsGrounded && physics.VerticalVelocity > 0f,
                 "Releasing and pressing Space did not permit the next jump");
         });
@@ -152,11 +155,12 @@ internal static class FirstPersonChecks
             Level floor = Floor();
             CharacterPhysicsComponent physics = GroundedCharacter(floor);
             FirstPersonController controller = new(physics);
-            controller.SynchronizeInput(new(Keys.Space));
-            Step(controller, new(Keys.Space), floor);
+            GameplayInputState input = new();
+            input.Enter(new(Keys.Space), default, true);
+            Step(controller, input, new(Keys.Space), floor);
             Require(physics.IsGrounded, "Held Space from a menu triggered a jump on resume");
-            Step(controller, new(), floor);
-            Step(controller, new(Keys.Space), floor);
+            Step(controller, input, new(), floor);
+            Step(controller, input, new(Keys.Space), floor);
             Require(!physics.IsGrounded && physics.VerticalVelocity > 0f,
                 "Input synchronization prevented a subsequent fresh jump press");
         });
@@ -181,9 +185,16 @@ internal static class FirstPersonChecks
         return physics;
     }
 
-    private static void Step(FirstPersonController controller, KeyboardState keyboard, Level floor) =>
-        controller.Update(keyboard, 0f, floor, 1f / 60f, 4f,
+    private static Vector2 Movement(params Keys[] keys) =>
+        new GameplayInputState().Update(new KeyboardState(keys), default, true, new(0, 0, 320, 180)).Move;
+
+    private static void Step(FirstPersonController controller, GameplayInputState input,
+        KeyboardState keyboard, Level floor)
+    {
+        GameplayInputFrame frame = input.Update(keyboard, default, true, new(0, 0, 320, 180));
+        controller.Update(frame.Move, frame.JumpPressed, 0f, floor, 1f / 60f, 4f,
             canMove: true, canJump: true);
+    }
 
     private static Level Floor()
     {

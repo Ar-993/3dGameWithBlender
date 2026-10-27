@@ -1,6 +1,6 @@
 using System.Reflection;
 using _3DLight;
-using _3DLight.Models;
+using Ars3D.Rendering;
 using _3DLight.Items;
 using _3DLight.Ui;
 using Microsoft.Xna.Framework;
@@ -77,6 +77,22 @@ internal static class InteractionGraphicsChecks
                 Directory.CreateDirectory(directory);
                 using var target = new RenderTarget2D(GraphicsDevice, ImageWidth, ImageHeight,
                     mipMap: false, SurfaceFormat.Color, DepthFormat.Depth24Stencil8);
+
+                run("packaged serif fonts contain Cyrillic and fit interaction and menu labels", () =>
+                {
+                    SpriteFont interfaceFont = Content.Load<SpriteFont>("Fonts/OldStandardText");
+                    SpriteFont menuFont = Content.Load<SpriteFont>("Fonts/OldStandardMenu");
+                    const string russian = "Дед Мороз Фонарик Ёж ёж ИГРАТЬ ВЫХОД";
+                    Require(russian.All(character => interfaceFont.Characters.Contains(character) &&
+                        menuFont.Characters.Contains(character)), "The packaged fonts omit Russian characters");
+                    Require(interfaceFont.MeasureString("1-4: СЛОТ   E: ВЗЯТЬ   T: ВЫБРОСИТЬ").X < ImageWidth - 40,
+                        "The inventory hint does not fit the screen");
+                    foreach (string label in new[] { "ИГРАТЬ", "ВЫХОД" })
+                    {
+                        Vector2 size = menuFont.MeasureString(label);
+                        Require(size.X <= 240f && size.Y <= 60f, "The menu label does not fit its button");
+                    }
+                });
 
                 WorldItem? item = null;
                 bool itemSettled = false;
@@ -254,7 +270,7 @@ internal static class InteractionGraphicsChecks
                     float pitch = MathF.Atan2(offset.Y, MathF.Sqrt(offset.X * offset.X + offset.Z * offset.Z));
                     camera.ApplyMouseDelta(0f, -pitch / 0.003f);
                     camera.UpdateMatrices(playerFeet, ImageWidth / (float)ImageHeight);
-                    lighting.FollowPlayer(playerFeet);
+                    lighting.PointPosition = playerFeet + new Vector3(0f, 1.25f, 0f);
                 }
 
                 void Capture(string fileName)

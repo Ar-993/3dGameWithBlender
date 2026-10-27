@@ -1,4 +1,5 @@
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 
 namespace _3DLight.Models;

@@ -1,7 +1,7 @@
 using _3DLight;
 using Microsoft.Xna.Framework;
 
-internal sealed class CharacterPhysicsComponent : IGameComponent
+internal sealed class CharacterPhysicsComponent
 {
     private readonly float gravity;
     private float verticalVelocity;

@@ -1,6 +1,6 @@
 using _3DLight;
-using _3DLight.Assets;
-using _3DLight.Models;
+using Ars3D.ModelFormat;
+using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 using NumericsMatrix = System.Numerics.Matrix4x4;
 using NumericsVector = System.Numerics.Vector3;

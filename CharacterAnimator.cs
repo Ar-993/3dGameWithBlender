@@ -1,6 +1,6 @@
 using _3DLight;
 using Microsoft.Xna.Framework;
-using _3DLight.Models;
+using Ars3D.Rendering;
 
 internal sealed class CharacterAnimator
 {

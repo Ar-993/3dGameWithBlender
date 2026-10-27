@@ -1,9 +1,9 @@
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
 using Microsoft.Xna.Framework;
 
-namespace _3DLight;
+namespace Ars3D.Rendering;
 
-internal sealed class ModelHierarchy
+public sealed class ModelHierarchy
 {
     private readonly ModelData modelData;
 

@@ -1,11 +1,11 @@
-using _3DLight.Assets;
+using Ars3D.ModelFormat;
 using Microsoft.Xna.Framework;
 using NumericsMatrix = System.Numerics.Matrix4x4;
 using NumericsQuaternion = System.Numerics.Quaternion;
 
-namespace _3DLight.Models;
+namespace Ars3D.Rendering;
 
-internal sealed class AnimationSampler
+public sealed class AnimationSampler
 {
     private readonly Dictionary<string, ClipData> clipsByName;
     private readonly BonePose[] bindLocalPoses;

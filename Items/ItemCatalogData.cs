@@ -7,11 +7,13 @@ namespace _3DLight.Items;
 
 internal sealed class ItemCatalogData
 {
-    public List<ModelItemEntry> Definitions { get; init; } = [];
+    public List<ItemDefinitionData> Definitions { get; init; } = [];
     public List<ItemSpawnData> Spawns { get; init; } = [];
 }
 
-internal sealed class ModelItemEntry
+// Описание типа предмета в items.json. ItemDefinition создаётся после загрузки модели,
+// когда известны её размеры и преобразование к заданной высоте.
+internal sealed class ItemDefinitionData
 {
     public string Id { get; init; } = "";
     public string DisplayName { get; init; } = "";
@@ -22,7 +24,7 @@ internal sealed class ModelItemEntry
     public float[] SpawnSpin { get; init; } = [0f, 0f, 0f];
     public float HeldYawDegrees { get; init; }
     public RigidBodySettings? Physics { get; init; }
-    public ItemCarryData? Interaction { get; init; }
+    public ItemCarrySettingsData? Interaction { get; init; }
 }
 
 internal sealed class ItemSpawnData
@@ -34,7 +36,7 @@ internal sealed class ItemSpawnData
 
 internal sealed record ItemSpawnEntry(string ItemId, string Marker, Vector3? Fallback);
 
-internal sealed class ItemCarryData
+internal sealed class ItemCarrySettingsData
 {
     public float[]? HeldOffset { get; init; }
     public float? ThrowLift { get; init; }
@@ -43,10 +45,14 @@ internal sealed class ItemCarryData
     public ItemCarrySettings ToSettings()
     {
         var defaults = new ItemCarrySettings();
-        return new(
-            HeldOffset is null ? defaults.HeldOffset : ItemCatalogVectors.Read(HeldOffset, "heldOffset"),
-            ThrowLift ?? defaults.ThrowLift,
-            ThrowSpin is null ? defaults.ThrowSpin : ItemCatalogVectors.Read(ThrowSpin, "throwSpin"));
+        return new ItemCarrySettings(
+            heldOffset: HeldOffset is null
+                ? defaults.HeldOffset
+                : ItemCatalogVectors.Read(HeldOffset, "heldOffset"),
+            throwLift: ThrowLift ?? defaults.ThrowLift,
+            throwSpin: ThrowSpin is null
+                ? defaults.ThrowSpin
+                : ItemCatalogVectors.Read(ThrowSpin, "throwSpin"));
     }
 }
 

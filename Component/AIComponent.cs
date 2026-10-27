@@ -2,7 +2,7 @@
 
 namespace _3DLight;
 
-internal abstract class AIComponent : global::IGameComponent
+internal abstract class AIComponent
 {
     public enum AiState
     {

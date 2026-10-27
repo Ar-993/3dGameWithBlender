@@ -12,6 +12,27 @@
 
 MGCB собирает только текстуры и шрифт. В runtime нет зависимости Assimp.
 
+## Где читать код
+
+| Файл | Ответственность |
+| --- | --- |
+| `Tools/ModelCompiler/Program.cs` | Команды, manifest, пути и сохранение результата. Поддерживает сборку manifest и `--single` для hot reload. |
+| `Tools/ModelCompiler/AssimpModelImporter.cs` | Импорт FBX и преобразование узлов, мешей, костей и клипов в собственный `ModelData`. Здесь сосредоточены типы Assimp. |
+| `Shared/ModelFormat/ModelData.cs` | Данные модели: узлы, меши, вершины, кости и ключи анимации. Использует .NET и `System.Numerics`. |
+| `Shared/ModelFormat/ModelDataIo.cs` | Чтение и запись бинарного `.3dmodel`, версия формата и проверки файла. |
+| `Libraries/Ars3D.Rendering/Models/ModelAssetLoader.cs` | Чтение готовой модели по явному пути, подбор текстур и создание `CompiledModel`. |
+| `Libraries/Ars3D.Rendering/Models/CompiledModel.cs` | GPU-ресурсы модели, отрисовка статической или заданной позы и освобождение ресурсов. |
+| `Models/ModelPaths.cs` | Сопоставление имён игровых моделей и папок текстур с путями в `Content`. |
+| `Component/CharacterAnimationComponent.cs` | Загрузка по `modelAssetName` и `initialClip`, воспроизведение анимации и передача позы модели. |
+
+Путь данных: `AssimpModelImporter.Import -> ModelData -> ModelDataIo.Write`.
+В игре: `ModelDataIo.Read -> ModelAssetLoader -> CompiledModel`.
+Общий рендер находится в отдельной сборке `Ars3D.Rendering`, формат модели —
+в `ModelFormat` с пространством имён `Ars3D.ModelFormat`. Эти проекты не зависят
+от игры. Карта публичного API: [Ars3D.Rendering](Libraries/Ars3D.Rendering/README.md).
+`Skeleton` получает физику, анимацию, характеристики и AI явно через конструктор;
+загрузка и отрисовка обращаются к `CharacterAnimationComponent` напрямую.
+
 Формат `.3dmodel` версии 3 сохраняет имя материала и его прозрачность из FBX.
 Старые файлы версии 2 также читаются. Чтобы применить изменение Alpha в Blender,
 сохраните `.blend`, экспортируйте FBX и пересоберите игру: компилятор перенесёт
@@ -81,7 +102,7 @@ ID типа с Empty уровня. Сейчас Empty `ItemSpawn` задаёт �
 преобразования импортированной модели.
 
 Только рядом с доступным предметом UI показывает одну строку
-`[E] ВЗЯТЬ ДЕДА МОРОЗА` пиксельным шрифтом PSX. Нажатие E занимает скрытый
+`[E] ВЗЯТЬ ДЕДА МОРОЗА` готовым шрифтом Old Standard TT. Нажатие E занимает скрытый
 слот; следующее нажатие бросает вещь по направлению взгляда. Подбор через
 стены запрещён, а при удержании подсказка скрыта. Поворот вещи в руке задаёт
 `heldYawDegrees` в определении типа.
