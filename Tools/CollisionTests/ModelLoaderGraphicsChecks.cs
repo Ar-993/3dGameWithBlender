@@ -138,6 +138,60 @@ internal static class ModelLoaderGraphicsChecks
                 }
             });
 
+            run("flashlight brightens a sunlit floor and leaves surfaces outside its cone unchanged", () =>
+            {
+                using var floorTexture = new Texture2D(GraphicsDevice, 1, 1);
+                floorTexture.SetData(new[] { new Color(80, 80, 80) });
+                var data = new ModelData();
+                data.Nodes.Add(new("Floor", -1, System.Numerics.Matrix4x4.Identity));
+                data.Meshes.Add(new MeshData
+                {
+                    Node = 0,
+                    Vertices = [FloorVertex(-3f, -3f), FloorVertex(3f, -3f),
+                        FloorVertex(3f, 3f), FloorVertex(-3f, 3f)],
+                    Indices = [0, 1, 2, 0, 2, 3]
+                });
+                using var floor = new CompiledModel(GraphicsDevice, data, [floorTexture], [], effect);
+                using var target = new RenderTarget2D(GraphicsDevice, 64, 64, false,
+                    SurfaceFormat.Color, DepthFormat.Depth24);
+                var lighting = new SceneLighting
+                {
+                    PointIntensity = 0f,
+                    FlashlightPosition = new Vector3(0f, 2f, 0f),
+                    FlashlightDirection = Vector3.Down
+                };
+                Matrix view = Matrix.CreateLookAt(new Vector3(0f, 2f, 4f), Vector3.Zero, Vector3.Up);
+                Matrix projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1f, 0.1f, 30f);
+
+                Color withoutFlashlight = DrawFloor();
+                lighting.FlashlightEnabled = true;
+                Color withFlashlight = DrawFloor();
+                Require(withFlashlight.R > withoutFlashlight.R + 20,
+                    $"The flashlight adds no light to the sunlit floor: off={withoutFlashlight}, on={withFlashlight}");
+
+                lighting.FlashlightDirection = Vector3.Up;
+                Color outsideCone = DrawFloor();
+                Require(Math.Abs(outsideCone.R - withoutFlashlight.R) <= 1,
+                    "The flashlight changed floor pixels outside its cone");
+
+                Color DrawFloor()
+                {
+                    GraphicsDevice.SetRenderTarget(target);
+                    try
+                    {
+                        GraphicsDevice.Clear(Color.Black);
+                        floor.Draw(Matrix.Identity, view, projection, lighting);
+                    }
+                    finally { GraphicsDevice.SetRenderTarget(null); }
+                    var pixels = new Color[64 * 64];
+                    target.GetData(pixels);
+                    return pixels[32 * 64 + 32];
+                }
+
+                VertexData FloorVertex(float x, float z) => new(new(x, 0f, z),
+                    System.Numerics.Vector3.UnitY, new(0.5f), 0, 0, 0, 0, new(1f, 0f, 0f, 0f));
+            });
+
             run("loader reads a model file, draws it and disposes only owned resources", () =>
             {
                 var resources = new List<GraphicsResource>();

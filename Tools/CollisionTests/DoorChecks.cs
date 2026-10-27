@@ -10,17 +10,27 @@ internal static class DoorChecks
 {
     public static void Run(Action<string, Action> run)
     {
-        run("doors rotate about the authored origin without changing the bind pose", () =>
+        run("doors rotate about their left edge even when the origin is centered", () =>
         {
             ModelData data = Fixture();
             data.Nodes[1] = new NodeData("Door", 0, NMatrix.CreateTranslation(3f, 0f, 4f));
+            data.Meshes[1] = new MeshData
+            {
+                Node = 1,
+                Vertices = data.Meshes[1].Vertices.Select(vertex => vertex with
+                {
+                    Position = vertex.Position - new NVector(0.5f, 0f, 0f)
+                }).ToArray(),
+                Indices = data.Meshes[1].Indices
+            };
             var hierarchy = new ModelHierarchy(data);
             var doors = new LevelDoors(data, hierarchy, [Definition()]);
             var door = (LevelDoors.Door)doors.Interactables.Single();
             door.Interact();
             doors.Update(1f, []);
-            Near(Vector3.Transform(Vector3.Zero, doors.LocalTransforms[1]), new(3f, 0f, 4f));
-            Near(Vector3.Transform(Vector3.UnitX, doors.LocalTransforms[1]), new(3f, 0f, 3f));
+            Near(door.Hinge, new(-0.5f, 0f, 0f));
+            Near(Vector3.Transform(door.Hinge, doors.LocalTransforms[1]), new(2.5f, 0f, 4f));
+            Near(Vector3.Transform(new Vector3(0.5f, 0f, 0f), doors.LocalTransforms[1]), new(2.5f, 0f, 3f));
             Require(hierarchy.LocalTransforms[1] == Matrix.CreateTranslation(3f, 0f, 4f), "Bind transforms were overwritten");
         });
 

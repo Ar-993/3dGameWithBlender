@@ -6,13 +6,14 @@ using Microsoft.Xna.Framework;
 
 namespace _3DLight;
 
-// Origin узла из Blender — ось петель. Одни матрицы используются для рендера и коллизии.
+// Ось петель вычисляется по левому краю геометрии. Матрицы общие для рендера и коллизии.
 internal sealed class LevelDoors
 {
-    internal sealed class Door(DoorDefinition definition, int nodeIndex, HashSet<int> meshIds) : IInteractable
+    internal sealed class Door(DoorDefinition definition, int nodeIndex, HashSet<int> meshIds, Vector3 hinge) : IInteractable
     {
         public DoorDefinition Definition { get; } = definition;
         public int NodeIndex { get; } = nodeIndex;
+        public Vector3 Hinge { get; } = hinge;
         public IReadOnlySet<int> MeshIds { get; } = meshIds;
         public bool TargetOpen { get; private set; }
         public float Angle { get; private set; }
@@ -70,7 +71,7 @@ internal sealed class LevelDoors
                 throw new InvalidDataException($"У двери '{definition.Node}' нет мешей или её узлы уже заняты другой дверью.");
 
             MeshIds.UnionWith(meshIds);
-            var door = new Door(definition, node, meshIds);
+            var door = new Door(definition, node, meshIds, FindLeftHinge(node, meshIds));
             doors.Add(door);
             Refresh(door);
             door.RememberClosedBounds();
@@ -79,13 +80,33 @@ internal sealed class LevelDoors
 
     private void Refresh(Door door)
     {
-        // Умножение слева вращает вокруг локального origin, уже заданного в Blender.
-        LocalTransforms[door.NodeIndex] = Matrix.CreateRotationY(door.Angle) * hierarchy.LocalTransforms[door.NodeIndex];
+        Matrix rotation = Matrix.CreateTranslation(-door.Hinge) * Matrix.CreateRotationY(door.Angle) *
+            Matrix.CreateTranslation(door.Hinge);
+        LocalTransforms[door.NodeIndex] = rotation * hierarchy.LocalTransforms[door.NodeIndex];
         hierarchy.CalculateGlobalTransforms(LocalTransforms, globalTransforms);
         List<Level.TriangleCollider> colliders = LevelGeometryBuilder.BuildTriangleColliders(data, globalTransforms, door.MeshIds);
         if (colliders.Count == 0)
             throw new InvalidDataException($"У двери '{door.Definition.Node}' нет треугольников.");
         door.SetColliders(colliders);
+    }
+
+    private Vector3 FindLeftHinge(int doorNode, IReadOnlySet<int> meshIds)
+    {
+        Matrix worldToDoor = Matrix.Invert(hierarchy.BindPoseGlobalTransforms[doorNode]);
+        var points = new List<Vector3>();
+        foreach (int meshId in meshIds)
+        {
+            MeshData mesh = data.Meshes[meshId];
+            Matrix meshToDoor = hierarchy.BindPoseGlobalTransforms[mesh.Node] * worldToDoor;
+            foreach (VertexData vertex in mesh.Vertices)
+                points.Add(Vector3.Transform(new(vertex.Position.X, vertex.Position.Y, vertex.Position.Z), meshToDoor));
+        }
+
+        float left = points.Min(point => point.X);
+        // Толщину берём у левого ребра: выступающая ручка не должна смещать ось петель.
+        Vector3[] edge = points.Where(point => point.X <= left + 0.001f).ToArray();
+        float middleZ = (edge.Min(point => point.Z) + edge.Max(point => point.Z)) * 0.5f;
+        return new Vector3(left, 0f, middleZ);
     }
 
     public bool Update(float seconds, ReadOnlySpan<CapsuleShape> occupants)

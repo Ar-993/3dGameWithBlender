@@ -145,8 +145,10 @@ float4 MainPS(VertexShaderOutput input) : COLOR
         }
     }
 
-    float3 totalLight = saturate(AmbientColor + sunLight + pointLight + flashlightLight);
-    float3 litColor = texColor.rgb * totalLight;
+    // Фоновое освещение уже может достигать 1 на полу. Не срезаем вместе с ним
+    // свет фонарика: его прибавка должна оставаться видимой на освещённых поверхностях.
+    float3 sceneLight = saturate(AmbientColor + sunLight + pointLight);
+    float3 litColor = texColor.rgb * (sceneLight + flashlightLight);
     float3 finalColor = lerp(texColor.rgb, litColor, LightingEnabled);
     float finalAlpha = saturate(rawTex.a * Alpha);
     
