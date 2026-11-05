@@ -65,14 +65,18 @@ public sealed class CompiledModel : IDisposable
         Matrix world,
         Matrix view,
         Matrix projection,
-        SceneLighting lighting)
+        SceneLighting lighting,
+        SceneRenderQueue? renderQueue = null)
     {
         Array.Copy(
             Hierarchy.BindPoseGlobalTransforms,
             globalTransforms,
             globalTransforms.Length);
 
-        DrawMeshes(world, view, projection, lighting);
+        if (renderQueue is null)
+            DrawMeshes(world, view, projection, lighting);
+        else
+            SubmitMeshes(renderQueue, world);
     }
 
     public void DrawPose(
@@ -80,7 +84,8 @@ public sealed class CompiledModel : IDisposable
         Matrix world,
         Matrix view,
         Matrix projection,
-        SceneLighting lighting)
+        SceneLighting lighting,
+        SceneRenderQueue? renderQueue = null)
     {
         ValidatePoseLength(pose);
 
@@ -88,7 +93,10 @@ public sealed class CompiledModel : IDisposable
             localTransforms[nodeIndex] = pose[nodeIndex].ToMatrix();
 
         Hierarchy.CalculateGlobalTransforms(localTransforms, globalTransforms);
-        DrawMeshes(world, view, projection, lighting);
+        if (renderQueue is null)
+            DrawMeshes(world, view, projection, lighting);
+        else
+            SubmitMeshes(renderQueue, world);
     }
 
     private void ValidatePoseLength(BonePose[] pose)
@@ -107,14 +115,18 @@ public sealed class CompiledModel : IDisposable
         Matrix world,
         Matrix view,
         Matrix projection,
-        SceneLighting lighting)
+        SceneLighting lighting,
+        SceneRenderQueue? renderQueue = null)
     {
         ArgumentNullException.ThrowIfNull(nodeLocalTransforms);
         if (nodeLocalTransforms.Length != NodeCount)
             throw new ArgumentException("Для каждого узла нужна локальная матрица.", nameof(nodeLocalTransforms));
 
         Hierarchy.CalculateGlobalTransforms(nodeLocalTransforms, globalTransforms);
-        DrawMeshes(world, view, projection, lighting);
+        if (renderQueue is null)
+            DrawMeshes(world, view, projection, lighting);
+        else
+            SubmitMeshes(renderQueue, world);
     }
 
     private RuntimeMesh CreateRuntimeMesh(
@@ -196,6 +208,69 @@ public sealed class CompiledModel : IDisposable
             boneTransforms[boneIndex] = Matrix.Identity;
 
         return boneTransforms;
+    }
+
+    public void Submit(SceneRenderQueue renderQueue, Matrix world)
+    {
+        ArgumentNullException.ThrowIfNull(renderQueue);
+        Array.Copy(Hierarchy.BindPoseGlobalTransforms, globalTransforms, globalTransforms.Length);
+        SubmitMeshes(renderQueue, world);
+    }
+
+    public void SubmitPose(SceneRenderQueue renderQueue, BonePose[] pose, Matrix world)
+    {
+        ArgumentNullException.ThrowIfNull(renderQueue);
+        ValidatePoseLength(pose);
+        for (int nodeIndex = 0; nodeIndex < pose.Length; nodeIndex++)
+            localTransforms[nodeIndex] = pose[nodeIndex].ToMatrix();
+        Hierarchy.CalculateGlobalTransforms(localTransforms, globalTransforms);
+        SubmitMeshes(renderQueue, world);
+    }
+
+    public void SubmitTransforms(SceneRenderQueue renderQueue, Matrix[] nodeLocalTransforms, Matrix world)
+    {
+        ArgumentNullException.ThrowIfNull(renderQueue);
+        ArgumentNullException.ThrowIfNull(nodeLocalTransforms);
+        if (nodeLocalTransforms.Length != NodeCount)
+            throw new ArgumentException("Для каждого узла нужна локальная матрица.", nameof(nodeLocalTransforms));
+        Hierarchy.CalculateGlobalTransforms(nodeLocalTransforms, globalTransforms);
+        SubmitMeshes(renderQueue, world);
+    }
+
+    private void SubmitMeshes(SceneRenderQueue renderQueue, Matrix world)
+    {
+        foreach (RuntimeMesh mesh in runtimeMeshes)
+        {
+            Matrix meshWorld = PrepareMeshTransforms(mesh, world);
+            bool skinned = mesh.Source.Bones.Length > 0;
+            bool transparent = IsTransparent(mesh.Source);
+            // Sorting must follow the animated glass rather than its bind pose.
+            // Opaque meshes do not need CPU skinning; their positions stay on the GPU.
+            BoundingBox bounds = transparent && skinned ? CalculateSkinnedBounds(mesh) : mesh.LocalBounds;
+            renderQueue.Add(mesh.VertexBuffer, mesh.IndexBuffer, mesh.Effect, mesh.Texture,
+                meshWorld, mesh.BoneTransforms, bounds, skinned,
+                transparent, mesh.Source.MaterialOpacity,
+                VegetationMaterials.UseAlphaCutOut(mesh.Source) ? 0.5f : 0f);
+        }
+    }
+
+    private static BoundingBox CalculateSkinnedBounds(RuntimeMesh mesh)
+    {
+        Vector3 minimum = new(float.PositiveInfinity);
+        Vector3 maximum = new(float.NegativeInfinity);
+        foreach (VertexData vertex in mesh.Source.Vertices)
+        {
+            Vector3 position = ToXnaVector3(vertex.Position);
+            // Equivalent to mul(position, sum(Bones[index] * weight)) in ModelVertex.fxh.
+            Vector3 skinnedPosition =
+                Vector3.Transform(position, mesh.BoneTransforms[vertex.B0]) * vertex.Weights.X +
+                Vector3.Transform(position, mesh.BoneTransforms[vertex.B1]) * vertex.Weights.Y +
+                Vector3.Transform(position, mesh.BoneTransforms[vertex.B2]) * vertex.Weights.Z +
+                Vector3.Transform(position, mesh.BoneTransforms[vertex.B3]) * vertex.Weights.W;
+            minimum = Vector3.Min(minimum, skinnedPosition);
+            maximum = Vector3.Max(maximum, skinnedPosition);
+        }
+        return new BoundingBox(minimum, maximum);
     }
 
     private void DrawMeshes(
@@ -367,12 +442,14 @@ public sealed class CompiledModel : IDisposable
         parameters["Projection"]?.SetValue(projection);
         parameters["CameraPosition"]?.SetValue(cameraPosition);
         parameters["ModelTexture"]?.SetValue(runtimeMesh.Texture);
+        parameters["RimStrength"]?.SetValue(runtimeMesh.Source.Bones.Length > 0 ? 0.25f : 0f);
         parameters["AlphaCutoff"]?.SetValue(
             VegetationMaterials.UseAlphaCutOut(runtimeMesh.Source)
                 ? 0.5f
                 : 0f);
         parameters["Bones"]?.SetValue(runtimeMesh.BoneTransforms);
         lighting.Apply(parameters);
+        lighting.Fog.Apply(parameters);
     }
 
     private static Vector3 ToXnaVector3(System.Numerics.Vector3 vector) =>

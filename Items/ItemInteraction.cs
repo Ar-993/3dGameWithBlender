@@ -81,16 +81,17 @@ internal sealed class ItemInteraction
         return true;
     }
 
-    public void Draw(Matrix view, Matrix projection, SceneLighting lighting)
+    public void Draw(Matrix view, Matrix projection, SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null)
     {
         foreach (WorldItem item in items)
-            item.DrawWorld(view, projection, lighting);
+            item.DrawWorld(view, projection, lighting, renderQueue);
         if (HeldItem is { } held)
         {
             Matrix cameraWorld = Matrix.Invert(view);
             ItemPose pose = controller.GetHeldPose(ItemMath.ToLibrary(cameraWorld.Translation),
                 ItemMath.ToLibrary(cameraWorld.Forward));
-            held.DrawHeld(pose, view, projection, lighting);
+            held.DrawHeld(pose, view, projection, lighting, renderQueue);
         }
     }
 

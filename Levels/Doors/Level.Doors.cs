@@ -3,6 +3,7 @@ using Ars3D.Rendering;
 using _3DLight.Collision;
 using _3DLight.Interaction;
 using Microsoft.Xna.Framework;
+using Levels.Doors;
 
 namespace _3DLight;
 
@@ -14,18 +15,16 @@ public partial class Level
     {
         List<Platform> newPlatforms = LevelGeometryBuilder.BuildPlatforms(data, hierarchy.BindPoseGlobalTransforms);
         List<TriangleCollider> newTriangles = LevelGeometryBuilder.BuildTriangleColliders(data, hierarchy.BindPoseGlobalTransforms);
-        LevelDoors? newDoors = definitions.Count == 0 ? null : new LevelDoors(data, hierarchy, definitions);
-        if (newDoors is not null)
-            newTriangles.RemoveAll(triangle => newDoors.MeshIds.Contains(triangle.SupportPlatform!.Id));
+        var newDoors = new LevelDoors(data, hierarchy, definitions, discoverNamedDoors: true);
+        newTriangles.RemoveAll(triangle => newDoors.MeshIds.Contains(triangle.SupportPlatform!.Id));
 
         platforms.Clear();
         platforms.AddRange(newPlatforms);
         meshColliders.Clear();
         meshColliders.AddRange(newTriangles);
-        levelDoors = newDoors;
+        levelDoors = newDoors.MeshIds.Count == 0 ? null : newDoors;
         interactables.Clear();
-        if (newDoors is not null)
-            interactables.AddRange(newDoors.Interactables);
+        interactables.AddRange(newDoors.Interactables);
         collisionIndex = null;
     }
 

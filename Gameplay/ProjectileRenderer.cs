@@ -36,20 +36,21 @@ internal sealed class ProjectileRenderer : IDisposable
         }
     }
 
-    public void Draw(ProjectileSystem projectiles, Matrix view, Matrix projection, SceneLighting lighting)
+    public void Draw(ProjectileSystem projectiles, Matrix view, Matrix projection, SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
 
         ShootingCube shooter = projectiles.Shooter;
         Matrix gunWorld = Matrix.CreateScale(shooter.Size) * GunModelOrientation *
             AimRotation(shooter.AimDirection) * Matrix.CreateTranslation(shooter.Position);
-        gunModel.Draw(gunWorld, view, projection, lighting);
+        gunModel.Draw(gunWorld, view, projection, lighting, renderQueue);
 
         foreach (Bullet bullet in projectiles.Bullets)
         {
             Matrix bulletWorld = BulletModelOrientation * AimRotation(bullet.Direction) *
                 Matrix.CreateTranslation(bullet.Position);
-            bulletModel.Draw(bulletWorld, view, projection, lighting);
+            bulletModel.Draw(bulletWorld, view, projection, lighting, renderQueue);
         }
     }
 

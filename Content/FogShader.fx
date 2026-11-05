@@ -1,91 +1,34 @@
-#if OPENGL
-    #define SV_POSITION POSITION
-    #define VS_SHADERMODEL vs_3_0
-    #define PS_SHADERMODEL ps_3_0
-#else
-    #define VS_SHADERMODEL vs_4_0_level_9_1
-    #define PS_SHADERMODEL ps_4_0_level_9_1
-#endif
+// Подставить определения версии шейдеров и имени семантики позиции из общего файла.
+#include "ShaderPlatform.fxh"
+// Подставить параметры тумана и единую функцию CalculateFogAmount.
+#include "SceneFog.fxh"
+// Подставить функции PackDepth и UnpackDepth: запись одного расстояния в RGB и его восстановление.
+#include "DepthPacking.fxh"
 
-matrix World;
-matrix View;
-matrix Projection;
+// Параметр из C#: расстояние, которое кодируется как 1. В нашем конвейере это проверенное FogEnd, а не дальняя плоскость камеры.
+float DepthFar;
 
-texture ModelTexture;
+// SpriteBatch supplies the depth texture in slot 0. This shader never reads
+// scene color, so it can blend fog over that color without switching targets.
+// Читать двухмерную текстуру из первого слота sampler. SpriteBatch.Draw(depthTarget, ...) помещает туда depthTarget.
+sampler2D DepthSampler : register(s0);
 
-float FogEnabled;
-float3 FogColor;
-float FogStart;
-float FogEnd;
-
-sampler2D TextureSampler = sampler_state
+// Получить цвет вершины SpriteBatch (здесь не используется) и экранные UV; вернуть RGBA наложения тумана.
+float4 FogPS(float4 color : COLOR0, float2 uv : TEXCOORD0) : COLOR0
 {
-    Texture = <ModelTexture>;
-
-    MinFilter = Linear;
-    MagFilter = Linear;
-    MipFilter = Linear;
-};
-
-struct VertexShaderInput
-{
-    float4 Position : POSITION0;
-    float2 TextureCoordinate : TEXCOORD0;
-};
-
-struct VertexShaderOutput
-{
-    float4 Position : SV_POSITION;
-    float2 TextureCoordinate : TEXCOORD0;
-    float ViewDepth : TEXCOORD1;
-};
-
-VertexShaderOutput FogVS(VertexShaderInput input)
-{
-    VertexShaderOutput output;
-
-    float4 worldPosition = mul(input.Position, World);
-    float4 viewPosition = mul(worldPosition, View);
-
-    output.Position = mul(viewPosition, Projection);
-
-    output.TextureCoordinate = input.TextureCoordinate;
-
-    output.ViewDepth = max(0.0, -viewPosition.z);
-
-    return output;
+    // Прочитать RGB расстояния в этой точке кадра, распаковать число 0..1 и вернуть масштаб мировых единиц.
+    float radialDistance = UnpackDepth(tex2D(DepthSampler, uv).rgb) * DepthFar;
+    // Вернуть RGB цвета тумана; в альфе вернуть его долю. Смешивание с изображением выполнит состояние fogBlend в C#.
+    return float4(FogColor, CalculateFogAmount(radialDistance));
 }
 
-float4 FogPS(VertexShaderOutput input) : COLOR0
+// Именованная группа проходов полноэкранного тумана.
+technique FogTechnique
 {
-    float4 textureColor = tex2D(
-        TextureSampler,
-        input.TextureCoordinate);
-
-    if (FogEnabled < 0.5)
-        return textureColor;
-
-    float fogAmount = saturate(
-        (input.ViewDepth - FogStart) /
-        max(FogEnd - FogStart, 0.001));
-
-    fogAmount =
-        fogAmount * fogAmount *
-        (3.0 - 2.0 * fogAmount);
-
-    float3 finalColor = lerp(
-        textureColor.rgb,
-        FogColor,
-        fogAmount);
-
-    return float4(finalColor, textureColor.a);
-}
-
-technique StaticTechnique
-{
-    pass Pass1
+    // Единственный проход наложения.
+    pass Fog
     {
-        VertexShader = compile VS_SHADERMODEL FogVS();
+        // Назначить наш pixel shader. Vertex shader здесь не задан: для прямоугольника используется встроенный шейдер SpriteBatch.
         PixelShader = compile PS_SHADERMODEL FogPS();
     }
 };

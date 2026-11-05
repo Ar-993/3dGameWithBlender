@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Levels.Doors;
 
 
 namespace _3DLight
@@ -188,16 +189,17 @@ namespace _3DLight
         }
 
         public void Draw(
-            Matrix view,
-            Matrix projection,
-            SceneLighting lighting)
+    Matrix view,
+    Matrix projection,
+    SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null)
         {
             if (model is null)
                 return;
             if (levelDoors is null)
-                model.Draw(Matrix.Identity, view, projection, lighting);
+                model.Draw(Matrix.Identity, view, projection, lighting, renderQueue);
             else
-                model.DrawTransforms(levelDoors.LocalTransforms, Matrix.Identity, view, projection, lighting);
+                model.DrawTransforms(levelDoors.LocalTransforms, Matrix.Identity, view, projection, lighting, renderQueue);
         }
 
         public void DrawColliders(

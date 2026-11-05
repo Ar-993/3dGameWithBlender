@@ -57,12 +57,14 @@ internal sealed class WorldItem
             orientation.HasValue ? ItemMath.ToLibrary(orientation.Value) : null,
             spin.HasValue ? ItemMath.ToLibrary(spin.Value) : null);
 
-    internal void DrawWorld(Matrix view, Matrix projection, SceneLighting lighting)
+    internal void DrawWorld(Matrix view, Matrix projection, SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null)
     {
         if (!IsHeld)
-            renderer?.Draw(State.WorldPose, view, projection, lighting);
+            renderer?.Draw(State.WorldPose, view, projection, lighting, renderQueue);
     }
 
-    internal void DrawHeld(ItemPose pose, Matrix view, Matrix projection, SceneLighting lighting) =>
-        renderer?.Draw(pose, view, projection, lighting);
+    internal void DrawHeld(ItemPose pose, Matrix view, Matrix projection, SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null) =>
+    renderer?.Draw(pose, view, projection, lighting, renderQueue);
 }

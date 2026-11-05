@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace _3DLight;
+namespace Levels.Doors;
 
 internal sealed class DoorDefinition
 {

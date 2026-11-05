@@ -15,7 +15,7 @@ using BlendState = Microsoft.Xna.Framework.Graphics.BlendState;
 namespace _3DLight.Scenes
 {
     internal sealed class SceneMenu : IGameScene
-{
+    {
         private readonly Game game;
         private readonly SceneManager scenes;
         private readonly Level level = new();
@@ -27,6 +27,7 @@ namespace _3DLight.Scenes
 
         private ContentManager? content;
         private SpriteBatch spriteBatch = null!;
+        private SceneRenderer sceneRenderer = null!;
         private SpriteFont menuFont = null!;
         private Button playButton = null!;
         private Button exitButton = null!;
@@ -43,10 +44,11 @@ namespace _3DLight.Scenes
         public void LoadContent()
         {
             content = new ContentManager(
-           game.Services,  
+           game.Services,
            game.Content.RootDirectory);
 
             level.LoadContent(content, LevelSession.ModelName);
+            sceneRenderer = new SceneRenderer(game.GraphicsDevice, content);
             menuFont = content.Load<SpriteFont>("Fonts/OldStandardMenu");
 
             view = Matrix.CreateLookAt(
@@ -77,7 +79,7 @@ namespace _3DLight.Scenes
             var button = new Button
             {
                 Text = string.Empty,
-                Width  = 240,
+                Width = 240,
                 Height = 60,
                 WidthUnits = DimensionUnitType.Absolute,
                 HeightUnits = DimensionUnitType.Absolute
@@ -105,18 +107,15 @@ namespace _3DLight.Scenes
         {
             GraphicsDevice graphics = game.GraphicsDevice;
 
-            graphics.Clear(lighting.Fog.Color);
-            graphics.BlendState = BlendState.Opaque;
-            graphics.DepthStencilState = DepthStencilState.Default;
-            graphics.RasterizerState = RasterizerState.CullNone;
-
             Matrix projection = Matrix.CreatePerspectiveFieldOfView(
                 MathHelper.ToRadians(70f),
                 graphics.Viewport.AspectRatio,
                 0.04f,
                 1000f);
 
-            level.Draw(view, projection, lighting);
+            sceneRenderer.Queue.Clear();
+            level.Draw(view, projection, lighting, sceneRenderer.Queue);
+            sceneRenderer.Draw(view, projection, lighting);
         }
 
         private void DrawLabels()
@@ -165,6 +164,7 @@ namespace _3DLight.Scenes
             disposed = true;
             if (gumStarted) gum.Uninitialize();
             spriteBatch?.Dispose();
+            sceneRenderer?.Dispose();
             level.Dispose();
             content?.Dispose();
         }

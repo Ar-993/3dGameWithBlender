@@ -17,6 +17,7 @@ internal sealed class ItemModelRenderer(CompiledModel model, Matrix normalizatio
         return true;
     }
 
-    public void Draw(ItemPose pose, Matrix view, Matrix projection, SceneLighting lighting) =>
-        model.Draw(normalization * ItemMath.ToGame(pose.ToMatrix()), view, projection, lighting);
+    public void Draw(ItemPose pose, Matrix view, Matrix projection, SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null) =>
+    model.Draw(normalization * ItemMath.ToGame(pose.ToMatrix()), view, projection, lighting, renderQueue);
 }

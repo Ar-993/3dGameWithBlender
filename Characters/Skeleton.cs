@@ -162,11 +162,12 @@ public class Skeleton : IDisposable
     }
 
     public void Draw(
-        Matrix view,
-        Matrix projection,
-        SceneLighting lighting)
+    Matrix view,
+    Matrix projection,
+    SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null)
     {
-        animation.Draw(Position, view, projection, lighting);
+        animation.Draw(Position, view, projection, lighting, renderQueue);
     }
 
     public void Dispose() => animation.Dispose();

@@ -5,5 +5,12 @@
     "openAngleDegrees": 100,
     "degreesPerSecond": 180,
     "interactionDistance": 2.5
+  },
+  {
+    "node": "Door_01",
+    "displayName": "ДВЕРЬ ТУАЛЕТА",
+    "openAngleDegrees": 100,
+    "degreesPerSecond": 180,
+    "interactionDistance": 2.5
   }
 ]

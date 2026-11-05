@@ -54,6 +54,5 @@ public sealed class SceneLighting
         parameters["FlashlightRange"]?.SetValue(15f);
         parameters["FlashlightConeAngle"]?.SetValue(0.8944f);
         parameters["FlashlightIntensity"]?.SetValue(FlashlightEnabled ? 2f : 0f);
-        Fog.Apply(parameters);
     }
 }

@@ -28,6 +28,9 @@ internal sealed class GameplayScene : IGameScene
         world = new GameplayWorld(game.GraphicsDevice, content);
         world.LoadContent();
         renderer = new GameplayRenderer(game.GraphicsDevice, content);
+        renderer.PostProcessing.Exposure = 1f;
+        renderer.PostProcessing.Saturation = 1f;
+        renderer.PostProcessing.VignetteStrength = 0f;
     }
 
     public void Enter()

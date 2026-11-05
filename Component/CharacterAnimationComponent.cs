@@ -87,10 +87,11 @@ internal sealed class CharacterAnimationComponent : IDisposable
         animator.ClearUpperBodyOverlay();
 
     public void Draw(
-        Vector3 position,
-        Matrix view,
-        Matrix projection,
-        SceneLighting lighting)
+    Vector3 position,
+    Matrix view,
+    Matrix projection,
+    SceneLighting lighting,
+    SceneRenderQueue? renderQueue = null)
     {
         Matrix world =
             Matrix.CreateScale(modelScale) *
@@ -98,7 +99,7 @@ internal sealed class CharacterAnimationComponent : IDisposable
             Matrix.CreateTranslation(position);
 
         animator.CopyPoseTo(renderPose);
-        model.DrawPose(renderPose, world, view, projection, lighting);
+        model.DrawPose(renderPose, world, view, projection, lighting, renderQueue);
     }
 
     public float GetClipDuration(string clipName)

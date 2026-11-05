@@ -12,6 +12,8 @@ internal static class AssimpModelImporter
         string manifestDirectory)
     {
         using var importer = new AssimpContext();
+        importer.SetConfig(new Assimp.Configs.FBXPreservePivotsConfig(true));
+
         PostProcessSteps importFlags = GetImportFlags();
 
         Scene sourceScene = importer.ImportFile(sourcePath, importFlags)
