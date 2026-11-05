@@ -10,6 +10,12 @@ const float radius = 0.35f;
 const float height = 1.8f;
 int failures = 0;
 
+if (args.Contains("--scene-resources"))
+{
+    SceneGraphicsChecks.Run(Run);
+    return failures == 0 ? 0 : 1;
+}
+
 AnimationChecks.Run(Run);
 ItemChecks.Run(Run);
 InventoryChecks.Run(Run);

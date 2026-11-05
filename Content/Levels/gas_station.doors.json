@@ -1,6 +1,7 @@
 [
   {
     "node": "Door_03",
+    "usesModelPivot": true,
     "displayName": "ДВЕРЬ МАГАЗИНА",
     "openAngleDegrees": 100,
     "degreesPerSecond": 180,
@@ -8,6 +9,7 @@
   },
   {
     "node": "Door_01",
+    "usesModelPivot": true,
     "displayName": "ДВЕРЬ ТУАЛЕТА",
     "openAngleDegrees": 100,
     "degreesPerSecond": 180,

@@ -64,7 +64,6 @@ internal sealed class DoorDiscovery(ModelData data, ModelHierarchy hierarchy)
         }
 
         float left = points.Min(point => point.X);
-        // Толщину берём у левого ребра: выступающая ручка не должна смещать ось петель.
         Vector3[] edge = points.Where(point => point.X <= left + 0.001f).ToArray();
         float middleZ = (edge.Min(point => point.Z) + edge.Max(point => point.Z)) * 0.5f;
         return new Vector3(left, 0f, middleZ);

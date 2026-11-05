@@ -5,12 +5,11 @@ using Microsoft.Xna.Framework;
 namespace Levels.Doors;
 
 internal sealed class LevelDoor(DoorDefinition definition, int nodeIndex, HashSet<int> meshIds,
-    Vector3 hinge, bool usesModelPivot) : IInteractable
+    Vector3 hinge) : IInteractable
 {
     public DoorDefinition Definition { get; } = definition;
     public int NodeIndex { get; } = nodeIndex;
     public Vector3 Hinge { get; } = hinge;
-    internal bool UsesModelPivot { get; } = usesModelPivot;
     public IReadOnlySet<int> MeshIds { get; } = meshIds;
     public bool TargetOpen { get; private set; }
     public float Angle { get; private set; }

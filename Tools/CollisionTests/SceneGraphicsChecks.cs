@@ -118,12 +118,19 @@ internal static class SceneGraphicsChecks
                         Require(ReferenceEquals(scenes.CurrentScene, empty) &&
                             gameplay.Exited && gameplay.Disposed,
                             $"Gameplay scene {cycle} was not exited and disposed during the switch");
+                        // Effect templates in GraphicsDevice.EffectCache are shared by all
+                        // scenes. ContentManager owns their loaded instances, not these templates.
                         Require(gameplay.Resources.Count > 0 &&
-                            gameplay.Resources.All(resource => resource.IsDisposed),
+                            gameplay.Resources.All(resource => resource.IsDisposed ||
+                                resource is Effect effect && IsCachedEffect(GraphicsDevice, effect)),
                             $"Gameplay scene {cycle} leaked GPU resources: " +
                             string.Join(", ", gameplay.Resources
                                 .Where(resource => !resource.IsDisposed)
-                                .Select(resource => resource.GetType().Name)));
+                                .Select(resource => resource is Effect effect
+                                    ? $"Effect[{string.Join('/', effect.Parameters.Select(parameter => parameter.Name))}] (device cache: {IsCachedEffect(GraphicsDevice, effect)})"
+                                    : resource.GetType().Name)));
+                        Console.WriteLine($"SCENE {cycle}: disposed effects={gameplay.Resources.OfType<Effect>().Count(effect => effect.IsDisposed)}, " +
+                            $"retained shared templates={gameplay.Resources.OfType<Effect>().Count(effect => !effect.IsDisposed && IsCachedEffect(GraphicsDevice, effect))}");
                         Require(!hostEffect.IsDisposed,
                             $"Gameplay scene {cycle} disposed the host content effect");
                     }
@@ -214,6 +221,13 @@ internal static class SceneGraphicsChecks
             .OfType<GraphicsResource>()
             .Where(resource => resource is Texture2D or VertexBuffer or IndexBuffer or Effect)
             .ToHashSet();
+    }
+
+    private static bool IsCachedEffect(GraphicsDevice graphics, Effect effect)
+    {
+        var cache = typeof(GraphicsDevice).GetField("EffectCache", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(graphics) as System.Collections.IDictionary;
+        return cache is not null && cache.Values.Cast<object>().Any(value => ReferenceEquals(value, effect));
     }
 
     private static void Require(bool condition, string message)

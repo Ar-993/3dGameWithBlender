@@ -10,6 +10,7 @@ internal sealed class DoorDefinition
     public float OpenAngleDegrees { get; init; } = 100f;
     public float DegreesPerSecond { get; init; } = 180f;
     public float InteractionDistance { get; init; } = 2.5f;
+    public bool UsesModelPivot { get; init; } = true;
 
     public static DoorDefinition[] Load(string modelName)
     {

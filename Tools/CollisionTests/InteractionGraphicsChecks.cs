@@ -5,6 +5,7 @@ using Ars3D.ModelFormat;
 using _3DLight.Interaction;
 using _3DLight.Items;
 using _3DLight.Ui;
+using Levels.Doors;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -103,7 +104,8 @@ internal static class InteractionGraphicsChecks
                     using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Content", "Models", "gas_station.3dmodel"));
                     ModelData data = ModelDataIo.Read(stream);
                     var doors = new LevelDoors(data, new ModelHierarchy(data), DoorDefinition.Load("gas_station"));
-                    BoundingBox bounds = doors.Colliders.Select(triangle => triangle.Bounds).Aggregate(BoundingBox.CreateMerged);
+                    var shopDoor = (LevelDoor)doors.Interactables.Single(value => ((LevelDoor)value).Definition.Node == "Door_03");
+                    BoundingBox bounds = shopDoor.Bounds;
                     playerFeet = new((bounds.Min.X + bounds.Max.X) / 2f, 0f, bounds.Max.Z + 2f);
                     AimAt((bounds.Min + bounds.Max) / 2f);
                     var sceneInteraction = new InteractionSystem(level.IsInteractionVisible);

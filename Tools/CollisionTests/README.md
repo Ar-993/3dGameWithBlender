@@ -56,6 +56,13 @@ Hierarchy checks cover parent-child transform composition, case-insensitive
 marker and subtree lookup, missing roots, and preservation of cached bind
 transforms while evaluating a working pose.
 
+Door checks verify the `usesModelPivot` JSON setting. It defaults to `true`, using
+the imported object origin or FBX RotationPivot; `false` computes a hinge at the
+minimum local X edge of the door geometry. Checks cover right-hand model hinges,
+child handles, and rotated, nonuniformly scaled parents. Rotation stays about
+world Y and closing restores the exact bind transforms. Place the object origin
+at the hinge in Blender and export the FBX again to change the model pivot.
+
 Animation checks cover TRS interpolation, bind-pose fallbacks, clip wrapping
 and clamping, invalid pose buffers, interrupted transitions, playback segments,
 and upper-body overlay fading. Sampler and animator checks use CPU-only fixtures.

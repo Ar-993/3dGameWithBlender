@@ -42,7 +42,7 @@ internal sealed class LevelDoors
             if (meshIds.Overlaps(MeshIds))
                 throw new InvalidDataException($"Меши двери '{definition.Node}' уже заняты другой дверью.");
 
-            AddDoor(definition, node, meshIds, discovery.FindLeftHinge(node, meshIds), usesModelPivot: false);
+            AddDoor(definition, node, meshIds, discovery);
         }
 
         if (!discoverNamedDoors)
@@ -59,14 +59,16 @@ internal sealed class LevelDoors
                 continue;
 
             var definition = new DoorDefinition { Node = data.Nodes[node].Name };
-            AddDoor(definition, node, meshIds, discovery.FindModelPivot(node), usesModelPivot: true);
+            AddDoor(definition, node, meshIds, discovery);
         }
     }
 
-    private void AddDoor(DoorDefinition definition, int node, HashSet<int> meshIds, Vector3 hinge,
-        bool usesModelPivot)
+    private void AddDoor(DoorDefinition definition, int node, HashSet<int> meshIds, DoorDiscovery discovery)
     {
-        var door = new LevelDoor(definition, node, meshIds, hinge, usesModelPivot);
+        Vector3 hinge = definition.UsesModelPivot
+            ? discovery.FindModelPivot(node)
+            : discovery.FindLeftHinge(node, meshIds);
+        var door = new LevelDoor(definition, node, meshIds, hinge);
         Refresh(door);
         door.RememberClosedBounds();
         MeshIds.UnionWith(meshIds);
@@ -76,7 +78,7 @@ internal sealed class LevelDoors
     private void Refresh(LevelDoor door)
     {
         int node = door.NodeIndex;
-        if (door.UsesModelPivot && door.Angle != 0f)
+        if (door.Angle != 0f)
         {
             Matrix bindWorld = hierarchy.BindPoseGlobalTransforms[node];
             Vector3 worldHinge = Vector3.Transform(door.Hinge, bindWorld);
@@ -89,9 +91,7 @@ internal sealed class LevelDoors
         }
         else
         {
-            Matrix rotation = Matrix.CreateTranslation(-door.Hinge) * Matrix.CreateRotationY(door.Angle) *
-                Matrix.CreateTranslation(door.Hinge);
-            LocalTransforms[node] = rotation * hierarchy.LocalTransforms[node];
+            LocalTransforms[node] = hierarchy.LocalTransforms[node];
         }
         hierarchy.CalculateGlobalTransforms(LocalTransforms, globalTransforms);
         List<Level.TriangleCollider> colliders = LevelGeometryBuilder.BuildTriangleColliders(data, globalTransforms, door.MeshIds);
@@ -111,12 +111,16 @@ internal sealed class LevelDoors
             float target = door.TargetOpen ? MathHelper.ToRadians(door.Definition.OpenAngleDegrees) : 0f;
             float difference = target - door.Angle;
             float travel = MathF.Min(MathF.Abs(difference), MathHelper.ToRadians(door.Definition.DegreesPerSecond) * seconds);
+            bool reachesTarget = travel >= MathF.Abs(difference);
             // Небольшие угловые шаги не позволяют створке перескочить через персонажа.
             int steps = (int)MathF.Ceiling(travel / MathHelper.ToRadians(3f));
             for (int step = 0; step < steps; step++)
             {
                 float previous = door.Angle;
-                door.SetAngle(previous + MathF.CopySign(travel / steps, difference));
+                // Последний шаг точно восстанавливает закрытую bind-матрицу без остаточного угла.
+                door.SetAngle(step == steps - 1 && reachesTarget
+                    ? target
+                    : previous + MathF.CopySign(travel / steps, difference));
                 Refresh(door);
                 if (TouchesOccupant(door, occupants))
                 {
