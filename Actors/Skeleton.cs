@@ -4,7 +4,6 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using _3DLight;
 using Ars3D.Rendering;
-using Characters;
 
 public class Skeleton : IDisposable
 {
@@ -68,11 +67,11 @@ public class Skeleton : IDisposable
 
     public void Update(Player player, Level level, float deltaTime)
     {
-        bool samePlatform = CurrentPlatform is not null &&
-                            player.CurrentPlatform is not null &&
-                            CurrentPlatform.Id == player.CurrentPlatform.Id;
+        //bool samePlatform = CurrentPlatform is not null &&
+        //                    player.CurrentPlatform is not null &&
+        //                    CurrentPlatform.Id == player.CurrentPlatform.Id;
 
-        ai.Update(Position, player.Position, samePlatform, deltaTime);
+        ai.Update(Position, player.Position, canReachTarget: !player.IsDead,  deltaTime);
         Vector3 horizontalMovement = Vector3.Zero;
 
         bool canMoveTowardPlayer =
@@ -81,7 +80,8 @@ public class Skeleton : IDisposable
         // Во время атаки скелет преследует цель, не делая свой шаг внутрь её радиуса.
         if (canMoveTowardPlayer &&
             ai.Direction != Vector3.Zero &&
-            CurrentPlatform is { } currentPlatform)
+            physics.IsGrounded)
+            //CurrentPlatform is { } currentPlatform
         {
             animation.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
 
@@ -100,15 +100,14 @@ public class Skeleton : IDisposable
                 movementDistance = MathF.Min(movementDistance, availableDistance);
             }
 
-            Vector3 requestedMovement = ai.Direction * movementDistance;
-            Vector3 newPosition = Position + requestedMovement;
+            horizontalMovement = ai.Direction * movementDistance;
 
-            if (currentPlatform.ContainsHorizontal(
-                    newPosition,
-                    physics.Radius))
-            {
-                horizontalMovement = requestedMovement;
-            }
+            //if (currentPlatform.ContainsHorizontal(
+            //        newPosition,
+            //        physics.Radius))
+            //{
+            //    horizontalMovement = requestedMovement;
+            //}
         }
 
         Vector3 oldPosition = Position;

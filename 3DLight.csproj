@@ -67,6 +67,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Actors\NPC\Behavior\" />
+    <Folder Include="Actors\NPC\Director\" />
     <Folder Include="Content\Player\" />
   </ItemGroup>
   <Target Name="CompileModels" BeforeTargets="Build">

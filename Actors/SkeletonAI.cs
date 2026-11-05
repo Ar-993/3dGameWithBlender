@@ -1,6 +1,6 @@
-﻿using _3DLight;
+﻿
 
-namespace Characters;
+namespace _3DLight;
 
 internal sealed class SkeletonAIComponent : AIComponent
 {
