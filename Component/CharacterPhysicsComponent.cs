@@ -46,7 +46,8 @@ internal sealed class CharacterPhysicsComponent
         CurrentPlatform = null;
     }
 
-    public void Move(Level level, Vector3 horizontalMovement, float deltaTime, ReadOnlySpan<CapsuleShape> obstacles)
+    public void Move(Level level, Vector3 horizontalMovement, float deltaTime,
+        ReadOnlySpan<CapsuleShape> obstacles = default)
     {
         verticalVelocity += gravity * deltaTime;
         Vector3 movement = horizontalMovement;

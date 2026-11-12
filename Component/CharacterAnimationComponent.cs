@@ -101,7 +101,7 @@ internal sealed class CharacterAnimationComponent : IDisposable
     SceneRenderQueue? renderQueue = null)
     {
         Matrix world =
-            Matrix.CreateScale(modelScale) *
+            modelTransform *
             Matrix.CreateRotationY(RotationY) *
             Matrix.CreateTranslation(position);
 

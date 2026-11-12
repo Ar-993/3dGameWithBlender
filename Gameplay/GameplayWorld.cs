@@ -73,6 +73,7 @@ internal sealed class GameplayWorld : IDisposable
     public void Update(float seconds, GameplayInputFrame input)
     {
         levelSession.Update();
+        UpdatePlayer(seconds, input);
         Interactions.Update(Level.Interactables, Camera.Position, Camera.Forward,
             input.InteractPressed, !input.SuppressInteraction && !Player.IsDead);
         UpdateDoors(seconds);
@@ -97,7 +98,8 @@ internal sealed class GameplayWorld : IDisposable
             jumpPressed: input.JumpPressed,
             attackPressed: input.AttackPressed,
             cameraYaw: Camera.Yaw,
-            level: Level);
+            level: Level,
+            obstacles: Npcs.Capsules);
         ApplyPlayerAttack();
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
     }
@@ -163,6 +165,7 @@ internal sealed class GameplayWorld : IDisposable
             return;
 
         disposed = true;
+        Npcs?.Dispose();
         itemCatalog?.Dispose();
         Skeleton.Dispose();
         levelSession.Dispose();

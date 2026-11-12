@@ -229,6 +229,8 @@ namespace _3DLight
 
             AppendCapsuleLines(lines, playerBounds, Color.Red);
             AppendCapsuleLines(lines, skeletonBounds, Color.Orange);
+            foreach (CapsuleShape npc in npcCapsules)
+                AppendCapsuleLines(lines, npc.Bounds, Color.Cyan);
 
             if (lines.Count == 0)
                 return;
@@ -238,9 +240,6 @@ namespace _3DLight
             collisionDebugEffect.Projection = projection;
 
             VertexPositionColor[] vertices = lines.ToArray();
-
-            foreach (CapsuleShape npc in npcCapsules)
-                AppendCapsuleLines(lines, npc.Bounds, Color.Cyan);
 
             foreach (EffectPass pass in collisionDebugEffect.CurrentTechnique.Passes)
             {

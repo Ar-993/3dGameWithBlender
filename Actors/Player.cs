@@ -46,13 +46,17 @@ public sealed class Player
 
     public void SpawnAt(Vector3 position) => physics.SpawnAt(position);
     public void Update(float seconds, Vector2 movement, bool jumpPressed,
-        bool attackPressed, float cameraYaw, Level level)
+        bool attackPressed, float cameraYaw, Level level) =>
+        Update(seconds, movement, jumpPressed, attackPressed, cameraYaw, level, []);
+
+    internal void Update(float seconds, Vector2 movement, bool jumpPressed,
+        bool attackPressed, float cameraYaw, Level level, ReadOnlySpan<CapsuleShape> obstacles)
     {
         if (attackPressed && !IsDead)
             attack.TryStart();
         attack.Update(seconds);
 
         controller.Update(movement, jumpPressed, cameraYaw, level, seconds, Speed,
-            canMove: !IsDead, canJump: !IsDead && !attack.IsAttacking);
+            canMove: !IsDead, canJump: !IsDead && !attack.IsAttacking, obstacles: obstacles);
     }
 }
