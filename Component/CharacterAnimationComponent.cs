@@ -11,32 +11,44 @@ internal sealed class CharacterAnimationComponent : IDisposable
     private CharacterAnimator animator = null!;
     private BonePose[] renderPose = [];
     private readonly float modelScale;
+    private Matrix modelTransform;
 
     public float CurrentClipDuration => animator?.CurrentClipDuration ?? 0f;
     public float RotationY { get; set; }
 
-    public CharacterAnimationComponent(float modelScale) => this.modelScale = modelScale;
+    public CharacterAnimationComponent(float modelScale)
+    {
+        this.modelScale = modelScale;
+        modelTransform = Matrix.CreateScale(modelScale);
+    }
 
     public void LoadContent(
-        GraphicsDevice graphicsDevice,
-        string modelAssetName,
-        string initialClip,
-        Texture2D texture,
-        Effect toonEffect)
+    GraphicsDevice graphicsDevice,
+    string modelAssetName,
+    string initialClip,
+    Texture2D texture,
+    Effect toonEffect,
+    float? targetHeight = null)
     {
         CompiledModel replacement = ModelAssetLoader.Load(
             graphicsDevice, ModelPaths.ModelFile(modelAssetName), texture, toonEffect,
             ModelPaths.TextureDirectory(modelAssetName));
-        AnimationSampler replacementSampler;
-        CharacterAnimator replacementAnimator;
-        BonePose[] replacementPose;
+        CompiledModel? previous = model;
         try
         {
-            replacementSampler = new AnimationSampler(
+            var nextSampler = new AnimationSampler(
                 replacement.Data.Nodes, replacement.Data.Clips);
-            replacementAnimator = new CharacterAnimator(
-                replacementSampler, replacement.Hierarchy, initialClip);
-            replacementPose = new BonePose[replacementSampler.NodeCount];
+            var nextAnimator = new CharacterAnimator(nextSampler, replacement.Hierarchy, initialClip);
+            var nextPose = new BonePose[nextSampler.NodeCount];
+            Matrix nextTransform = targetHeight is { } height
+                ? ItemModelTransform.FitToHeight(replacement.Data, replacement.Hierarchy, height)
+                : Matrix.CreateScale(modelScale);
+
+            model = replacement;
+            sampler = nextSampler;
+            animator = nextAnimator;
+            renderPose = nextPose;
+            modelTransform = nextTransform;
         }
         catch
         {
@@ -44,11 +56,6 @@ internal sealed class CharacterAnimationComponent : IDisposable
             throw;
         }
 
-        CompiledModel? previous = model;
-        model = replacement;
-        sampler = replacementSampler;
-        animator = replacementAnimator;
-        renderPose = replacementPose;
         previous?.Dispose();
     }
 

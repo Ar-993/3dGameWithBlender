@@ -41,7 +41,8 @@ public partial class Level
     private bool CastCapsule(
         CapsuleShape capsule,
         Vector3 movement,
-        out CapsuleCollision.Hit hit)
+        out CapsuleCollision.Hit hit,
+        ReadOnlySpan<CapsuleShape> obstacles = default)
     {
         if (movement.LengthSquared() <= 0.000000000001f)
         {
@@ -62,11 +63,20 @@ public partial class Level
                 startBounds.Max + movement)
                 + new Vector3(CapsuleCollision.SkinWidth));
 
-        return CapsuleCollision.Cast(
+        bool found = CapsuleCollision.Cast(
             capsule,
             movement,
             GetCollisionCandidates(sweptBounds),
             out hit);
+        foreach (CapsuleShape obstacle in obstacles)
+        {
+            if (!CapsuleCollision.Overlaps(sweptBounds, obstacle.Bounds) ||
+                !CapsuleCollision.Cast(capsule, movement, obstacle, found ? hit.Fraction : 1f, out var candidate))
+                continue;
+            hit = candidate;
+            found = true;
+        }
+        return found;
     }
 
     public Vector3 MoveCharacter(
@@ -76,7 +86,18 @@ public partial class Level
         float height,
         Platform? currentPlatform,
         ref float verticalVelocity,
-        out Platform? groundPlatform)
+        out Platform? groundPlatform) => MoveCharacter(position, movement, radius, height,
+            currentPlatform, ref verticalVelocity, out groundPlatform, []);
+
+    internal Vector3 MoveCharacter(
+        Vector3 position,
+        Vector3 movement,
+        float radius,
+        float height,
+        Platform? currentPlatform,
+        ref float verticalVelocity,
+        out Platform? groundPlatform,
+        ReadOnlySpan<CapsuleShape> obstacles)
     {
         if (!float.IsFinite(radius) || radius <= 0f)
             throw new ArgumentOutOfRangeException(nameof(radius));
@@ -91,7 +112,7 @@ public partial class Level
         groundPlatform = null;
 
         var capsule = RecoverPenetration(
-            new CapsuleShape(position, radius, height));
+            new CapsuleShape(position, radius, height), obstacles);
 
         bool canUseSteps =
             currentPlatform is not null && movement.Y <= 0f;
@@ -102,7 +123,7 @@ public partial class Level
         SlideResult horizontal = MoveCapsule(
             capsule,
             horizontalMovement,
-            horizontalPass: true);
+            horizontalPass: true, obstacles);
 
         if (canUseSteps &&
             horizontal.HitWall &&
@@ -110,7 +131,7 @@ public partial class Level
                 capsule,
                 horizontalMovement,
                 horizontal.Position,
-                out Vector3 stepped))
+                out Vector3 stepped, obstacles))
         {
             horizontal = horizontal with
             {
@@ -126,14 +147,14 @@ public partial class Level
         SlideResult vertical = MoveCapsule(
             capsule,
             new Vector3(0f, movement.Y, 0f),
-            horizontalPass: false);
+            horizontalPass: false, obstacles);
 
         capsule = capsule with
         {
             Feet = vertical.Position
         };
 
-        if (movement.Y > 0f && vertical.HitCeiling)
+        if (vertical.HitActor || movement.Y > 0f && vertical.HitCeiling)
             verticalVelocity = 0f;
 
         if (movement.Y <= 0f)
@@ -144,7 +165,7 @@ public partial class Level
 
             Vector3 probe = Vector3.Down * probeDistance;
 
-            if (CastCapsule(capsule, probe, out var groundHit) &&
+            if (CastCapsule(capsule, probe, out var groundHit, obstacles) &&
                 IsWalkable(groundHit))
             {
                 capsule = capsule with
@@ -162,7 +183,7 @@ public partial class Level
     }
 
     private CapsuleShape RecoverPenetration(
-        CapsuleShape capsule)
+        CapsuleShape capsule, ReadOnlySpan<CapsuleShape> obstacles = default)
     {
         for (int iteration = 0; iteration < 12; iteration++)
         {
@@ -194,6 +215,17 @@ public partial class Level
                 normal = contact.Normal;
             }
 
+            foreach (CapsuleShape obstacle in obstacles)
+            {
+                if (!CapsuleCollision.Overlaps(bounds, obstacle.Bounds))
+                    continue;
+                var contact = CapsuleCollision.GetContact(capsule, obstacle);
+                if (contact.Penetration <= deepest)
+                    continue;
+                deepest = contact.Penetration;
+                normal = contact.Normal;
+            }
+
             if (normal == Vector3.Zero)
                 break;
 
@@ -209,17 +241,20 @@ public partial class Level
     private readonly record struct SlideResult(
         Vector3 Position,
         bool HitWall,
-        bool HitCeiling);
+        bool HitCeiling,
+        bool HitActor);
 
     private SlideResult MoveCapsule(
         CapsuleShape capsule,
         Vector3 movement,
-        bool horizontalPass)
+        bool horizontalPass,
+        ReadOnlySpan<CapsuleShape> obstacles)
     {
         Vector3 remaining = movement;
 
         bool hitWall = false;
         bool hitCeiling = false;
+        bool hitActor = false;
 
         Span<Vector3> planes =
             stackalloc Vector3[MaximumSlideIterations];
@@ -231,7 +266,7 @@ public partial class Level
              remaining.LengthSquared() > 0.0000000001f;
              iteration++)
         {
-            if (!CastCapsule(capsule, remaining, out var hit))
+            if (!CastCapsule(capsule, remaining, out var hit, obstacles))
             {
                 capsule = capsule with
                 {
@@ -257,6 +292,7 @@ public partial class Level
                 hit.Normal.Y > -MinimumGroundNormalY;
 
             hitCeiling |= hit.Normal.Y < -0.01f;
+            hitActor |= hit.IsActor;
 
             if (!horizontalPass &&
                 ((movement.Y < 0f && walkable) ||
@@ -287,7 +323,8 @@ public partial class Level
         return new SlideResult(
             capsule.Feet,
             hitWall,
-            hitCeiling);
+            hitCeiling,
+            hitActor);
     }
 
     private static Vector3 ClipAgainstPlanes(
@@ -319,7 +356,8 @@ public partial class Level
         CapsuleShape capsule,
         Vector3 movement,
         Vector3 blockedPosition,
-        out Vector3 result)
+        out Vector3 result,
+        ReadOnlySpan<CapsuleShape> obstacles)
     {
         result = blockedPosition;
 
@@ -328,7 +366,7 @@ public partial class Level
 
         Vector3 up = Vector3.Up * MaximumStepHeight;
 
-        if (CastCapsule(capsule, up, out var ceiling))
+        if (CastCapsule(capsule, up, out var ceiling, obstacles))
             up *= ceiling.Fraction;
 
         if (up.Y <= CapsuleCollision.SkinWidth)
@@ -342,7 +380,7 @@ public partial class Level
         SlideResult forward = MoveCapsule(
             raised,
             movement,
-            horizontalPass: true);
+            horizontalPass: true, obstacles);
 
         Vector3 direction = Vector3.Normalize(movement);
 
@@ -372,7 +410,7 @@ public partial class Level
 
         Vector3 down = Vector3.Down * dropDistance;
 
-        if (!CastCapsule(raised, down, out var landing) ||
+        if (!CastCapsule(raised, down, out var landing, obstacles) ||
             !IsWalkable(landing))
         {
             return false;
@@ -401,7 +439,7 @@ public partial class Level
 
     private static bool IsWalkable(
         CapsuleCollision.Hit hit) =>
-        hit.Normal.Y > 0.01f &&
+        !hit.IsActor && hit.Normal.Y > 0.01f &&
         MathF.Abs(hit.Triangle.Normal.Y) >= MinimumGroundNormalY;
 
     private Platform GetSupport(TriangleCollider triangle) =>

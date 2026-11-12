@@ -1,11 +1,13 @@
-using _3DLight.Items;
 using _3DLight.Interaction;
+using _3DLight.Items;
+using _3DLight.Npcs;
 using Ars3D.Rendering;
 using Camera;
 using Items;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using _3DLight.Collision;
 
 namespace _3DLight.Gameplay;
 
@@ -30,6 +32,9 @@ internal sealed class GameplayWorld : IDisposable
     public InteractionSystem Interactions { get; }
     public ProjectileSystem Projectiles { get; }
     public bool ShowCollisionDebug { get; private set; }
+
+    private CapsuleShape[] doorOccupants = [];
+    public NpcSystem Npcs { get; private set; } = null!;
 
     public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content)
     {
@@ -56,6 +61,8 @@ internal sealed class GameplayWorld : IDisposable
 
         Texture2D fallbackTexture = content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
         Effect toonEffect = content.Load<Effect>("ToonShader");
+        Npcs = NpcSystem.Load(Level, LevelSession.ModelName, graphicsDevice, fallbackTexture, toonEffect);
+        doorOccupants = new CapsuleShape[2 + Npcs.Capsules.Length];
         itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
@@ -66,17 +73,20 @@ internal sealed class GameplayWorld : IDisposable
     public void Update(float seconds, GameplayInputFrame input)
     {
         levelSession.Update();
-        UpdatePlayer(seconds, input);
         Interactions.Update(Level.Interactables, Camera.Position, Camera.Forward,
             input.InteractPressed, !input.SuppressInteraction && !Player.IsDead);
         UpdateDoors(seconds);
-        Skeleton.Update(Player, Level, seconds);
+        Skeleton.Update(Player, Level, seconds, Npcs.Capsules);
+        Npcs.Update(Level, seconds, CharacterCapsule(Player.Position), CharacterCapsule(Skeleton.Position));
         Lighting.PointPosition = Player.Position + new Vector3(0f, 1.25f, 0f);
         Projectiles.Update(seconds, Player);
         UpdateItems(seconds, input);
         UpdateFlashlight(input.ToggleFlashlight);
         ApplyDebugCommands(input);
     }
+
+    private static CapsuleShape CharacterCapsule(Vector3 feet) => new(feet,
+    GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight);
 
     private void UpdatePlayer(float seconds, GameplayInputFrame input)
     {
@@ -112,12 +122,10 @@ internal sealed class GameplayWorld : IDisposable
 
     private void UpdateDoors(float seconds)
     {
-        ReadOnlySpan<CapsuleShape> occupants =
-        [
-            new(Player.Position, GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight),
-            new(Skeleton.Position, GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight)
-        ];
-        Level.UpdateDoors(seconds, occupants);
+        doorOccupants[0] = CharacterCapsule(Player.Position);
+        doorOccupants[1] = CharacterCapsule(Skeleton.Position);
+        Npcs.Capsules.CopyTo(doorOccupants.AsSpan(2));
+        Level.UpdateDoors(seconds, doorOccupants);
     }
 
     private void UpdateFlashlight(bool togglePressed)

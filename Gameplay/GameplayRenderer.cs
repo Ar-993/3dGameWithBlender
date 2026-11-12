@@ -46,12 +46,14 @@ internal sealed class GameplayRenderer : IDisposable
             graphicsDevice.RasterizerState = RasterizerState.CullNone;
             world.Level.DrawColliders(camera.View, camera.Projection,
                 CreateCharacterBounds(world.Player.Position),
-                CreateCharacterBounds(world.Skeleton.Position));
+                CreateCharacterBounds(world.Skeleton.Position),
+                world.Npcs.Capsules);
             return;
         }
 
         world.Level.Draw(camera.View, camera.Projection, lighting, queue);
         world.Skeleton.Draw(camera.View, camera.Projection, lighting, queue);
+        world.Npcs.Draw(camera.View, camera.Projection, lighting, queue);
         world.Items.Draw(camera.View, camera.Projection, lighting, queue);
         projectileRenderer.Draw(world.Projectiles, camera.View, camera.Projection, lighting, queue);
         sceneRenderer.Draw(camera.View, camera.Projection, lighting);

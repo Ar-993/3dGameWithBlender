@@ -46,20 +46,14 @@ internal sealed class CharacterPhysicsComponent
         CurrentPlatform = null;
     }
 
-    public void Move(Level level, Vector3 horizontalMovement, float deltaTime)
+    public void Move(Level level, Vector3 horizontalMovement, float deltaTime, ReadOnlySpan<CapsuleShape> obstacles)
     {
         verticalVelocity += gravity * deltaTime;
         Vector3 movement = horizontalMovement;
         movement.Y = verticalVelocity * deltaTime;
 
-        Position = level.MoveCharacter(
-            Position,
-            movement,
-            Radius,
-            Height,
-            CurrentPlatform,
-            ref verticalVelocity,
-            out Level.Platform? platform);
+        Position = level.MoveCharacter(Position, movement, Radius, Height,
+        CurrentPlatform, ref verticalVelocity, out Level.Platform? platform, obstacles);
         CurrentPlatform = platform;
     }
 }

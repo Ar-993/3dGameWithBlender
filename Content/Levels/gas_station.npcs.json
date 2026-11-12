@@ -1,0 +1,46 @@
+{
+  "skins": {
+    "customer": {
+      "model": "npc_customer",
+      "idleClip": "Idle",
+      "walkClip": "Walk"
+    },
+    "clerk": {
+      "model": "npc_clerk",
+      "idleClip": "Idle",
+      "walkClip": "Walk"
+    }
+  },
+  "actors": [
+    {
+      "id": "forecourt_visitor",
+      "skin": "customer",
+      "behavior": "patrol",
+      "speed": 1.35,
+      "radius": 0.30,
+      "height": 1.78,
+      "waitSeconds": 0.7,
+      "route": [
+        { "position": [ 3.0, 0.05, 15.0 ] },
+        { "position": [ 6.0, 0.05, 15.0 ] },
+        { "position": [ 6.0, 0.05, 10.0 ] },
+        { "position": [ 3.0, 0.05, 10.0 ] }
+      ]
+    },
+    {
+      "id": "shop_visitor",
+      "skin": "clerk",
+      "behavior": "patrol",
+      "speed": 1.25,
+      "radius": 0.29,
+      "height": 1.69,
+      "waitSeconds": 1.0,
+      "route": [
+        { "position": [ 2.0, 0.05, -10.0 ] },
+        { "position": [ 5.0, 0.05, -10.0 ] },
+        { "position": [ 5.0, 0.05, -12.4 ] },
+        { "position": [ 2.0, 0.05, -12.4 ] }
+      ]
+    }
+  ]
+}

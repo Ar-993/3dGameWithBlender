@@ -21,7 +21,55 @@ internal static class CapsuleCollision
     internal readonly record struct Contact(
         Vector3 AxisPoint, Vector3 SurfacePoint, Vector3 Normal, float Distance, float Penetration);
 
-    internal readonly record struct Hit(float Fraction, Vector3 Normal, Level.TriangleCollider Triangle);
+    internal readonly record struct Hit(float Fraction, Vector3 Normal, Level.TriangleCollider Triangle,
+        bool IsActor = false);
+
+    public static Contact GetContact(CapsuleShape moving, CapsuleShape obstacle)
+    {
+        Vector3 movingAxis = moving.Feet;
+        movingAxis.Y = MathHelper.Clamp(obstacle.AxisStart.Y, moving.AxisStart.Y, moving.AxisEnd.Y);
+        Vector3 obstacleAxis = obstacle.Feet;
+        obstacleAxis.Y = MathHelper.Clamp(movingAxis.Y, obstacle.AxisStart.Y, obstacle.AxisEnd.Y);
+        Vector3 difference = movingAxis - obstacleAxis;
+        float distance = difference.Length();
+        Vector3 normal = distance > DistanceTolerance ? difference / distance : Vector3.Right;
+        return new(movingAxis, obstacleAxis, normal, distance,
+            moving.Radius + obstacle.Radius + SkinWidth - distance);
+    }
+
+    public static bool Cast(CapsuleShape moving, Vector3 movement, CapsuleShape obstacle,
+        float maximumTime, out Hit hit)
+    {
+        float time = 0f;
+        Contact contact = default;
+        for (int iteration = 0; iteration < 48; iteration++)
+        {
+            contact = GetContact(moving with { Feet = moving.Feet + movement * time }, obstacle);
+            float closingSpeed = -Vector3.Dot(movement, contact.Normal);
+            if (closingSpeed <= 0.0000001f)
+            {
+                hit = default;
+                return false;
+            }
+
+            float gap = -contact.Penetration;
+            if (gap <= DistanceTolerance)
+                break;
+
+            float nextTime = time + gap / closingSpeed;
+            if (nextTime > maximumTime)
+            {
+                hit = default;
+                return false;
+            }
+            if (nextTime <= time)
+                break;
+            time = nextTime;
+        }
+
+        hit = new(time, contact.Normal, default, IsActor: true);
+        return true;
+    }
 
     public static Contact GetContact(CapsuleShape capsule, Level.TriangleCollider triangle)
     {

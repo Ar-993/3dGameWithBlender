@@ -65,13 +65,15 @@ public class Skeleton : IDisposable
 
     public void SpawnAt(Vector3 position) => physics.SpawnAt(position);
 
-    public void Update(Player player, Level level, float deltaTime)
+    public void Update(Player player, Level level, float deltaTime) => Update(player, level, deltaTime, []);
+
+    internal void Update(Player player, Level level, float deltaTime, ReadOnlySpan<CapsuleShape> obstacles)
     {
         //bool samePlatform = CurrentPlatform is not null &&
         //                    player.CurrentPlatform is not null &&
         //                    CurrentPlatform.Id == player.CurrentPlatform.Id;
 
-        ai.Update(Position, player.Position, canReachTarget: !player.IsDead,  deltaTime);
+        ai.Update(Position, player.Position, canReachTarget: !player.IsDead, deltaTime);
         Vector3 horizontalMovement = Vector3.Zero;
 
         bool canMoveTowardPlayer =
@@ -81,7 +83,7 @@ public class Skeleton : IDisposable
         if (canMoveTowardPlayer &&
             ai.Direction != Vector3.Zero &&
             physics.IsGrounded)
-            //CurrentPlatform is { } currentPlatform
+        //CurrentPlatform is { } currentPlatform
         {
             animation.RotationY = MathF.Atan2(ai.Direction.X, ai.Direction.Z);
 
@@ -113,7 +115,7 @@ public class Skeleton : IDisposable
         Vector3 oldPosition = Position;
 
         // Во время Hurt и Dead движение равно Vector3.Zero; Attacking сохраняет преследование.
-        physics.Move(level, horizontalMovement, deltaTime);
+        physics.Move(level, horizontalMovement, deltaTime, obstacles);
 
         bool isRunning = horizontalMovement != Vector3.Zero &&
                          (Position.X != oldPosition.X || Position.Z != oldPosition.Z);

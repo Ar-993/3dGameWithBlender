@@ -202,11 +202,14 @@ namespace _3DLight
                 model.DrawTransforms(levelDoors.LocalTransforms, Matrix.Identity, view, projection, lighting, renderQueue);
         }
 
-        public void DrawColliders(
-            Matrix view,
-            Matrix projection,
-            BoundingBox playerBounds,
-            BoundingBox skeletonBounds)
+        public void DrawColliders(Matrix view, Matrix projection,
+     BoundingBox playerBounds, BoundingBox skeletonBounds) =>
+     DrawColliders(view, projection, playerBounds, skeletonBounds,
+         ReadOnlySpan<CapsuleShape>.Empty);
+
+        internal void DrawColliders(Matrix view, Matrix projection,
+            BoundingBox playerBounds, BoundingBox skeletonBounds,
+            ReadOnlySpan<CapsuleShape> npcCapsules)
         {
             if (collisionDebugEffect is null)
                 return;
@@ -235,6 +238,9 @@ namespace _3DLight
             collisionDebugEffect.Projection = projection;
 
             VertexPositionColor[] vertices = lines.ToArray();
+
+            foreach (CapsuleShape npc in npcCapsules)
+                AppendCapsuleLines(lines, npc.Bounds, Color.Cyan);
 
             foreach (EffectPass pass in collisionDebugEffect.CurrentTechnique.Passes)
             {

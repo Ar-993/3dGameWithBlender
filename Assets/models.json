@@ -69,6 +69,24 @@
         "Hurt": "../Content/Assets/Skeleton/SkeletonHurt.fbx",
         "Die": "../Content/Assets/Skeleton/SkeletonDeath.fbx"
       }
+    },
+    {
+      "name": "npc_customer",
+      "source": "Characters_psx/npc_customer/Model.fbx",
+      "output": "../Content/Models/npc_customer.3dmodel",
+      "clips": {
+        "Idle": "Characters_psx/npc_customer/Idle.fbx",
+        "Walk": "Characters_psx/npc_customer/Walk.fbx"
+      }
+    },
+    {
+      "name": "npc_clerk",
+      "source": "Characters_psx/npc_clerk/Model.fbx",
+      "output": "../Content/Models/npc_clerk.3dmodel",
+      "clips": {
+        "Idle": "Characters_psx/npc_clerk/Idle.fbx",
+        "Walk": "Characters_psx/npc_clerk/Walk.fbx"
+      }
     }
   ]
 }

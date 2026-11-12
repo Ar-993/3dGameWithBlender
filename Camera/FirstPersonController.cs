@@ -14,7 +14,7 @@ internal sealed class FirstPersonController
         this.physics = physics;
 
     public void Update(Vector2 movementInput, bool jumpPressed, float yaw, Level level,
-        float seconds, float speed, bool canMove, bool canJump)
+        float seconds, float speed, bool canMove, bool canJump, ReadOnlySpan<CapsuleShape> obstacles = default)
     {
         Yaw = yaw;
         Vector3 movement = canMove
@@ -23,7 +23,7 @@ internal sealed class FirstPersonController
 
         if (canJump && jumpPressed)
             physics.TryJump(JumpImpulse);
-        physics.Move(level, movement, seconds);
+        physics.Move(level, movement, seconds, obstacles);
     }
 
     internal static Vector3 GetMoveDirection(Vector2 movementInput, float yaw)
