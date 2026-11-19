@@ -78,6 +78,13 @@
 /processorParam:Version=3.8.5.0
 /build:Assets/Skeleton/skeleton_texture.png
 
+#begin Audio/Surveillance.ogg
+/importer:OggImporter
+/processor:SongProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.0
+/build:Audio/Surveillance.ogg
+
 #begin DebugFont.spritefont
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor

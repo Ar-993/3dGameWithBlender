@@ -1,3 +1,4 @@
+using _3DLight.Gameplay;
 using _3DLight.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -6,6 +7,7 @@ public sealed class LightGame : Game
 {
     private readonly GraphicsDeviceManager graphics;
     private readonly SceneManager scenes = new();
+    private AudioSystem? audio;
 
     public LightGame()
     {
@@ -36,8 +38,14 @@ public sealed class LightGame : Game
         DebugConsole.Open();
     }
 
-    protected override void LoadContent() =>
-        scenes.ChangeScene(() => new SceneMenu(this,scenes));
+    protected override void LoadContent() {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Content", "Audio");
+        AudioSystem audioSystem = AudioSystem.Load(directory);
+
+        audio = audioSystem;
+        scenes.ChangeScene(() => new SceneMenu(this, scenes, audioSystem));
+    }
+        
 
     protected override void Update(GameTime gameTime)
     {

@@ -34,11 +34,13 @@ namespace _3DLight.Scenes
         private Matrix view;
         private bool gumStarted;
         private bool disposed;
+        private AudioSystem audio;
 
-        public SceneMenu(Game game, SceneManager scenes)
+        public SceneMenu(Game game, SceneManager scenes, AudioSystem audio)
         {
             this.game = game;
             this.scenes = scenes;
+            this.audio = audio;
         }
 
         public void LoadContent()
@@ -71,8 +73,35 @@ namespace _3DLight.Scenes
         scenes.ChangeScene(() => new GameplayScene(game)));
 
             exitButton = CreateButton(36f, (_, _) => game.Exit());
-
+            AddVolumeSlider("Master", -3, audio.MasterVolume, audio.SetMasterVolume);
+            AddVolumeSlider("Music", 67, audio.MusicVolume, audio.SetMusicVolume);
+            AddVolumeSlider("Effects", 137, audio.EffectsVolume, audio.SetEffectsVolume);
         }
+
+        private static void AddVolumeSlider(
+    string title, float y, float initialVolume, Action<float> setVolume)
+        {
+            var label = new Label { Text = title };
+            label.AddToRoot();
+            label.Anchor(Anchor.Center);
+            label.Y = y - 26;
+
+            var slider = new Slider
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = initialVolume * 100,
+                Width = 240
+            };
+
+            slider.AddToRoot();
+            slider.Anchor(Anchor.Center);
+            slider.Y = y;
+
+            slider.ValueChanged += (_, _) =>
+                setVolume((float)(slider.Value / 100));
+        }
+
 
         private static Button CreateButton(float offsetY, EventHandler onClick)
         {
