@@ -62,6 +62,7 @@ public sealed class LightGame : Game
     protected override void UnloadContent()
     {
         scenes.Dispose();
+        audio?.Dispose();
         DebugConsole.Close();
         base.UnloadContent();
     }

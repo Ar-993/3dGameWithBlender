@@ -14,7 +14,6 @@ public sealed class AudioSystem : IDisposable
         new(StringComparer.OrdinalIgnoreCase);
 
     private Song? music;
-    private SoundEffectInstance? musicLoop;
 
     [JsonInclude]
     public float MasterVolume { get; private set; } = 0.8f;
@@ -73,7 +72,7 @@ public sealed class AudioSystem : IDisposable
 
     private void LoadEffects(string directory)
     {
-        foreach (string path in Directory.EnumerateFiles(directory, "*.ogg"))
+        foreach (string path in Directory.EnumerateFiles(directory, "*.wav"))
         {
             string name = Path.GetFileNameWithoutExtension(path);
             if (name.Equals("music", StringComparison.OrdinalIgnoreCase))

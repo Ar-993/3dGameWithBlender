@@ -86,7 +86,7 @@
     <None Update="Assets\Characters_psx\npc_customer\Walk.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Content\Audio\Surveillance.ogg">
+    <None Update="Content\Audio\Surveillance.ogg;Content\Audio\*.wav;Content\Audio\audio.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
