@@ -85,7 +85,8 @@
       "output": "../Content/Models/npc_clerk.3dmodel",
       "clips": {
         "Idle": "Characters_psx/npc_clerk/Idle.fbx",
-        "Walk": "Characters_psx/npc_clerk/Walk.fbx"
+        "Walk": "Characters_psx/npc_clerk/Walk.fbx",
+        "Talk": "Characters_psx/npc_clerk/Talk.fbx"
       }
     }
   ]

@@ -7,6 +7,7 @@ using Items;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using BlendState = Microsoft.Xna.Framework.Graphics.BlendState;
+using _3DLight.Npcs;
 
 /// <summary>
 /// Экранный интерфейс игры: Gum для состояния мира и SpriteBatch для взаимодействия.
@@ -22,6 +23,7 @@ internal sealed class GameUi : IDisposable
     private SpriteBatch spriteBatch = null!;
     private SpriteFont interfaceFont = null!;
     private Texture2D pixel = null!;
+    private DialogueUi dialogueUi = null!;
     private string? interactionItemName;
     private string? worldInteractionText;
     private bool interactionItemIsHeld;
@@ -51,6 +53,7 @@ internal sealed class GameUi : IDisposable
         pixel.SetData(new[] { Color.White });
 
         inventoryIcons = new InventoryIconCache(game.GraphicsDevice);
+        dialogueUi = new DialogueUi();
     }
 
     public void Update(GameTime gameTime)
@@ -87,14 +90,16 @@ internal sealed class GameUi : IDisposable
 
     public void SetWorldInteractionText(string? text) => worldInteractionText = text;
 
+    public void SetDialogue(DialogueSession dialogue, Vector2? bubbleAnchor) =>
+        dialogueUi.Layout(spriteBatch.GraphicsDevice.Viewport, interfaceFont, dialogue, bubbleAnchor);
+
     public void Draw()
     {
         gum.Draw();
 
-        if (!interactionIsVisible || isPaused)
-        {
+        bool drawGameplay = interactionIsVisible && !isPaused;
+        if (!drawGameplay && !dialogueUi.HasText)
             return;
-        }
 
         var viewport = spriteBatch.GraphicsDevice.Viewport;
         spriteBatch.Begin(
@@ -104,15 +109,26 @@ internal sealed class GameUi : IDisposable
             DepthStencilState.None,
             RasterizerState.CullNone);
 
-        DrawInventory(viewport.Height);
-
-        DrawCrosshair(viewport.Width / 2, viewport.Height / 2);
-
-        if (worldInteractionText is not null || interactionItemName is not null && !interactionItemIsHeld)
+        try
         {
-            DrawInteractionHint(viewport.Width, viewport.Height);
+            if (dialogueUi.HasText)
+                dialogueUi.DrawText(spriteBatch, interfaceFont);
+            if (!drawGameplay)
+                return;
+
+            DrawInventory(viewport.Height);
+            DrawCrosshair(viewport.Width / 2, viewport.Height / 2);
+
+            if (!dialogueUi.HasBubble &&
+                (worldInteractionText is not null || interactionItemName is not null && !interactionItemIsHeld))
+            {
+                DrawInteractionHint(viewport.Width, viewport.Height);
+            }
         }
-        spriteBatch.End();
+        finally
+        {
+            spriteBatch.End();
+        }
     }
 
     public void Dispose()

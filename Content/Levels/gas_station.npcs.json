@@ -8,7 +8,8 @@
     "clerk": {
       "model": "npc_clerk",
       "idleClip": "Idle",
-      "walkClip": "Walk"
+      "walkClip": "Walk",
+      "talkClip": "Talk"
     }
   },
   "actors": [
@@ -31,6 +32,14 @@
       "id": "shop_visitor",
       "skin": "clerk",
       "behavior": "patrol",
+      "dialogue": {
+        "name": "Кассир",
+        "lines": [
+          "Добрый вечер. Чем могу помочь?",
+          "Колонки справа от входа.",
+          "Если что, я буду у магазина."
+        ]
+      },
       "speed": 1.25,
       "radius": 0.29,
       "height": 1.69,

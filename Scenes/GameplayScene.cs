@@ -1,6 +1,7 @@
 using _3DLight.Gameplay;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
+using _3DLight.Npcs;
 
 namespace _3DLight.Scenes;
 
@@ -36,8 +37,8 @@ internal sealed class GameplayScene : IGameScene
     public void Enter()
     {
         hud.Enter();
-        GameplayInputFrame initialInput = input.Enter();
-        world.SynchronizeInteraction(initialInput.InteractDown);
+        GameplayInputFrame frame = input.Update(world.Dialogue.IsOpen);
+        world.SynchronizeInteraction(frame.InteractDown);
     }
 
     public void Exit() => input.Exit();
@@ -61,10 +62,33 @@ internal sealed class GameplayScene : IGameScene
     {
         hud.PrepareInventory(world.Items);
         renderer.Draw(world);
+
+        bool canInteract = game.IsActive && input.MouseCaptured && !input.IsPaused &&
+            !world.Player.IsDead && !world.Dialogue.IsOpen;
+        Vector3? anchor = world.Dialogue.SpeakerAnchor;
+        if (canInteract && world.Interactions.Target is NpcTalkTarget target)
+            anchor = target.BubbleAnchor;
+
+        hud.SetDialogue(world.Dialogue, anchor is { } point ? ProjectBubble(point) : null);
         hud.Draw(world.Player, world.Skeleton, world.Items, world.LevelVersion,
-            world.Lighting.Enabled, world.ShowCollisionDebug,
-            game.IsActive && input.MouseCaptured && !input.IsPaused && !world.Player.IsDead,
-            world.Interactions.Hint);
+            world.Lighting.Enabled, world.ShowCollisionDebug, canInteract, world.Interactions.Hint);
+    }
+
+    private Vector2? ProjectBubble(Vector3 point)
+    {
+        var camera = world.Camera;
+        if (Vector3.Dot(point - camera.Position, camera.Forward) <= 0f)
+            return null;
+
+        var viewport = game.GraphicsDevice.Viewport;
+        Vector3 projected = viewport.Project(point, camera.Projection, camera.View, Matrix.Identity);
+        float x = projected.X - viewport.X;
+        float y = projected.Y - viewport.Y;
+        if (projected.Z < 0f || projected.Z > 1f || x < 0f || x >= viewport.Width ||
+            y < 0f || y >= viewport.Height)
+            return null;
+
+        return new Vector2(x, y);
     }
 
     public void Dispose()

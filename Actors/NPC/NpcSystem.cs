@@ -1,6 +1,7 @@
 ﻿using Ars3D.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using _3DLight.Interaction;
 
 namespace _3DLight.Npcs;
 
@@ -11,10 +12,13 @@ internal sealed class NpcSystem : IDisposable
     private CapsuleShape[] capsules = [];
     private CapsuleShape[] obstacles = [];
 
+    private readonly List<IInteractable> talkTargets = [];
+
     public ReadOnlySpan<CapsuleShape> Capsules => capsules;
+    public IEnumerable<IInteractable> TalkTargets => talkTargets;
 
     public static NpcSystem Load(Level level, string levelName, GraphicsDevice graphics,
-        Texture2D fallbackTexture, Effect effect)
+        Texture2D fallbackTexture, Effect effect, DialogueSession dialogue)
     {
         NpcConfiguration config = NpcConfiguration.Load(levelName);
         var system = new NpcSystem();
@@ -25,6 +29,8 @@ internal sealed class NpcSystem : IDisposable
                 var actor = new NpcController(definition, config.Skins[definition.Skin]);
                 system.actors.Add(actor);
                 actor.LoadContent(graphics, fallbackTexture, effect);
+                if (definition.Dialogue is { } script)
+                    system.talkTargets.Add(new NpcTalkTarget(actor, script, dialogue));
             }
             system.capsules = new CapsuleShape[system.actors.Count];
             system.obstacles = new CapsuleShape[system.actors.Count + 1];
@@ -86,6 +92,7 @@ internal sealed class NpcSystem : IDisposable
     {
         foreach (NpcController actor in actors)
             actor.Dispose();
+        talkTargets.Clear();
         actors.Clear();
         capsules = [];
         obstacles = [];

@@ -33,7 +33,8 @@ internal sealed class GameplayInputState
         KeyboardState keyboard,
         MouseState mouse,
         bool isActive,
-        Rectangle clientBounds)
+        Rectangle clientBounds,
+        bool dialogueOpen = false)
     {
         bool justActivated = isActive && !wasActive;
         bool capturedThisFrame = capturedOnEnter;
@@ -53,10 +54,26 @@ internal sealed class GameplayInputState
                 MouseCaptured = !IsPaused;
                 capturedThisFrame = MouseCaptured;
             }
+            bool escapePressed = Pressed(keyboard, Keys.Escape);
+            if (escapePressed && !dialogueOpen)
+            {
+                IsPaused = !IsPaused;
+                MouseCaptured = !IsPaused;
+                capturedThisFrame = MouseCaptured;
+            }
 
             frame = IsPaused
                 ? SuspendedFrame(keyboard)
                 : ReadGameplayActions(keyboard, mouse, clientBounds, justActivated, capturedThisFrame);
+
+            if (dialogueOpen)
+            {
+                frame = frame with
+                {
+                    InteractPressed = !justActivated && Pressed(keyboard, Keys.E),
+                    CloseDialoguePressed = escapePressed
+                };
+            }
         }
 
         // Обновляем историю даже в паузе и без фокуса: удержанная кнопка не становится новым нажатием.

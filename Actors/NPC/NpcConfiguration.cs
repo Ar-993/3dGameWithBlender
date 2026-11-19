@@ -61,6 +61,7 @@ internal sealed class NpcSkin
     public string Model { get; init; } = "";
     public string IdleClip { get; init; } = "Idle";
     public string WalkClip { get; init; } = "Walk";
+    public string? TalkClip { get; init; }
     public float VisualYawDegrees { get; init; }
 }
 
@@ -74,9 +75,12 @@ internal sealed class NpcDefinition
     public float Height { get; init; } = 1.75f;
     public float WaitSeconds { get; init; } = 0.7f;
     public NpcWaypoint[] Route { get; init; } = [];
+    public NpcDialogue? Dialogue { get; init; }
+
 
     public void Validate()
     {
+        Dialogue?.Validate(Id);
         if (Behavior != "patrol")
             throw new InvalidDataException($"У NPC '{Id}' ожидается behavior 'patrol'.");
         if (!float.IsFinite(Speed) || Speed <= 0f)

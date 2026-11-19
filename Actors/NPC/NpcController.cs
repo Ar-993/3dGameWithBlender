@@ -27,11 +27,30 @@ internal sealed class NpcController : IDisposable
 
     public void LoadContent(GraphicsDevice graphics, Texture2D fallbackTexture, Effect effect)
     {
-        animation.LoadContent(graphics, skin.Model, skin.IdleClip, fallbackTexture, effect,
+        animation.LoadContent(
+            graphics, skin.Model, skin.IdleClip, fallbackTexture, effect,
             targetHeight: Definition.Height);
-        if (animation.GetClipDuration(skin.IdleClip) <= 0f || animation.GetClipDuration(skin.WalkClip) <= 0f)
-            throw new InvalidDataException($"Для NPC '{Definition.Id}' нужны клипы ожидания и ходьбы.");
+
+        if (animation.GetClipDuration(skin.IdleClip) <= 0f ||
+            animation.GetClipDuration(skin.WalkClip) <= 0f)
+        {
+            throw new InvalidDataException(
+                $"Для NPC '{Definition.Id}' нужны клипы ожидания и ходьбы.");
+        }
+
+        if (skin.TalkClip is { } talkClip &&
+            animation.GetClipDuration(talkClip) <= 0f)
+        {
+            throw new InvalidDataException(
+                $"У NPC '{Definition.Id}' talkClip должен иметь положительную длительность.");
+        }
     }
+
+    public Vector3 DialogueAnchor => Capsule.Feet + Vector3.Up * (Capsule.Height + 0.18f);
+
+    public void BeginDialogue() => animation.Restart(skin.TalkClip ?? skin.IdleClip, loop: true);
+    public void UpdateDialogue(float seconds) => animation.Update(seconds);
+    public void EndDialogue() => animation.Play(skin.IdleClip, loop: true);
 
     public void SpawnAt(Vector3 position)
     {

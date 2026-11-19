@@ -1,6 +1,7 @@
 using _3DLight.Items;
 using Items;
 using Microsoft.Xna.Framework;
+using _3DLight.Npcs;
 
 namespace _3DLight.Gameplay;
 
@@ -88,6 +89,9 @@ internal sealed class GameplayHud : IDisposable
         if (initializationStarted)
             ui.Dispose();
     }
+
+    public void SetDialogue(DialogueSession dialogue, Vector2? bubbleAnchor) =>
+        ui.SetDialogue(dialogue, bubbleAnchor);
 
     public void PrepareInventory(ItemInteraction interaction)
     {

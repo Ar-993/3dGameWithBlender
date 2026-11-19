@@ -35,6 +35,7 @@ internal sealed class GameplayWorld : IDisposable
 
     private CapsuleShape[] doorOccupants = [];
     public NpcSystem Npcs { get; private set; } = null!;
+    public DialogueSession Dialogue { get; } = new();
 
     public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content)
     {
@@ -61,7 +62,7 @@ internal sealed class GameplayWorld : IDisposable
 
         Texture2D fallbackTexture = content.Load<Texture2D>("Assets/Gun/T_PRP_Pistol_Colt_A_BaseColor");
         Effect toonEffect = content.Load<Effect>("ToonShader");
-        Npcs = NpcSystem.Load(Level, LevelSession.ModelName, graphicsDevice, fallbackTexture, toonEffect);
+        Npcs = NpcSystem.Load(Level, LevelSession.ModelName, graphicsDevice, fallbackTexture, toonEffect, Dialogue);
         doorOccupants = new CapsuleShape[2 + Npcs.Capsules.Length];
         itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
@@ -72,10 +73,24 @@ internal sealed class GameplayWorld : IDisposable
 
     public void Update(float seconds, GameplayInputFrame input)
     {
+        if (Dialogue.IsOpen)
+        {
+            Items.SuppressInput(input.InteractDown);
+            Dialogue.Update(seconds, input.InteractPressed, input.CloseDialoguePressed);
+            return;
+        }
+
+        string previousVersion = levelSession.Version;
         levelSession.Update();
         UpdatePlayer(seconds, input);
-        Interactions.Update(Level.Interactables, Camera.Position, Camera.Forward,
+        Interactions.Update(Level.Interactables.Concat(Npcs.TalkTargets), Camera.Position, Camera.Forward,
             input.InteractPressed, !input.SuppressInteraction && !Player.IsDead);
+        if (Dialogue.IsOpen)
+        {
+            Items.SuppressInput(input.InteractDown);
+            return;
+        }
+
         UpdateDoors(seconds);
         Skeleton.Update(Player, Level, seconds, Npcs.Capsules);
         Npcs.Update(Level, seconds, CharacterCapsule(Player.Position), CharacterCapsule(Skeleton.Position));
@@ -165,6 +180,7 @@ internal sealed class GameplayWorld : IDisposable
             return;
 
         disposed = true;
+        Dialogue.Close();
         Npcs?.Dispose();
         itemCatalog?.Dispose();
         Skeleton.Dispose();

@@ -14,9 +14,10 @@ internal sealed class GameplayInput
 
     public GameplayInput(Game game) => this.game = game;
 
-    public GameplayInputFrame Enter()
+    public GameplayInputFrame Update(bool dialogueOpen = false)
     {
-        GameplayInputFrame frame = state.Enter(Keyboard.GetState(), Mouse.GetState(), game.IsActive);
+        GameplayInputFrame frame = state.Update(
+            Keyboard.GetState(), Mouse.GetState(), game.IsActive, game.Window.ClientBounds, dialogueOpen);
         ApplyCursorState();
         return frame;
     }
