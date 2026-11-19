@@ -70,8 +70,8 @@ internal sealed class GameplayScene : IGameScene
             anchor = target.BubbleAnchor;
 
         hud.SetDialogue(world.Dialogue, anchor is { } point ? ProjectBubble(point) : null);
-        hud.Draw(world.Player, world.Skeleton, world.Items, world.LevelVersion,
-            world.Lighting.Enabled, world.ShowCollisionDebug, canInteract, world.Interactions.Hint);
+        hud.Draw(world.Player, world.Skeleton, world.RoundTimer, world.Items, world.LevelVersion,
+    world.Lighting.Enabled, world.ShowCollisionDebug, canInteract, world.Interactions.Hint);
     }
 
     private Vector2? ProjectBubble(Vector3 point)

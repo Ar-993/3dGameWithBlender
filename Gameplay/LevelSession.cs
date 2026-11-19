@@ -74,6 +74,8 @@ internal sealed class LevelSession : IDisposable
         }
     }
 
+    public void RespawnCharacters() => SpawnCharacters();
+
     private void TryLoadLatestVersion()
     {
         if (hotReload is null)

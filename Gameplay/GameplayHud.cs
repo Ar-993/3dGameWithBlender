@@ -1,7 +1,8 @@
 using _3DLight.Items;
+using _3DLight.Npcs;
+using Gameplay;
 using Items;
 using Microsoft.Xna.Framework;
-using _3DLight.Npcs;
 
 namespace _3DLight.Gameplay;
 
@@ -42,14 +43,15 @@ internal sealed class GameplayHud : IDisposable
     }
 
     public void Draw(
-        Player player,
-        Skeleton skeleton,
-        ItemInteraction interaction,
-        string levelVersion,
-        bool lightingEnabled,
-        bool showColliders,
-        bool canInteract,
-        string? worldInteractionText = null)
+    Player player,
+    Skeleton skeleton,
+    RoundTimer roundTimer,
+    ItemInteraction interaction,
+    string levelVersion,
+    bool lightingEnabled,
+    bool showColliders,
+    bool canInteract,
+    string? worldInteractionText = null)
     {
         metrics.RecordDraw();
 
@@ -73,8 +75,10 @@ internal sealed class GameplayHud : IDisposable
             $"LIGHT: {(lightingEnabled ? "ON" : "OFF")} (L) | " +
             $"COLLIDERS: {(showColliders ? "ON" : "OFF")} (O)";
         ui.SetHudText(playerText, skeletonText, performanceText, skeleton.IsDead);
+        ui.SetTimerText(roundTimer.Text, roundTimer.TimeLeft <= 10f);
 
         ui.SetWorldInteractionText(worldInteractionText);
+
         ui.SetInteractionText(interaction.NearbyItem?.Name,
     isHeld: false, isVisible: canInteract);
         ui.Draw();

@@ -32,6 +32,7 @@ internal sealed class GameUi : IDisposable
     private readonly WorldItem?[] inventorySlots = new WorldItem?[4];
     private InventoryIconCache inventoryIcons = null!;
     private int selectedInventorySlot;
+    private TextRuntime timerText = null!;
 
 
     public void Initialize(Game game)
@@ -46,6 +47,12 @@ internal sealed class GameUi : IDisposable
         pauseText.Text = "PAUSED - PRESS ESC TO CONTINUE";
         pauseText.Anchor(Anchor.Center);
         pauseText.Visible = false;
+
+        timerText = CreateText(0f, 15f, Color.White);
+        timerText.FontSize = 32;
+        timerText.Anchor(Anchor.Top);
+        timerText.Y = 15f;
+        timerText.Text = "01:00";
 
         spriteBatch = new SpriteBatch(game.GraphicsDevice);
         interfaceFont = game.Content.Load<SpriteFont>("Fonts/OldStandardText");
@@ -79,6 +86,12 @@ internal sealed class GameUi : IDisposable
     {
         this.isPaused = isPaused;
         pauseText.Visible = isPaused;
+    }
+
+    public void SetTimerText(string text, bool isLow)
+    {
+        timerText.Text = text;
+        timerText.Color = isLow ? Color.Red : Color.White;
     }
 
     public void SetInteractionText(string? itemName, bool isHeld, bool isVisible)

@@ -1,13 +1,14 @@
+using _3DLight.Collision;
 using _3DLight.Interaction;
 using _3DLight.Items;
 using _3DLight.Npcs;
 using Ars3D.Rendering;
 using Camera;
+using Gameplay;
 using Items;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
-using _3DLight.Collision;
 
 namespace _3DLight.Gameplay;
 
@@ -36,6 +37,7 @@ internal sealed class GameplayWorld : IDisposable
     private CapsuleShape[] doorOccupants = [];
     public NpcSystem Npcs { get; private set; } = null!;
     public DialogueSession Dialogue { get; } = new();
+    public RoundTimer RoundTimer { get; } = new(60f);
 
     public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content)
     {
@@ -53,6 +55,7 @@ internal sealed class GameplayWorld : IDisposable
         Lighting.Fog.Color = new Color(148, 155, 151);
         Lighting.Fog.StartDistance = 7f;
         Lighting.Fog.EndDistance = 28f;
+        RoundTimer.Elapsed += ResetCharacters;
     }
 
     public void LoadContent()
@@ -67,6 +70,7 @@ internal sealed class GameplayWorld : IDisposable
         itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
+        RoundTimer.Start();
     }
 
     public void SynchronizeInteraction(bool interactDown) => Items.SuppressInput(interactDown);
@@ -99,6 +103,14 @@ internal sealed class GameplayWorld : IDisposable
         UpdateItems(seconds, input);
         UpdateFlashlight(input.ToggleFlashlight);
         ApplyDebugCommands(input);
+        RoundTimer.Update(seconds);
+    }
+
+    private void ResetCharacters()
+    {
+        levelSession.RespawnCharacters();
+        Npcs.ResetRoutes(Level);
+        RoundTimer.Start();
     }
 
     private static CapsuleShape CharacterCapsule(Vector3 feet) => new(feet,
