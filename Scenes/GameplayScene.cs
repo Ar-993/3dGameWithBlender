@@ -8,6 +8,7 @@ namespace _3DLight.Scenes;
 internal sealed class GameplayScene : IGameScene
 {
     private readonly Game game;
+    private readonly AudioSystem audio;
     private readonly GameplayInput input;
     private readonly GameplayHud hud;
     private ContentManager? content;
@@ -15,9 +16,10 @@ internal sealed class GameplayScene : IGameScene
     private GameplayRenderer renderer = null!;
     private bool disposed;
 
-    public GameplayScene(Game game)
+    public GameplayScene(Game game, AudioSystem audio)
     {
         this.game = game;
+        this.audio = audio;
         input = new GameplayInput(game);
         hud = new GameplayHud(game);
     }
@@ -28,6 +30,8 @@ internal sealed class GameplayScene : IGameScene
         content = new ContentManager(game.Services, game.Content.RootDirectory);
         world = new GameplayWorld(game.GraphicsDevice, content);
         world.LoadContent();
+        world.Footsteps.StepPlayed += soundName => audio.Play(soundName);
+
         renderer = new GameplayRenderer(game.GraphicsDevice, content);
         renderer.PostProcessing.Exposure = 1f;
         renderer.PostProcessing.Saturation = 1f;

@@ -70,7 +70,8 @@ namespace _3DLight.Scenes
             gum.Initialize(game, DefaultVisualsVersion.V3);
             spriteBatch = new SpriteBatch(game.GraphicsDevice);
             playButton = CreateButton(-36f, (_, _) =>
-        scenes.ChangeScene(() => new GameplayScene(game)));
+    scenes.ChangeScene(() => new GameplayScene(game, audio)));
+
 
             exitButton = CreateButton(36f, (_, _) => game.Exit());
             AddVolumeSlider("Master", -3, audio.MasterVolume, audio.SetMasterVolume);

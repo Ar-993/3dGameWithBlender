@@ -38,6 +38,7 @@ internal sealed class GameplayWorld : IDisposable
     public NpcSystem Npcs { get; private set; } = null!;
     public DialogueSession Dialogue { get; } = new();
     public RoundTimer RoundTimer { get; } = new(60f);
+    public FootstepSystem Footsteps { get; } = new();
 
     public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content)
     {
@@ -70,6 +71,7 @@ internal sealed class GameplayWorld : IDisposable
         itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
+        Footsteps.Reset(Player.Position);
         RoundTimer.Start();
     }
 
@@ -109,9 +111,11 @@ internal sealed class GameplayWorld : IDisposable
     private void ResetCharacters()
     {
         levelSession.RespawnCharacters();
+        Footsteps.Reset(Player.Position);
         Npcs.ResetRoutes(Level);
         RoundTimer.Start();
     }
+
 
     private static CapsuleShape CharacterCapsule(Vector3 feet) => new(feet,
     GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight);
@@ -127,6 +131,7 @@ internal sealed class GameplayWorld : IDisposable
             cameraYaw: Camera.Yaw,
             level: Level,
             obstacles: Npcs.Capsules);
+        Footsteps.Update(Player);
         ApplyPlayerAttack();
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
     }
