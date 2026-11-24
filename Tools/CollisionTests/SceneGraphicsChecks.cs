@@ -146,6 +146,7 @@ internal static class SceneGraphicsChecks
     private sealed class TrackingGameplayScene : IGameScene
     {
         private readonly GraphicsDevice graphics;
+        private readonly AudioSystem audio = new();
         private readonly GameplayScene scene;
 
         public List<GraphicsResource> Resources { get; } = new();
@@ -158,7 +159,7 @@ internal static class SceneGraphicsChecks
         public TrackingGameplayScene(Game game)
         {
             graphics = game.GraphicsDevice;
-            scene = new GameplayScene(game);
+            scene = new GameplayScene(game, audio);
         }
 
         public void LoadContent()
@@ -195,7 +196,8 @@ internal static class SceneGraphicsChecks
 
         public void Dispose()
         {
-            scene.Dispose();
+            try { scene.Dispose(); }
+            finally { audio.Dispose(); }
             Disposed = true;
         }
     }

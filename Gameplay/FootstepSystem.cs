@@ -13,7 +13,7 @@ internal sealed class FootstepSystem
     private float distanceAccumulated;
     private bool initialized;
 
-    public event Action<string>? StepPlayed;
+    public event Action<string, int>? StepPlayed;
 
     public void Reset(Vector3 position)
     {
@@ -68,6 +68,6 @@ internal sealed class FootstepSystem
         };
 
         int variant = random.Next(1, 3);
-        StepPlayed?.Invoke($"{prefix}{variant}");
+        StepPlayed?.Invoke(prefix, variant);
     }
 }

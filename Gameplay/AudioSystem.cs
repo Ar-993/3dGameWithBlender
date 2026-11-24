@@ -64,18 +64,41 @@ public sealed class AudioSystem : IDisposable
     }
 
     public void Play(string name)
+        => Play(effects.GetValueOrDefault(name));
+
+    internal void PlayFootstep(string prefix, int variant)
+        => Play(FindFootstep(prefix, variant) ??
+            FindFootstep("step_default", variant) ??
+            FindFootstep("step_asphalt", variant));
+
+    private SoundEffect? FindFootstep(string prefix, int variant)
+    {
+        if (effects.TryGetValue($"{prefix}_{variant}", out SoundEffect? selected))
+            return selected;
+
+        int alternateVariant = variant == 1 ? 2 : 1;
+        if (effects.TryGetValue($"{prefix}_{alternateVariant}", out SoundEffect? alternate))
+            return alternate;
+
+        return effects.GetValueOrDefault(prefix);
+    }
+
+    private void Play(SoundEffect? effect)
     {
         float volume = MasterVolume * EffectsVolume;
-        if (volume > 0f && effects.TryGetValue(name, out SoundEffect? effect))
-            effect.Play(volume, pitch: 0f, pan: 0f);
+        if (volume > 0f)
+            effect?.Play(volume, pitch: 0f, pan: 0f);
     }
 
     private void LoadEffects(string directory)
     {
+        foreach (string path in Directory.EnumerateFiles(directory, "step_*.mp3"))
+            effects.Add(Path.GetFileNameWithoutExtension(path), Mp3Footstep.Load(path));
+
         foreach (string path in Directory.EnumerateFiles(directory, "*.wav"))
         {
             string name = Path.GetFileNameWithoutExtension(path);
-            if (name.Equals("music", StringComparison.OrdinalIgnoreCase))
+            if (name.Equals("music", StringComparison.OrdinalIgnoreCase) || effects.ContainsKey(name))
                 continue;
 
             effects.Add(name, LoadWave(path));

@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="NLayer" Version="3.0.1" />
     <PackageReference Include="Gum.MonoGame" Version="2026.8.3.1" />
     <!-- Компилирует FBX, материалы и текстуры в понятный MonoGame формат XNB. -->
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
@@ -35,6 +36,7 @@
     <Compile Remove="Shared\**\*.cs" />
     <Compile Remove="Tools\**\*.cs" />
     <Compile Remove="Libraries\**\*.cs" />
+    <Compile Remove="artifacts\**\*.cs" />
     <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\level_one\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
@@ -86,13 +88,7 @@
     <None Update="Assets\Characters_psx\npc_customer\Walk.fbx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Content\step_asphalt.mp3">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\step_grass.mp3">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Content\Audio\Surveillance.ogg;Content\Audio\*.wav;Content\Audio\audio.json">
+    <None Update="Content\Audio\Surveillance.ogg;Content\Audio\*.wav;Content\Audio\step_*.mp3;Content\Audio\audio.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

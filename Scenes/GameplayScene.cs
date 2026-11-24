@@ -30,7 +30,7 @@ internal sealed class GameplayScene : IGameScene
         content = new ContentManager(game.Services, game.Content.RootDirectory);
         world = new GameplayWorld(game.GraphicsDevice, content);
         world.LoadContent();
-        world.Footsteps.StepPlayed += soundName => audio.Play(soundName);
+        world.Footsteps.StepPlayed += audio.PlayFootstep;
 
         renderer = new GameplayRenderer(game.GraphicsDevice, content);
         renderer.PostProcessing.Exposure = 1f;

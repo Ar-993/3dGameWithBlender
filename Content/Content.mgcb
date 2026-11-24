@@ -129,20 +129,6 @@
 /processorParam:Version=3.8.5.0
 /build:PostProcess.fx
 
-#begin step_asphalt.mp3
-/importer:Mp3Importer
-/processor:SongProcessor
-/processorParam:Quality=Best
-/processorParam:Version=3.8.5.0
-/build:step_asphalt.mp3
-
-#begin step_grass.mp3
-/importer:Mp3Importer
-/processor:SongProcessor
-/processorParam:Quality=Best
-/processorParam:Version=3.8.5.0
-/build:step_grass.mp3
-
 #begin ToonShader.fx
 /importer:EffectImporter
 /processor:EffectProcessor
