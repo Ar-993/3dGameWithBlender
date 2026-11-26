@@ -1,5 +1,3 @@
-using _3DLight.Items;
-using Ars3D.Items.Physics;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 
@@ -18,7 +16,7 @@ public partial class Level
 {
     private Items.LevelItemWorld? itemWorld;
     internal Items.LevelItemWorld ItemWorld => itemWorld ??= new Items.LevelItemWorld(this);
-    // Малый запас сохраняет опору при дрожании. Движение останавливается по точной границе.
+    // РњР°Р»С‹Р№ Р·Р°РїР°СЃ СЃРѕС…СЂР°РЅСЏРµС‚ РѕРїРѕСЂСѓ РїСЂРё РґСЂРѕР¶Р°РЅРёРё. Р”РІРёР¶РµРЅРёРµ РѕСЃС‚Р°РЅР°РІР»РёРІР°РµС‚СЃСЏ РїРѕ С‚РѕС‡РЅРѕР№ РіСЂР°РЅРёС†Рµ.
     private const float RigidContactMargin = 0.002f;
     private readonly List<TriangleCollider> rigidSweepCandidates = [];
     private readonly List<(CapsuleCollision.Contact Contact, TriangleCollider Triangle)> rigidSphereContacts = [];
@@ -48,7 +46,7 @@ public partial class Level
         {
             TriangleCollider triangle = rigidSweepCandidates[index];
             CapsuleCollision.Contact contact = CapsuleCollision.GetContact(sphere, triangle);
-            // Небольшое проникновение при вращении на опоре исправится в конце шага.
+            // РќРµР±РѕР»СЊС€РѕРµ РїСЂРѕРЅРёРєРЅРѕРІРµРЅРёРµ РїСЂРё РІСЂР°С‰РµРЅРёРё РЅР° РѕРїРѕСЂРµ РёСЃРїСЂР°РІРёС‚СЃСЏ РІ РєРѕРЅС†Рµ С€Р°РіР°.
             if (IsHiddenRigidEdge(contact, triangle) ||
                 (contact.Penetration >= -RigidContactMargin &&
                 Vector3.Dot(contactVelocity, contact.Normal) >= -0.002f &&
@@ -84,28 +82,14 @@ public partial class Level
             if (contact.Penetration < -RigidContactMargin)
                 continue;
             rigidSphereContacts.Add((contact, triangle));
-            rigidSphereContacts.Add((contact, triangle));
         }
 
         AppendVisibleRigidContacts(contacts);
     }
 
-    public bool SweepSphere(Vector3 center, Vector3 movement, float radius,
-    Vector3 contactVelocity, out SweepHit hit)
-    {
-        if (!level.SweepRigidItemSphere(ItemMath.ToGame(center), ItemMath.ToGame(movement),
-                radius, ItemMath.ToGame(contactVelocity), out RigidItemSweepHit gameHit))
-        {
-            hit = default;
-            return false;
-        }
-        hit = new(gameHit.Fraction, TranslateContact(gameHit.Contact));
-        return true;
-    }
-
     private void AppendVisibleRigidContacts(List<RigidItemContact> contacts)
     {
-        // Стык треугольников в одной плоскости не должен поворачивать предмет.
+        // РЎС‚С‹Рє С‚СЂРµСѓРіРѕР»СЊРЅРёРєРѕРІ РІ РѕРґРЅРѕР№ РїР»РѕСЃРєРѕСЃС‚Рё РЅРµ РґРѕР»Р¶РµРЅ РїРѕРІРѕСЂР°С‡РёРІР°С‚СЊ РїСЂРµРґРјРµС‚.
         foreach (var (contact, triangle) in rigidSphereContacts)
         {
             if (!IsHiddenRigidEdge(contact, triangle))

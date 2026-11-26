@@ -202,10 +202,9 @@ internal sealed class ItemCatalog : IDisposable
         loadedItemTypesById.Clear();
         disposed = true;
     }
-}
-
-public sealed record LoadedItemType(
+    private sealed record LoadedItemType(
         ItemDefinition Definition,
         CompiledModel Model,
         Matrix Normalization,
         WeaponData? Weapon);
+}

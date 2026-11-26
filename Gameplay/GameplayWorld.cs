@@ -73,10 +73,10 @@ internal sealed class GameplayWorld : IDisposable
         Effect toonEffect = content.Load<Effect>("ToonShader");
         Npcs = NpcSystem.Load(Level, LevelSession.ModelName, graphicsDevice, fallbackTexture, toonEffect, Dialogue);
         doorOccupants = new CapsuleShape[2 + Npcs.Capsules.Length];
+        itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         foreach (string id in itemCatalog.StartingItems)
             Items.StoreStartingItem(itemCatalog.Create(id, Player.Position));
         Weapons = new PlayerWeaponSystem(graphicsDevice, audio);
-        itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
         Footsteps.Reset(Player.Position);

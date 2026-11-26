@@ -1,13 +1,27 @@
 using Ars3D.Items.Physics;
+using Ars3D.Items.Physics.Collision;
 using System.Numerics;
 
 namespace _3DLight.Items;
 
 // Item physics asks for contacts; this adapter translates those requests to the level.
-// Преобразует векторы и результаты между физикой предметов и игровым уровнем.
+// РџСЂРµРѕР±СЂР°Р·СѓРµС‚ РІРµРєС‚РѕСЂС‹ Рё СЂРµР·СѓР»СЊС‚Р°С‚С‹ РјРµР¶РґСѓ С„РёР·РёРєРѕР№ РїСЂРµРґРјРµС‚РѕРІ Рё РёРіСЂРѕРІС‹Рј СѓСЂРѕРІРЅРµРј.
 internal sealed class LevelItemWorld(Level level) : ICapsuleCollisionWorld
 {
     private readonly List<RigidItemContact> gameContacts = [];
+
+    public bool SweepSphere(Vector3 center, Vector3 movement, float radius,
+        Vector3 contactVelocity, out SweepHit hit)
+    {
+        if (!level.SweepRigidItemSphere(ItemMath.ToGame(center), ItemMath.ToGame(movement),
+                radius, ItemMath.ToGame(contactVelocity), out RigidItemSweepHit gameHit))
+        {
+            hit = default;
+            return false;
+        }
+        hit = new(gameHit.Fraction, TranslateContact(gameHit.Contact));
+        return true;
+    }
 
     public bool SweepCapsule(Vector3 start, Vector3 end, Vector3 startMovement, Vector3 endMovement,
         float radius, Vector3 startVelocity, Vector3 endVelocity, out SweepHit hit)
@@ -26,7 +40,7 @@ internal sealed class LevelItemWorld(Level level) : ICapsuleCollisionWorld
     public void GetCapsuleContacts(Vector3 start, Vector3 end, float radius, List<BodyContact> contacts)
     {
         gameContacts.Clear();
-        level.GetRigidItemSphereContacts(ItemMath.ToGame(center), radius, gameContacts);
+        level.GetRigidItemCapsuleContacts(ItemMath.ToGame(start), ItemMath.ToGame(end), radius, gameContacts);
         AppendContacts(contacts);
     }
 
@@ -38,6 +52,8 @@ internal sealed class LevelItemWorld(Level level) : ICapsuleCollisionWorld
             bool duplicate = contacts.Any(previous =>
                 Vector3.DistanceSquared(previous.Point, translated.Point) < 0.00000001f &&
                 Vector3.Dot(previous.Normal, translated.Normal) > 0.999f);
+            if (!duplicate)
+                contacts.Add(translated);
         }
     }
 
@@ -45,16 +61,7 @@ internal sealed class LevelItemWorld(Level level) : ICapsuleCollisionWorld
     {
         gameContacts.Clear();
         level.GetRigidItemSphereContacts(ItemMath.ToGame(center), radius, gameContacts);
-        foreach (RigidItemContact contact in gameContacts)
-        {
-            BodyContact translated = new(ItemMath.ToLibrary(contact.Point),
-                ItemMath.ToLibrary(contact.Normal), contact.Penetration);
-            bool duplicate = contacts.Any(previous =>
-                Vector3.DistanceSquared(previous.Point, translated.Point) < 0.00000001f &&
-                Vector3.Dot(previous.Normal, translated.Normal) > 0.999f);
-            if (!duplicate)
-                contacts.Add(translated);
-        }
+        AppendContacts(contacts);
     }
 
     private static BodyContact TranslateContact(RigidItemContact contact) =>

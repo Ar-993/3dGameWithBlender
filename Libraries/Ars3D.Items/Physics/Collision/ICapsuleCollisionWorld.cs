@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Ars3D.Items.Physics.Collision
 {
-    internal interface ICapsuleCollisionWorld : ICollisionWorld
+    public interface ICapsuleCollisionWorld : ICollisionWorld
     {
         void GetCapsuleContacts(Vector3 start, Vector3 end, float radius, List<BodyContact> contacts);
 

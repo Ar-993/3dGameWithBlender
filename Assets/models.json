@@ -43,7 +43,7 @@
     },
     {
       "name": "survival_rifle",
-      "source": "Survival/Models/Survival.fbx",
+      "source": "../Content/Assets/Survival/Models/Survival.fbx",
       "rootNode": "hunting_rifle",
       "rotationDegrees": [ 0, 90, 0 ],
       "output": "../Content/Models/survival_rifle.3dmodel"

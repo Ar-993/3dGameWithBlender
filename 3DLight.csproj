@@ -40,6 +40,7 @@
     <None Include="Content\Models\*.3dmodel" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\level_one\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Gun\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Content\Assets\Survival\Textures\*.png;Content\Assets\Survival\Textures\*.jpg" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Assets\Christmas\*.png" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Items\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Content\Levels\*.json" CopyToOutputDirectory="PreserveNewest" />

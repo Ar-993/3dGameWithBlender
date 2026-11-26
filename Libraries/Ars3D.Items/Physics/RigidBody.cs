@@ -43,7 +43,7 @@ public sealed class RigidBody
             3f / (half.X * half.X + half.Y * half.Y)
         );
 
-        collision = new BodyCollision(shape, this, new ContactSolver(Settings));
+        collision = new BodyCollision(shape, this, new ContactSolver(Settings), Settings);
 
         Reset(bottomPosition, Vector3.Zero, Quaternion.Identity, Vector3.Zero);
     }

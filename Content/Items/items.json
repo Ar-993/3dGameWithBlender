@@ -4,7 +4,7 @@
       "id": "hunting_rifle",
       "displayName": "Винтовка",
       "model": "survival_rifle",
-      "textureFolder": "Survival",
+      "textureFolder": "Survival/Textures",
       "height": 0.19,
       "radius": 0.035,
       "collider": {
