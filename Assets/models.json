@@ -42,6 +42,13 @@
       "output": "../Content/Models/flashlight_beam.3dmodel"
     },
     {
+      "name": "survival_rifle",
+      "source": "Survival/Models/Survival.fbx",
+      "rootNode": "hunting_rifle",
+      "rotationDegrees": [ 0, 90, 0 ],
+      "output": "../Content/Models/survival_rifle.3dmodel"
+    },
+    {
       "name": "player",
       "source": "../Content/Assets/Player/RogueTPose.fbx",
       "output": "../Content/Models/player.3dmodel",

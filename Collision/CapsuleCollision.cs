@@ -24,17 +24,30 @@ internal static class CapsuleCollision
     internal readonly record struct Hit(float Fraction, Vector3 Normal, Level.TriangleCollider Triangle,
         bool IsActor = false);
 
-    public static Contact GetContact(CapsuleShape moving, CapsuleShape obstacle)
+    public static Contact GetContact(CapsuleShape capsule, Level.TriangleCollider triangle)
+        => GetContact(capsule.AxisStart, capsule.AxisEnd, capsule.Radius, triangle);
+
+    public static Contact GetContact(Vector3 axisStart, Vector3 axisEnd, float radius,
+        Level.TriangleCollider triangle)
     {
-        Vector3 movingAxis = moving.Feet;
-        movingAxis.Y = MathHelper.Clamp(obstacle.AxisStart.Y, moving.AxisStart.Y, moving.AxisEnd.Y);
-        Vector3 obstacleAxis = obstacle.Feet;
-        obstacleAxis.Y = MathHelper.Clamp(movingAxis.Y, obstacle.AxisStart.Y, obstacle.AxisEnd.Y);
-        Vector3 difference = movingAxis - obstacleAxis;
+        ClosestSegmentTriangle(axisStart, axisEnd, triangle,
+            out Vector3 axisPoint, out Vector3 surfacePoint);
+        Vector3 difference = axisPoint - surfacePoint;
         float distance = difference.Length();
-        Vector3 normal = distance > DistanceTolerance ? difference / distance : Vector3.Right;
-        return new(movingAxis, obstacleAxis, normal, distance,
-            moving.Radius + obstacle.Radius + SkinWidth - distance);
+        if (distance > DistanceTolerance)
+            return new(axisPoint, surfacePoint, difference / distance, distance,
+                radius + SkinWidth - distance);
+
+        // Если ось пересекла плоскость, выталкиваем капсулу на сторону её середины.
+        Vector3 normal = triangle.Normal;
+        Vector3 midpoint = (axisStart + axisEnd) * 0.5f;
+        if (Vector3.Dot(midpoint - triangle.A, normal) < 0f)
+            normal = -normal;
+        float minimumSignedDistance = MathF.Min(
+            Vector3.Dot(axisStart - triangle.A, normal),
+            Vector3.Dot(axisEnd - triangle.A, normal));
+        return new(axisPoint, surfacePoint, normal, distance,
+            radius + SkinWidth - minimumSignedDistance);
     }
 
     public static bool Cast(CapsuleShape moving, Vector3 movement, CapsuleShape obstacle,

@@ -46,31 +46,39 @@ internal sealed class GameplayInputState
             MouseCaptured = false;
             frame = SuspendedFrame(keyboard);
         }
-        else if (dialogueOpen){
-            frame = SuspendedFrame(keyboard) with
+        else
+        {
+            frame = ReadActiveFrame(keyboard, mouse, clientBounds, dialogueOpen, justActivated, capturedThisFrame);
+        }
+
+        // Обновляем историю даже в паузе и без фокуса: удержанная кнопка не становится новым нажатием.
+        RememberDevices(keyboard, mouse, isActive);
+        return frame;
+    }
+
+    private GameplayInputFrame ReadActiveFrame(KeyboardState keyboard, MouseState mouse,
+        Rectangle clientBounds, bool dialogueOpen, bool justActivated, bool capturedThisFrame)
+    {
+        if (dialogueOpen)
+        {
+            return SuspendedFrame(keyboard) with
             {
                 CanUpdateWorld = true,
                 InteractPressed = !justActivated && Pressed(keyboard, Keys.E),
                 CloseDialoguePressed = !justActivated && Pressed(keyboard, Keys.Escape)
             };
         }
-        else
-        {
-            if (Pressed(keyboard, Keys.Escape))
-            {
-                IsPaused = !IsPaused;
-                MouseCaptured = !IsPaused;
-                capturedThisFrame = MouseCaptured;
-            }
 
-            frame = IsPaused
-                ? SuspendedFrame(keyboard)
-                : ReadGameplayActions(keyboard, mouse, clientBounds, justActivated, capturedThisFrame);
+        if (Pressed(keyboard, Keys.Escape))
+        {
+            IsPaused = !IsPaused;
+            MouseCaptured = !IsPaused;
+            capturedThisFrame = MouseCaptured;
         }
 
-        // Обновляем историю даже в паузе и без фокуса: удержанная кнопка не становится новым нажатием.
-        RememberDevices(keyboard, mouse, isActive);
-        return frame;
+        return IsPaused
+            ? SuspendedFrame(keyboard)
+            : ReadGameplayActions(keyboard, mouse, clientBounds, justActivated, capturedThisFrame);
     }
 
     private GameplayInputFrame ReadGameplayActions(
@@ -83,7 +91,7 @@ internal sealed class GameplayInputState
         bool leftClick = mouse.LeftButton == ButtonState.Pressed &&
             previousMouse.LeftButton == ButtonState.Released;
 
-        // Удержание ЛКМ при Alt+Tab не захватывает курсор; нужен новый клик внутри окна.
+        // После возврата в окно курсор захватывается новым кликом внутри окна.
         if (!MouseCaptured && !justActivated && leftClick && IsInsideClient(mouse, clientBounds))
         {
             MouseCaptured = true;
@@ -105,6 +113,7 @@ internal sealed class GameplayInputState
             AttackPressed = MouseCaptured && !capturedThisFrame && leftClick,
             LookDelta = lookDelta,
             InteractDown = keyboard.IsKeyDown(Keys.E),
+            ReloadPressed = !suppressInteraction && Pressed(keyboard, Keys.R),
             InteractPressed = !suppressInteraction && Pressed(keyboard, Keys.E),
             SelectedSlot = suppressInteraction ? -1 : ReadSelectedSlot(keyboard),
             DropPressed = !suppressInteraction && Pressed(keyboard, Keys.T),

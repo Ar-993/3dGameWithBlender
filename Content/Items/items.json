@@ -1,6 +1,37 @@
 {
   "definitions": [
     {
+      "id": "hunting_rifle",
+      "displayName": "Винтовка",
+      "model": "survival_rifle",
+      "textureFolder": "Survival",
+      "height": 0.19,
+      "radius": 0.035,
+      "collider": {
+        "capsules": [
+          {
+            "start": [ 0, 0.06, 0.56 ],
+            "end": [ -0.01, 0.168, -0.60 ],
+            "radius": 0.06
+          }
+        ]
+      },
+      "interaction": {
+        "heldOffset": [ 0.23, -0.36, -0.75 ],
+        "throwLift": 1.2,
+        "throwSpin": [ 2.0, 0.8, 0.3 ]
+      },
+      "weapon": {
+        "muzzle": [ -0.0097, 0.1683, -0.623 ],
+        "magazineSize": 5,
+        "reserveRounds": 25,
+        "damage": 40,
+        "range": 120,
+        "fireInterval": 0.65,
+        "reloadSeconds": 1.8
+      }
+    },
+    {
       "id": "santa",
       "displayName": "Дед Мороз",
       "model": "christmas_santa",
@@ -10,11 +41,14 @@
       "spawnSpin": [ 0.9, 0.35, 0.55 ],
       "heldYawDegrees": 0,
       "interaction": {
-        "heldOffset": [0.38, -0.55, -0.9],
+        "heldOffset": [ 0.38, -0.55, -0.9 ],
         "throwLift": 1.7,
-        "throwSpin": [7.0, 2.0, 0.75]
+        "throwSpin": [ 7.0, 2.0, 0.75 ]
       },
-      "physics": { "gravity": 18.0, "friction": 0.65 }
+      "physics": {
+        "gravity": 18.0,
+        "friction": 0.65
+      }
     },
     {
       "id": "colt",
@@ -25,6 +59,20 @@
       "radius": 0.035,
       "spawnSpin": [ 0.2, 0.3, 0.1 ],
       "heldYawDegrees": 0,
+      "collider": {
+        "capsules": [
+          {
+            "start": [ -0.137, 0.18, 0 ],
+            "end": [ 0.115, 0.18, 0 ],
+            "radius": 0.04
+          },
+          {
+            "start": [ 0.105, 0.136, 0 ],
+            "end": [ 0.137, 0.038, 0 ],
+            "radius": 0.041
+          }
+        ]
+      },
       "interaction": {
         "heldOffset": [ 0.38, -0.55, -0.9 ],
         "throwLift": 1.7,
@@ -40,6 +88,15 @@
       "radius": 0.03,
       "spawnSpin": [ 0.1, 0.5, 0.1 ],
       "heldYawDegrees": 180,
+      "collider": {
+        "capsules": [
+          {
+            "start": [ 0, 0.03, -0.114 ],
+            "end": [ 0, 0.03, 0.114 ],
+            "radius": 0.031
+          }
+        ]
+      },
       "interaction": {
         "heldOffset": [ 0.35, -0.45, -0.7 ],
         "throwLift": 1.5,
@@ -52,6 +109,7 @@
     }
   ],
 
+  "startingItems": [ "hunting_rifle" ],
   "spawns": [
     {
       "itemId": "santa",

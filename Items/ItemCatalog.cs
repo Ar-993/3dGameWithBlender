@@ -27,6 +27,7 @@ internal sealed class ItemCatalog : IDisposable
     private bool disposed;
 
     public IReadOnlyList<ItemSpawnEntry> Spawns { get; }
+    public IReadOnlyList<string> StartingItems { get; }
     public IReadOnlyCollection<string> ItemIds => definitionsById.Keys;
     internal int LoadedModelCount => loadedModels.Count;
 
@@ -41,7 +42,23 @@ internal sealed class ItemCatalog : IDisposable
         this.toonEffect = toonEffect;
         definitionsById = IndexDefinitions(data.Definitions);
         Spawns = CreateSpawnEntries(data.Spawns);
+        StartingItems = ReadStartingItems(data.StartingItems);
     }
+
+    private IReadOnlyList<string> ReadStartingItems(List<string> startingItems)
+    {
+        if (startingItems.Count > ItemInteractionController.SlotCount)
+            throw new InvalidDataException("Starting items exceed the inventory capacity.");
+
+        foreach (string id in startingItems)
+        {
+            if (!definitionsById.ContainsKey(id))
+                throw new InvalidDataException($"Unknown starting item '{id}'.");
+        }
+
+        return startingItems.AsReadOnly();
+    }
+    
 
     public static ItemCatalog Load(
         GraphicsDevice graphicsDevice,
@@ -68,7 +85,10 @@ internal sealed class ItemCatalog : IDisposable
 
         LoadedItemType itemType = GetOrLoadItemType(itemId);
         var instance = new ItemInstance(itemType.Definition, ItemMath.ToLibrary(position));
-        var item = new WorldItem(instance);
+        var item = new WorldItem(instance)
+        {
+            Weapon = itemType.Weapon is { } weapon ? new WeaponState(weapon) : null
+        };
         item.AttachModel(itemType.Model, itemType.Normalization);
         return item;
     }
@@ -86,7 +106,7 @@ internal sealed class ItemCatalog : IDisposable
             model.Data, model.Hierarchy, definitionData.Height);
         ItemDefinition definition = CreateDefinition(definitionData, model, normalization);
 
-        itemType = new LoadedItemType(definition, model, normalization);
+        itemType = new LoadedItemType(definition, model, normalization, definitionData.Weapon);
         loadedItemTypesById.Add(itemId, itemType);
         return itemType;
     }
@@ -125,7 +145,9 @@ internal sealed class ItemCatalog : IDisposable
             spawnAngularVelocity: ItemCatalogVectors.Read(data.SpawnSpin, "spawnSpin"),
             heldYaw: MathHelper.ToRadians(data.HeldYawDegrees),
             bodySettings: data.Physics,
-            interaction: data.Interaction?.ToSettings());
+            interaction: data.Interaction?.ToSettings(),
+            collider: data.Collider?.ToCollider());
+    
     }
 
     private static Dictionary<string, ItemDefinitionData> IndexDefinitions(
@@ -180,9 +202,10 @@ internal sealed class ItemCatalog : IDisposable
         loadedItemTypesById.Clear();
         disposed = true;
     }
+}
 
-    private sealed record LoadedItemType(
+public sealed record LoadedItemType(
         ItemDefinition Definition,
         CompiledModel Model,
-        Matrix Normalization);
-}
+        Matrix Normalization,
+        WeaponData? Weapon);

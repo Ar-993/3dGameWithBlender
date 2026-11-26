@@ -55,6 +55,7 @@ internal sealed class GameplayRenderer : IDisposable
         world.Skeleton.Draw(camera.View, camera.Projection, lighting, queue);
         world.Npcs.Draw(camera.View, camera.Projection, lighting, queue);
         world.Items.Draw(camera.View, camera.Projection, lighting, queue);
+        world.Weapons.Draw(camera.View, camera.Projection);
         projectileRenderer.Draw(world.Projectiles, camera.View, camera.Projection, lighting, queue);
         sceneRenderer.Draw(camera.View, camera.Projection, lighting);
     }

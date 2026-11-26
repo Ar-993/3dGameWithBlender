@@ -126,21 +126,24 @@ internal sealed class GameUi : IDisposable
         {
             if (dialogueUi.HasText)
                 dialogueUi.DrawText(spriteBatch, interfaceFont);
-            if (!drawGameplay)
-                return;
-
-            DrawInventory(viewport.Height);
-            DrawCrosshair(viewport.Width / 2, viewport.Height / 2);
-
-            if (!dialogueUi.HasBubble &&
-                (worldInteractionText is not null || interactionItemName is not null && !interactionItemIsHeld))
-            {
-                DrawInteractionHint(viewport.Width, viewport.Height);
-            }
+            if (drawGameplay)
+                DrawGameplayOverlay(viewport);
         }
         finally
         {
             spriteBatch.End();
+        }
+    }
+
+    private void DrawGameplayOverlay(Viewport viewport)
+    {
+        DrawInventory(viewport.Height);
+        DrawCrosshair(viewport.Width / 2, viewport.Height / 2);
+
+        if (!dialogueUi.HasBubble &&
+            (worldInteractionText is not null || interactionItemName is not null && !interactionItemIsHeld))
+        {
+            DrawInteractionHint(viewport.Width, viewport.Height);
         }
     }
 
@@ -176,51 +179,60 @@ internal sealed class GameUi : IDisposable
         for (int i = 0; i < inventorySlots.Length; i++)
         {
             var rect = new Rectangle(left + i * (size + gap), top, size, size);
-            bool selected = i == selectedInventorySlot;
-            spriteBatch.Draw(pixel, rect, new Color(18, 20, 24, 150));
-            Color border = selected ? Color.Gold : new Color(160, 160, 160, 180);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, size, 2), border);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, size, 2), border);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, size), border);
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, size), border);
-
-            WorldItem? item = inventorySlots[i];
-            if (item is not null)
-            {
-                Texture2D? icon = inventoryIcons.Get(item);
-                if (icon is not null)
-                {
-                    float scale = MathF.Min(44f / icon.Width, 44f / icon.Height);
-                    int width = Math.Max(1, (int)(icon.Width * scale));
-                    int height = Math.Max(1, (int)(icon.Height * scale));
-                    var destination = new Rectangle(rect.Center.X - width / 2,
-                        rect.Center.Y - height / 2 + 3, width, height);
-                    spriteBatch.Draw(icon, destination, Color.White);
-                }
-                else
-                {
-                    Vector2 placeholderSize = interfaceFont.MeasureString("?");
-                    var placeholderPosition = new Vector2(
-                        rect.Center.X - placeholderSize.X / 2f,
-                        rect.Center.Y - placeholderSize.Y / 2f);
-                    spriteBatch.DrawString(interfaceFont, "?", placeholderPosition, Color.White);
-                }
-            }
-            spriteBatch.DrawString(interfaceFont, (i + 1).ToString(),
-                new Vector2(rect.X + 5, rect.Y + 2), Color.White);
+            DrawInventorySlot(rect, i);
         }
 
-        string hint = "1-4: СЛОТ   E: ВЗЯТЬ   T: ВЫБРОСИТЬ";
-        if (inventorySlots[selectedInventorySlot] is { } active)
-        {
-            hint = active.Name + "   T: ВЫБРОСИТЬ";
-            if (active.State.Definition.Id == "flashlight")
-                hint += "   F: СВЕТ";
-        }
-        spriteBatch.DrawString(interfaceFont, hint,
+        spriteBatch.DrawString(interfaceFont, GetInventoryHint(),
             new Vector2(left, top - interfaceFont.LineSpacing - 6), Color.White);
     }
 
+    private void DrawInventorySlot(Rectangle rect, int index)
+    {
+        Color border = index == selectedInventorySlot ? Color.Gold : new Color(160, 160, 160, 180);
+        spriteBatch.Draw(pixel, rect, new Color(18, 20, 24, 150));
+        spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), border);
+        spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), border);
+        spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), border);
+        spriteBatch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), border);
+
+        if (inventorySlots[index] is { } item)
+            DrawInventoryIcon(rect.Center, item);
+        spriteBatch.DrawString(interfaceFont, (index + 1).ToString(),
+            new Vector2(rect.X + 5, rect.Y + 2), Color.White);
+    }
+
+    private void DrawInventoryIcon(Point center, WorldItem item)
+    {
+        Texture2D? icon = inventoryIcons.Get(item);
+        if (icon is null)
+        {
+            Vector2 size = interfaceFont.MeasureString("?");
+            var position = new Vector2(center.X - size.X / 2f, center.Y - size.Y / 2f);
+            spriteBatch.DrawString(interfaceFont, "?", position, Color.White);
+            return;
+        }
+
+        float scale = MathF.Min(44f / icon.Width, 44f / icon.Height);
+        int width = Math.Max(1, (int)(icon.Width * scale));
+        int height = Math.Max(1, (int)(icon.Height * scale));
+        var destination = new Rectangle(center.X - width / 2, center.Y - height / 2 + 3, width, height);
+        spriteBatch.Draw(icon, destination, Color.White);
+    }
+
+    private string GetInventoryHint()
+    {
+        if (inventorySlots[selectedInventorySlot] is not { } active)
+            return "1-4: СЛОТ   E: ВЗЯТЬ   T: ВЫБРОСИТЬ";
+
+        if (active.Weapon is { } weapon)
+        {
+            string action = weapon.IsReloading ? "ПЕРЕЗАРЯДКА" : "R: ПЕРЕЗАРЯДИТЬ";
+            return $"{active.Name}  {weapon.LoadedRounds}/{weapon.ReserveRounds}   {action}   T: ВЫБРОСИТЬ";
+        }
+
+        string hint = active.Name + "   T: ВЫБРОСИТЬ";
+        return active.State.Definition.Id == "flashlight" ? hint + "   F: СВЕТ" : hint;
+    }
 
     private void DrawInteractionHint(int screenWidth, int screenHeight)
     {

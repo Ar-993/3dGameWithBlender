@@ -4,23 +4,41 @@ using System.Numerics;
 namespace _3DLight.Items;
 
 // Item physics asks for contacts; this adapter translates those requests to the level.
-internal sealed class LevelItemWorld(Level level) : ICollisionWorld
+// Преобразует векторы и результаты между физикой предметов и игровым уровнем.
+internal sealed class LevelItemWorld(Level level) : ICapsuleCollisionWorld
 {
     private readonly List<RigidItemContact> gameContacts = [];
 
-    public bool SweepSphere(Vector3 center, Vector3 movement, float radius,
-        Vector3 contactVelocity, out SweepHit hit)
+    public bool SweepCapsule(Vector3 start, Vector3 end, Vector3 startMovement, Vector3 endMovement,
+        float radius, Vector3 startVelocity, Vector3 endVelocity, out SweepHit hit)
     {
-        if (!level.SweepRigidItemSphere(ItemMath.ToGame(center), ItemMath.ToGame(movement),
-                radius, ItemMath.ToGame(contactVelocity), out RigidItemSweepHit gameHit))
+        if (!level.SweepRigidItemCapsule(ItemMath.ToGame(start), ItemMath.ToGame(end),
+            ItemMath.ToGame(startMovement), ItemMath.ToGame(endMovement), radius,
+            ItemMath.ToGame(startVelocity), ItemMath.ToGame(endVelocity), out var gameHit))
         {
             hit = default;
             return false;
         }
-        RigidItemContact contact = gameHit.Contact;
-        hit = new(gameHit.Fraction, new(ItemMath.ToLibrary(contact.Point),
-            ItemMath.ToLibrary(contact.Normal), contact.Penetration));
+        hit = new(gameHit.Fraction, TranslateContact(gameHit.Contact));
         return true;
+    }
+
+    public void GetCapsuleContacts(Vector3 start, Vector3 end, float radius, List<BodyContact> contacts)
+    {
+        gameContacts.Clear();
+        level.GetRigidItemSphereContacts(ItemMath.ToGame(center), radius, gameContacts);
+        AppendContacts(contacts);
+    }
+
+    private void AppendContacts(List<BodyContact> contacts)
+    {
+        foreach (RigidItemContact contact in gameContacts)
+        {
+            BodyContact translated = TranslateContact(contact);
+            bool duplicate = contacts.Any(previous =>
+                Vector3.DistanceSquared(previous.Point, translated.Point) < 0.00000001f &&
+                Vector3.Dot(previous.Normal, translated.Normal) > 0.999f);
+        }
     }
 
     public void GetSphereContacts(Vector3 center, float radius, List<BodyContact> contacts)
@@ -38,6 +56,9 @@ internal sealed class LevelItemWorld(Level level) : ICollisionWorld
                 contacts.Add(translated);
         }
     }
+
+    private static BodyContact TranslateContact(RigidItemContact contact) =>
+        new(ItemMath.ToLibrary(contact.Point), ItemMath.ToLibrary(contact.Normal), contact.Penetration);
 
     public bool HasLineOfSight(Vector3 eyePosition, Vector3 target) =>
         level.HasItemLineOfSight(ItemMath.ToGame(eyePosition), ItemMath.ToGame(target));

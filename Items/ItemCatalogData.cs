@@ -9,6 +9,7 @@ internal sealed class ItemCatalogData
 {
     public List<ItemDefinitionData> Definitions { get; init; } = [];
     public List<ItemSpawnData> Spawns { get; init; } = [];
+    public List<string> StartingItems { get; init; } = [];
 }
 
 // Описание типа предмета в items.json. ItemDefinition создаётся после загрузки модели,
@@ -25,7 +26,31 @@ internal sealed class ItemDefinitionData
     public float HeldYawDegrees { get; init; }
     public RigidBodySettings? Physics { get; init; }
     public ItemCarrySettingsData? Interaction { get; init; }
+    public WeaponData? Weapon { get; init; }
+    public ItemColliderData? Collider { get; init; }
 }
+
+internal sealed class ItemColliderData
+{
+    public List<ColliderCapsuleData> Capsules { get; init; } = [];
+
+    public ItemCollider ToCollider() => new(Capsules.Select(part => part.ToCapsule()));
+}
+
+internal sealed class ColliderCapsuleData
+{
+    public float[] Start { get; init; } = [];
+    public float[] End { get; init; } = [];
+    public float Radius { get; init; }
+
+    public ColliderCapsule ToCapsule()
+    {
+        NumericsVector start = ItemCatalogVectors.Read(Start, "collider.start");
+        NumericsVector end = ItemCatalogVectors.Read(End, "collider.end");
+        return new ColliderCapsule(start, end, Radius);
+    }
+}
+
 
 internal sealed class ItemSpawnData
 {

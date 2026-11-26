@@ -1,0 +1,18 @@
+[
+  {
+    "node": "6twelve",
+    "texture": "sigil.png",
+    "position": [ -2.11, 1.75, -17.0 ],
+    "normal": [ -1, 0, 0 ],
+    "size": [ 1.25, 1.62 ],
+    "whiteBackground": true
+  },
+  {
+    "node": "6twelve",
+    "texture": "sigil.png",
+    "position": [ 10.53, 1.75, -25.8 ],
+    "normal": [ 1, 0, 0 ],
+    "size": [ 1.25, 1.62 ],
+    "whiteBackground": true
+  }
+]

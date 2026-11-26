@@ -15,6 +15,7 @@ public sealed class ItemDefinition
     public float HeldYaw { get; }
     public RigidBodySettings BodySettings { get; }
     public ItemCarrySettings Interaction { get; }
+    public ItemCollider? Collider { get; }
 
     public ItemDefinition(
         string id,
@@ -25,7 +26,8 @@ public sealed class ItemDefinition
         Vector3? spawnAngularVelocity = null,
         float heldYaw = 0f,
         RigidBodySettings? bodySettings = null,
-        ItemCarrySettings? interaction = null)
+        ItemCarrySettings? interaction = null,
+        ItemCollider? collider = null)
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("An item definition ID is required.", nameof(id));
@@ -54,6 +56,7 @@ public sealed class ItemDefinition
         BodySettings = bodySettings ?? new RigidBodySettings();
         BodySettings.Validate();
         Interaction = interaction ?? new ItemCarrySettings();
+        Collider = collider;
     }
 
     private static bool Finite(Vector3 value) =>

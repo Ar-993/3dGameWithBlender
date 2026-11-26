@@ -36,6 +36,18 @@ internal sealed class ItemInteraction
 
     public void SuppressInput(bool actionDown) => controller.SyncInput(actionDown);
 
+    public void StoreStartingItem(WorldItem item)
+    {
+        Add(item);
+        if (!controller.TryPickUp(item.State))
+            throw new InvalidOperationException("No inventory slot for starting item.");
+    }
+
+    public void SelectSlot(int index) => controller.SelectSlot(index);
+
+    public ItemPose GetHeldPose(Vector3 eye, Vector3 forward) =>
+        controller.GetHeldPose(ItemMath.ToLibrary(eye), ItemMath.ToLibrary(forward));
+
     public void Update(
     Level level,
     float seconds,
@@ -70,7 +82,7 @@ internal sealed class ItemInteraction
         if (HeldItem is not { Renderer: { } renderer } held ||
             !string.Equals(held.State.Definition.Id, "flashlight", StringComparison.OrdinalIgnoreCase))
             return false;
-        ItemPose pose = controller.GetHeldPose(ItemMath.ToLibrary(eye), ItemMath.ToLibrary(forward));
+        ItemPose pose = GetHeldPose(eye, forward);
         if (!renderer.TryGetMarker(pose, "LightOrigin", out origin) ||
             !renderer.TryGetMarker(pose, "LightTarget", out Vector3 target))
             return false;
@@ -89,8 +101,7 @@ internal sealed class ItemInteraction
         if (HeldItem is { } held)
         {
             Matrix cameraWorld = Matrix.Invert(view);
-            ItemPose pose = controller.GetHeldPose(ItemMath.ToLibrary(cameraWorld.Translation),
-                ItemMath.ToLibrary(cameraWorld.Forward));
+            ItemPose pose = GetHeldPose(cameraWorld.Translation, cameraWorld.Forward);
             held.DrawHeld(pose, view, projection, lighting, renderQueue);
         }
     }

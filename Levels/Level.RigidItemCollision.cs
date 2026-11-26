@@ -1,5 +1,7 @@
-using System.Collections.Generic;
+using _3DLight.Items;
+using Ars3D.Items.Physics;
 using Microsoft.Xna.Framework;
+using System.Collections.Generic;
 
 namespace _3DLight;
 
@@ -16,8 +18,7 @@ public partial class Level
 {
     private Items.LevelItemWorld? itemWorld;
     internal Items.LevelItemWorld ItemWorld => itemWorld ??= new Items.LevelItemWorld(this);
-    // Preserve the same support manifold across sub-millimeter rocking and
-    // normal-velocity jitter; collision casts still stop at the exact skin.
+    // ћалый запас сохран€ет опору при дрожании. ƒвижение останавливаетс€ по точной границе.
     private const float RigidContactMargin = 0.002f;
     private readonly List<TriangleCollider> rigidSweepCandidates = [];
     private readonly List<(CapsuleCollision.Contact Contact, TriangleCollider Triangle)> rigidSphereContacts = [];
@@ -47,10 +48,7 @@ public partial class Level
         {
             TriangleCollider triangle = rigidSweepCandidates[index];
             CapsuleCollision.Contact contact = CapsuleCollision.GetContact(sphere, triangle);
-            // An already solved support contact may have a tiny inward chord
-            // from rotation, even when its instantaneous velocity is tangent.
-            // Allow that numerical motion, then recover the very small overlap
-            // at the end of the bounded angular step. Other triangles still cast.
+            // Ќебольшое проникновение при вращении на опоре исправитс€ в конце шага.
             if (IsHiddenRigidEdge(contact, triangle) ||
                 (contact.Penetration >= -RigidContactMargin &&
                 Vector3.Dot(contactVelocity, contact.Normal) >= -0.002f &&
@@ -86,29 +84,31 @@ public partial class Level
             if (contact.Penetration < -RigidContactMargin)
                 continue;
             rigidSphereContacts.Add((contact, triangle));
+            rigidSphereContacts.Add((contact, triangle));
         }
 
-        foreach (var candidate in rigidSphereContacts)
+        AppendVisibleRigidContacts(contacts);
+    }
+
+    public bool SweepSphere(Vector3 center, Vector3 movement, float radius,
+    Vector3 contactVelocity, out SweepHit hit)
+    {
+        if (!level.SweepRigidItemSphere(ItemMath.ToGame(center), ItemMath.ToGame(movement),
+                radius, ItemMath.ToGame(contactVelocity), out RigidItemSweepHit gameHit))
         {
-            CapsuleCollision.Contact contact = candidate.Contact;
-            // The diagonal between coplanar floor triangles is not a physical
-            // ridge. Its farther edge contact must not torque a sphere that
-            // already touches the nearer face of the same continuous plane.
-            if (IsHiddenRigidEdge(contact, candidate.Triangle))
-                continue;
+            hit = default;
+            return false;
+        }
+        hit = new(gameHit.Fraction, TranslateContact(gameHit.Contact));
+        return true;
+    }
 
-            bool duplicate = false;
-            foreach (RigidItemContact previous in contacts)
-            {
-                if (Vector3.DistanceSquared(previous.Point, contact.SurfacePoint) < 0.00000001f &&
-                    Vector3.Dot(previous.Normal, contact.Normal) > 0.999f)
-                {
-                    duplicate = true;
-                    break;
-                }
-            }
-
-            if (!duplicate)
+    private void AppendVisibleRigidContacts(List<RigidItemContact> contacts)
+    {
+        // —тык треугольников в одной плоскости не должен поворачивать предмет.
+        foreach (var (contact, triangle) in rigidSphereContacts)
+        {
+            if (!IsHiddenRigidEdge(contact, triangle))
                 contacts.Add(new(contact.SurfacePoint, contact.Normal, contact.Penetration));
         }
     }

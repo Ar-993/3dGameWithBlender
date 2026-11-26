@@ -28,9 +28,10 @@ internal sealed class GameplayScene : IGameScene
     {
         // Контент сцены живёт отдельно от Game.Content и выгружается при смене сцены.
         content = new ContentManager(game.Services, game.Content.RootDirectory);
-        world = new GameplayWorld(game.GraphicsDevice, content);
+        world = new GameplayWorld(game.GraphicsDevice, content, audio);
         world.LoadContent();
-        world.Footsteps.StepPlayed += audio.PlayFootstep;
+        renderer = new GameplayRenderer(game.GraphicsDevice, content);
+        renderer.PostProcessing.Exposure = 1f;
 
         renderer = new GameplayRenderer(game.GraphicsDevice, content);
         renderer.PostProcessing.Exposure = 1f;
@@ -49,7 +50,7 @@ internal sealed class GameplayScene : IGameScene
 
     public void Update(GameTime gameTime)
     {
-        GameplayInputFrame frame = input.Update();
+        GameplayInputFrame frame = input.Update(world.Dialogue.IsOpen);
         hud.Update(gameTime, input.IsPaused);
         if (!frame.CanUpdateWorld)
         {

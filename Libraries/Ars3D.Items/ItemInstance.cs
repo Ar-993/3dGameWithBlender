@@ -35,7 +35,7 @@ public sealed class ItemInstance
         if (InstanceId == Guid.Empty)
             throw new ArgumentException("An item instance ID cannot be empty.", nameof(instanceId));
         Body = new RigidBody(bottomPosition, definition.Radius, definition.Height,
-            definition.HalfExtents, definition.BodySettings);
+            definition.HalfExtents, definition.BodySettings, definition.Collider);
         Body.Reset(bottomPosition, velocity ?? Vector3.Zero,
             orientation ?? Quaternion.Identity, angularVelocity ?? definition.SpawnAngularVelocity);
     }

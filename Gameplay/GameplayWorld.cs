@@ -6,6 +6,7 @@ using Ars3D.Rendering;
 using Camera;
 using Gameplay;
 using Items;
+using Levels.Doors;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -34,16 +35,20 @@ internal sealed class GameplayWorld : IDisposable
     public ProjectileSystem Projectiles { get; }
     public bool ShowCollisionDebug { get; private set; }
 
+    private readonly AudioSystem? audio;
+
     private CapsuleShape[] doorOccupants = [];
     public NpcSystem Npcs { get; private set; } = null!;
     public DialogueSession Dialogue { get; } = new();
+    public PlayerWeaponSystem Weapons { get; private set; } = null!;
     public RoundTimer RoundTimer { get; } = new(60f);
     public FootstepSystem Footsteps { get; } = new();
 
-    public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content)
+    public GameplayWorld(GraphicsDevice graphicsDevice, ContentManager content, AudioSystem? audio = null)
     {
         this.graphicsDevice = graphicsDevice;
         this.content = content;
+        this.audio = audio;
         levelSession = new LevelSession(content, Player, Skeleton);
         Items = new ItemInteraction(Player.Definition.Interaction);
         Interactions = new InteractionSystem(Level.IsInteractionVisible);
@@ -68,6 +73,9 @@ internal sealed class GameplayWorld : IDisposable
         Effect toonEffect = content.Load<Effect>("ToonShader");
         Npcs = NpcSystem.Load(Level, LevelSession.ModelName, graphicsDevice, fallbackTexture, toonEffect, Dialogue);
         doorOccupants = new CapsuleShape[2 + Npcs.Capsules.Length];
+        foreach (string id in itemCatalog.StartingItems)
+            Items.StoreStartingItem(itemCatalog.Create(id, Player.Position));
+        Weapons = new PlayerWeaponSystem(graphicsDevice, audio);
         itemCatalog = ItemCatalog.Load(graphicsDevice, fallbackTexture, toonEffect);
         ItemSpawner.SpawnConfigured(Level, itemCatalog, Items, Player.Position);
         Camera.UpdateMatrices(Player.Position, graphicsDevice.Viewport.AspectRatio);
@@ -81,35 +89,61 @@ internal sealed class GameplayWorld : IDisposable
     {
         if (Dialogue.IsOpen)
         {
-            Items.SuppressInput(input.InteractDown);
-            Dialogue.Update(seconds, input.InteractPressed, input.CloseDialoguePressed);
+            UpdateDialogue(seconds, input);
             return;
         }
 
-        string previousVersion = levelSession.Version;
         levelSession.Update();
-        UpdatePlayer(seconds, input);
+        if (!input.SuppressInteraction && !Player.IsDead && input.SelectedSlot >= 0)
+            Items.SelectSlot(input.SelectedSlot);
+        bool weaponEquipped = Items.HeldItem?.Weapon is not null;
+        UpdatePlayer(seconds, input, allowMelee: !weaponEquipped);
+        UpdateWorldInteraction(input);
+        if (Dialogue.IsOpen)
+            return;
+
+        UpdateSimulation(seconds, input, weaponEquipped);
+    }
+
+    private void UpdateDialogue(float seconds, GameplayInputFrame input)
+    {
+        Items.SuppressInput(input.InteractDown);
+        Dialogue.Update(seconds, input.InteractPressed, input.CloseDialoguePressed);
+        if (input.InteractPressed && Dialogue.IsOpen)
+            audio?.Play("dialogue");
+    }
+
+    private void UpdateWorldInteraction(GameplayInputFrame input)
+    {
         Interactions.Update(Level.Interactables.Concat(Npcs.TalkTargets), Camera.Position, Camera.Forward,
             input.InteractPressed, !input.SuppressInteraction && !Player.IsDead);
+        if (input.InteractPressed && Interactions.Target is LevelDoor)
+            audio?.Play("door");
         if (Dialogue.IsOpen)
         {
+            audio?.Play("dialogue");
             Items.SuppressInput(input.InteractDown);
-            return;
         }
+    }
 
+    private void UpdateSimulation(float seconds, GameplayInputFrame input, bool weaponEquipped)
+    {
         UpdateDoors(seconds);
         Skeleton.Update(Player, Level, seconds, Npcs.Capsules);
         Npcs.Update(Level, seconds, CharacterCapsule(Player.Position), CharacterCapsule(Skeleton.Position));
         Lighting.PointPosition = Player.Position + new Vector3(0f, 1.25f, 0f);
         Projectiles.Update(seconds, Player);
         UpdateItems(seconds, input);
+        Weapons.Update(seconds, Items, Camera, Level, Player, Skeleton,
+            weaponEquipped && input.AttackPressed && !input.SuppressInteraction,
+            input.ReloadPressed && !input.SuppressInteraction);
         UpdateFlashlight(input.ToggleFlashlight);
         ApplyDebugCommands(input);
         RoundTimer.Update(seconds);
     }
-
     private void ResetCharacters()
     {
+        audio?.Play("roundend");
         levelSession.RespawnCharacters();
         Footsteps.Reset(Player.Position);
         Npcs.ResetRoutes(Level);
@@ -120,14 +154,14 @@ internal sealed class GameplayWorld : IDisposable
     private static CapsuleShape CharacterCapsule(Vector3 feet) => new(feet,
     GameplayCharacters.CharacterCollisionRadius, GameplayCharacters.CharacterCollisionHeight);
 
-    private void UpdatePlayer(float seconds, GameplayInputFrame input)
+    private void UpdatePlayer(float seconds, GameplayInputFrame input, bool allowMelee)
     {
         Camera.ApplyMouseDelta(input.LookDelta.X, input.LookDelta.Y);
         Player.Update(
             seconds,
             movement: input.Move,
             jumpPressed: input.JumpPressed,
-            attackPressed: input.AttackPressed,
+            attackPressed: allowMelee && input.AttackPressed,
             cameraYaw: Camera.Yaw,
             level: Level,
             obstacles: Npcs.Capsules);
@@ -142,6 +176,8 @@ internal sealed class GameplayWorld : IDisposable
         if (input.SuppressInteraction || Interactions.Target is not null)
             Items.SuppressInput(input.InteractDown);
 
+        WorldItem? previousItem = Items.HeldItem;
+
         Items.Update(
             Level,
             seconds,
@@ -152,6 +188,9 @@ internal sealed class GameplayWorld : IDisposable
             canInteract: !Player.IsDead,
             selectedSlot: input.SelectedSlot,
             dropPressed: input.DropPressed);
+
+        if (input.InteractPressed && Items.HeldItem is { } pickedUp && pickedUp != previousItem)
+            audio?.Play("pickup");
     }
 
     private void UpdateDoors(float seconds)
@@ -198,6 +237,7 @@ internal sealed class GameplayWorld : IDisposable
 
         disposed = true;
         Dialogue.Close();
+        Weapons?.Dispose();
         Npcs?.Dispose();
         itemCatalog?.Dispose();
         Skeleton.Dispose();

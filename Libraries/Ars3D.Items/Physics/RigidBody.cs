@@ -6,7 +6,7 @@ namespace Ars3D.Items.Physics;
 /// <summary>Состояние, движение и покой одного твёрдого тела.</summary>
 public sealed class RigidBody
 {
-    private readonly RoundedBoxShape shape;
+    private readonly RigidBodyShape shape;
     private readonly BodyCollision collision;
     private readonly Vector3 inverseInertia;
     private float quietTime;
@@ -20,21 +20,34 @@ public sealed class RigidBody
     public bool IsResting { get; private set; }
     public Vector3 HalfExtents => shape.HalfExtents;
     public float BoundingRadius => shape.BoundingRadius;
+    public int ColliderPartCount => shape.Parts.Length;
     public Aabb Bounds => shape.GetBounds(Center, Orientation);
 
-    public RigidBody(Vector3 bottomPosition, float radius, float height,
-        Vector3? halfExtents = null, RigidBodySettings? settings = null)
+    public RigidBody(
+    Vector3 bottomPosition,
+    float radius,
+    float height,
+    Vector3? halfExtents = null,
+    RigidBodySettings? settings = null,
+    ItemCollider? collider = null)
     {
         Settings = settings ?? RigidBodySettings.Default;
         Settings.Validate();
-        shape = new RoundedBoxShape(radius, height, halfExtents);
+
+        shape = new RigidBodyShape(radius, height, halfExtents, collider);
         Vector3 half = shape.HalfExtents;
-        inverseInertia = new(3f / (half.Y * half.Y + half.Z * half.Z),
+
+        inverseInertia = new(
+            3f / (half.Y * half.Y + half.Z * half.Z),
             3f / (half.X * half.X + half.Z * half.Z),
-            3f / (half.X * half.X + half.Y * half.Y));
-        collision = new BodyCollision(shape, this, new ContactSolver(Settings), Settings);
+            3f / (half.X * half.X + half.Y * half.Y)
+        );
+
+        collision = new BodyCollision(shape, this, new ContactSolver(Settings));
+
         Reset(bottomPosition, Vector3.Zero, Quaternion.Identity, Vector3.Zero);
     }
+
 
     public void Reset(Vector3 bottomPosition, Vector3 velocity, Quaternion orientation, Vector3 angularVelocity)
     {

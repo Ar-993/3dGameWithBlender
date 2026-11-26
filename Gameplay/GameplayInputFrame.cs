@@ -14,8 +14,8 @@ internal readonly record struct GameplayInputFrame
     public Vector2 Move { get; init; }
     public bool JumpPressed { get; init; }
     public bool AttackPressed { get; init; }
+    public bool ReloadPressed { get; init; }
     public Vector2 LookDelta { get; init; }
-
     public bool InteractDown { get; init; }
     public bool InteractPressed { get; init; }
     public bool CloseDialoguePressed { get; init; }

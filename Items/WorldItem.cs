@@ -14,6 +14,7 @@ internal sealed class WorldItem
 
     public ItemInstance State { get; private set; }
     public ItemModelRenderer? Renderer => renderer;
+    public WeaponState? Weapon { get; init; }
     public string Name => State.Definition.DisplayName;
     public Vector3 Position => ItemMath.ToGame(State.Position);
     public Vector3 Center => ItemMath.ToGame(State.Center);
@@ -44,7 +45,7 @@ internal sealed class WorldItem
         ItemDefinition previous = State.Definition;
         var definition = new ItemDefinition(previous.Id, previous.DisplayName, Radius, Height,
             ItemMath.ToLibrary(halfExtents), ItemMath.ToLibrary(initialSpin), previous.HeldYaw,
-            previous.BodySettings, previous.Interaction);
+            previous.BodySettings, previous.Interaction, previous.Collider);
         State = new ItemInstance(definition, State.Position, State.Orientation, State.Velocity,
             ItemMath.ToLibrary(initialSpin), State.InstanceId);
     }
@@ -66,5 +67,5 @@ internal sealed class WorldItem
 
     internal void DrawHeld(ItemPose pose, Matrix view, Matrix projection, SceneLighting lighting,
     SceneRenderQueue? renderQueue = null) =>
-    renderer?.Draw(pose, view, projection, lighting, renderQueue);
+    renderer?.Draw(pose, view, projection, lighting, renderQueue, Weapon?.HeldAnimation);
 }

@@ -1,11 +1,12 @@
+using Ars3D.Items.Physics.Collision;
 using System.Collections.Generic;
 using System.Numerics;
 
 namespace Ars3D.Items.Physics;
 
-// Traversal advances one common pose to the earliest sphere contact. Geometry,
+// Traversal advances one common pose to the earliest collider contact. Geometry,
 // continuous casts and coplanar seam handling remain the host world's job.
-internal sealed class BodyCollision(RoundedBoxShape shape, RigidBody body,
+internal sealed class BodyCollision(RigidBodyShape shape, RigidBody body,
     ContactSolver solver, RigidBodySettings settings)
 {
     private List<BodyContact> Contacts { get; } = [];
@@ -13,9 +14,26 @@ internal sealed class BodyCollision(RoundedBoxShape shape, RigidBody body,
     public void Gather(ICollisionWorld world)
     {
         Contacts.Clear();
-        foreach (Vector3 offset in shape.SphereOffsets)
-            world.GetSphereContacts(body.Center + Vector3.Transform(offset, body.Orientation),
-                shape.SphereRadius, Contacts);
+        foreach (ColliderCapsule part in shape.Parts)
+        {
+            Vector3 start = body.Center + Vector3.Transform(part.Start, body.Orientation);
+            if (part.Start == part.End)
+            {
+                world.GetSphereContacts(start, part.Radius, Contacts);
+                continue;
+            }
+
+            Vector3 end = body.Center + Vector3.Transform(part.End, body.Orientation);
+            if (world is ICapsuleCollisionWorld capsules)
+                capsules.GetCapsuleContacts(start, end, part.Radius, Contacts);
+            else
+            {
+                int samples = FallbackSampleCount(part);
+                for (int index = 0; index <= samples; index++)
+                    world.GetSphereContacts(Vector3.Lerp(start, end, index / (float)samples),
+                        part.Radius, Contacts);
+            }
+        }
     }
 
     public void SolveContacts(ICollisionWorld world)
@@ -68,12 +86,9 @@ internal sealed class BodyCollision(RoundedBoxShape shape, RigidBody body,
         firstHit = default;
         float fraction = 1f;
         bool found = false;
-        foreach (Vector3 localOffset in shape.SphereOffsets)
+        foreach (ColliderCapsule part in shape.Parts)
         {
-            Vector3 offset = Vector3.Transform(localOffset, body.Orientation);
-            Vector3 start = body.Center + offset;
-            Vector3 end = targetCenter + Vector3.Transform(localOffset, targetOrientation);
-            if (world.SweepSphere(start, end - start, shape.SphereRadius, body.PointVelocity(offset), out var hit) &&
+            if (SweepPart(world, part, targetCenter, targetOrientation, out var hit) &&
                 (!found || hit.Fraction < fraction))
             {
                 fraction = hit.Fraction;
@@ -83,6 +98,44 @@ internal sealed class BodyCollision(RoundedBoxShape shape, RigidBody body,
         }
         return found;
     }
+
+    private bool SweepPart(ICollisionWorld world, ColliderCapsule part, Vector3 targetCenter,
+        Quaternion targetOrientation, out SweepHit firstHit)
+    {
+        Vector3 startOffset = Vector3.Transform(part.Start, body.Orientation);
+        Vector3 start = body.Center + startOffset;
+        Vector3 startMovement = targetCenter + Vector3.Transform(part.Start, targetOrientation) - start;
+        if (part.Start == part.End)
+            return world.SweepSphere(start, startMovement, part.Radius, body.PointVelocity(startOffset), out firstHit);
+
+        Vector3 endOffset = Vector3.Transform(part.End, body.Orientation);
+        Vector3 end = body.Center + endOffset;
+        Vector3 endMovement = targetCenter + Vector3.Transform(part.End, targetOrientation) - end;
+        if (world is ICapsuleCollisionWorld capsules)
+            return capsules.SweepCapsule(start, end, startMovement, endMovement, part.Radius,
+                body.PointVelocity(startOffset), body.PointVelocity(endOffset), out firstHit);
+
+        // Older hosts can still use custom colliders through their sphere queries.
+        firstHit = default;
+        bool found = false;
+        int samples = FallbackSampleCount(part);
+        for (int index = 0; index <= samples; index++)
+        {
+            float amount = index / (float)samples;
+            if (world.SweepSphere(Vector3.Lerp(start, end, amount),
+                Vector3.Lerp(startMovement, endMovement, amount), part.Radius,
+                body.PointVelocity(Vector3.Lerp(startOffset, endOffset, amount)), out var hit) &&
+                (!found || hit.Fraction < firstHit.Fraction))
+            {
+                found = true;
+                firstHit = hit;
+            }
+        }
+        return found;
+    }
+
+    private static int FallbackSampleCount(ColliderCapsule part) =>
+        Math.Max(1, (int)MathF.Ceiling(Vector3.Distance(part.Start, part.End) / (part.Radius * 1.35f)));
 
     public void RecoverOverlaps(ICollisionWorld world)
     {

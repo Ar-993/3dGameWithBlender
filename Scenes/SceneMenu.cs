@@ -62,6 +62,11 @@ namespace _3DLight.Scenes
             lighting.PointPosition = cameraPosition;
 
         }
+        private void StartGame()
+        {
+            audio.Play("menu");
+            scenes.ChangeScene(() => new GameplayScene(game, audio));
+        }
 
         public void Enter()
         {
@@ -69,11 +74,8 @@ namespace _3DLight.Scenes
             gumStarted = true;
             gum.Initialize(game, DefaultVisualsVersion.V3);
             spriteBatch = new SpriteBatch(game.GraphicsDevice);
-            playButton = CreateButton(-36f, (_, _) =>
-    scenes.ChangeScene(() => new GameplayScene(game, audio)));
-
-
-            exitButton = CreateButton(36f, (_, _) => game.Exit());
+            playButton = CreateButton(-150f, (_, _) => StartGame());
+            exitButton = CreateButton(-78f, (_, _) => game.Exit());
             AddVolumeSlider("Master", -3, audio.MasterVolume, audio.SetMasterVolume);
             AddVolumeSlider("Music", 67, audio.MusicVolume, audio.SetMusicVolume);
             AddVolumeSlider("Effects", 137, audio.EffectsVolume, audio.SetEffectsVolume);
